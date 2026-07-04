@@ -1,0 +1,6 @@
+__pycache__/
+build/
+dist/
+*.exe
+*.spec.bak
+.claude/settings.local.json
