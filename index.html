@@ -483,14 +483,6 @@
           style="flex:1;padding:14px;background:linear-gradient(135deg,#0d1b2a,#243b55);color:#e8a020;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;">
           🌍 Sul
         </button>
-        <button onclick="confirmarRegiao('CentroSul')"
-          style="flex:1;padding:14px;background:linear-gradient(135deg,#1a0d2a,#3b2455);color:#c8a0e8;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;">
-          🌎 Centro Sul
-        </button>
-        <button onclick="confirmarRegiao('Leste')"
-          style="flex:1;padding:14px;background:linear-gradient(135deg,#0d2a1a,#245524);color:#a0e8b0;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;">
-          🌏 Leste
-        </button>
       </div>
       <button onclick="confirmarRegiao('')"
         style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1.5px solid #e4e8ef;border-radius:10px;font-size:13px;color:#8097b8;cursor:pointer;">
@@ -531,28 +523,6 @@
             ⬇
           </button>
         </div>
-        <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--gray-100);border:1.5px solid var(--gray-200);border-radius:12px;padding:12px 16px;transition:all .15s;" id="btn-cloud-cs">
-          <span style="font-size:16px;cursor:pointer;" onclick="carregarNuvem('CentroSul')">🌎</span>
-          <div style="flex:1;cursor:pointer;" onclick="carregarNuvem('CentroSul')">
-            <div style="font-weight:700;font-size:13px;">Centro Sul</div>
-            <div id="ts-cs" style="font-size:10px;color:#8097b8;margin-top:1px;">verificando...</div>
-          </div>
-          <button id="btn-dl-cs" onclick="baixarExcelNuvem('CentroSul')" title="Baixar Excel"
-            style="display:none;background:var(--navy);color:var(--accent);border:none;border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;flex-shrink:0;">
-            ⬇
-          </button>
-        </div>
-        <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--gray-100);border:1.5px solid var(--gray-200);border-radius:12px;padding:12px 16px;transition:all .15s;" id="btn-cloud-leste">
-          <span style="font-size:16px;cursor:pointer;" onclick="carregarNuvem('Leste')">🌏</span>
-          <div style="flex:1;cursor:pointer;" onclick="carregarNuvem('Leste')">
-            <div style="font-weight:700;font-size:13px;">Leste</div>
-            <div id="ts-leste" style="font-size:10px;color:#8097b8;margin-top:1px;">verificando...</div>
-          </div>
-          <button id="btn-dl-leste" onclick="baixarExcelNuvem('Leste')" title="Baixar Excel"
-            style="display:none;background:var(--navy);color:var(--accent);border:none;border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;flex-shrink:0;">
-            ⬇
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -567,8 +537,6 @@
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         <span style="color:#8097b8;font-size:11px;">Publicar:</span>
         <button class="btn-publish" onclick="publicarNuvem('Sul')">☁ Sul</button>
-        <button class="btn-publish" onclick="publicarNuvem('CentroSul')">☁ C.Sul</button>
-        <button class="btn-publish" onclick="publicarNuvem('Leste')">☁ Leste</button>
         <button id="cp-change" onclick="resetApp()">Trocar arquivo</button>
       </div>
     </div>
@@ -666,8 +634,6 @@
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
     <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Região:</span>
     <button class="pg-reg-btn active" id="pg-btn-sul" onclick="pgSetRegiao('Sul')">🌍 Sul</button>
-    <button class="pg-reg-btn" id="pg-btn-cs" onclick="pgSetRegiao('CentroSul')">🌎 Centro Sul</button>
-    <button class="pg-reg-btn" id="pg-btn-leste" onclick="pgSetRegiao('Leste')">🌏 Leste</button>
     <div style="display:flex;align-items:center;gap:8px;">
       <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">C. Serviço:</span>
       <button class="pg-tipo-btn active" id="pg-cs-all" onclick="pgSetCS('')">Todos</button>
@@ -726,10 +692,10 @@
       </div>
     </div>
 
-    <!-- Equipes críticas -->
+    <!-- Ordens vencendo -->
     <div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;">Equipes com mais estouradas</div>
-      <div id="pg-equipes-criticas" style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px;"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;">Ordens vencendo — mais antigas primeiro</div>
+      <div id="pg-ordens-vencendo"></div>
     </div>
 
     <!-- Tabela completa -->
@@ -772,6 +738,21 @@
   </div>
 
   <div id="exec-content">
+    <!-- Filtro por tipo de serviço -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo de Serviço:</span>
+      <div class="pg-multisel" id="exec-tipo-wrap">
+        <button type="button" class="pg-multisel-btn" id="exec-tipo-btn" onclick="execToggleTipoDropdown(event)">Todos</button>
+        <div class="pg-multisel-menu" id="exec-tipo-menu" style="display:none;max-height:260px;overflow-y:auto;">
+          <div id="exec-tipo-opcoes"></div>
+          <div class="pg-multisel-actions">
+            <a onclick="execSelectAllTipos()">Marcar todos</a>
+            <a onclick="execClearTipos()">Limpar</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Painel total -->
     <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:220px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
@@ -789,6 +770,26 @@
     <!-- Dividido por centro de serviço -->
     <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Por centro de serviço</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="exec-centros"></div>
+
+    <!-- Por equipe -->
+    <div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;margin-bottom:12px;">
+      <div style="padding:16px;border-bottom:0.5px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;">Executados por equipe</div>
+        <input type="text" id="exec-equipe-search" placeholder="Buscar equipe..." oninput="execRenderPorEquipe()" style="font-size:12px;padding:6px 12px;border:1px solid var(--gray-200);border-radius:8px;width:200px;">
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:#0d1b2a;color:#fff;">
+              <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+              <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Município</th>
+              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Executados</th>
+            </tr>
+          </thead>
+          <tbody id="exec-equipe-body"></tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- Por tipo de serviço -->
     <div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;padding:16px;margin-bottom:12px;">
@@ -2061,8 +2062,6 @@ let pgAtualizado = '';
 function pgSetRegiao(r) {
   pgRegiao = r;
   document.getElementById('pg-btn-sul').classList.toggle('active', r === 'Sul');
-  document.getElementById('pg-btn-cs').classList.toggle('active', r === 'CentroSul');
-  document.getElementById('pg-btn-leste').classList.toggle('active', r === 'Leste');
   pgCarregar();
 }
 
@@ -2211,7 +2210,7 @@ function pgRenderComparativo() {
     html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">
       <div style="background:#eef3fb;padding:8px 12px;font-size:12px;font-weight:700;color:#1a2535;">${c.nome}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px;">
-        ${pgKpiCardHTML(dados, { clickable: false, compact: true })}
+        ${pgKpiCardHTML(dados, { clickable: true, compact: true, cs: c.cs })}
       </div>
     </div>`;
   });
@@ -2224,7 +2223,7 @@ function pgRender() {
   pgRenderComparativo();
   pgRenderCSBars(dados);
   pgRenderTiposBars(dados);
-  pgRenderEquipesCriticas(dados);
+  pgRenderOrdensVencendo(dados);
   pgRenderTabela();
   document.getElementById('pg-atualizado').textContent = pgAtualizado;
   const pgUpd = document.getElementById('pg-last-update');
@@ -2248,7 +2247,10 @@ function pgKpiCardHTML(dados, opts) {
   const pad = compact ? '9px 10px' : '14px 16px';
   const subSize = compact ? '9px' : '11px';
   const lblSize = compact ? '9px' : '10px';
-  const clk = (tipo) => clickable ? ` onclick="pgAbrirModal('${tipo}')" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'"` : '';
+  const cs = opts.cs || null;
+  const clk = (tipo) => clickable
+    ? ` onclick="${cs ? `pgAbrirModalCS('${tipo}','${cs}')` : `pgAbrirModal('${tipo}')`}" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'"`
+    : '';
   const cursor = clickable ? 'cursor:pointer;transition:opacity .15s;' : '';
   const pulseHj = hj > 0 ? ` class="pg-pulse-hj" style="--pulse-dur:${pgPulseDuration()};background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"` : ` style="background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"`;
   return `
@@ -2333,33 +2335,67 @@ function pgRenderTiposBars(dados) {
   document.getElementById('pg-tipos-bars').innerHTML = html;
 }
 
-function pgRenderEquipesCriticas(dados) {
-  const eqMap = {};
-  dados.forEach(r => {
-    const cod = r['Código Equipe'] || '';
-    if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { lider: r['Chefe/Responsável de Equipe']||'', est:0, hj:0, ok:0 };
-    const p = getPrioridade(r);
-    if (p==='est') eqMap[cod].est++;
-    else if (p==='hj') eqMap[cod].hj++;
-    else eqMap[cod].ok++;
+function pgOrdensTabelaHTML(lista, opts) {
+  opts = opts || {};
+  const pulseDur = pgPulseDuration();
+  let html = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead><tr style="background:#0d1b2a;color:#fff;">
+      <th style="padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Prazo</th>
+      <th style="padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">N. Serviço</th>
+      <th style="padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Cliente</th>
+      <th style="padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+      <th style="padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Município</th>
+    </tr></thead><tbody>`;
+  lista.forEach((x, i) => {
+    const r = x.r;
+    const prazo = (r['Data Prevista Finalização Trabalhos'] || '—').replace(' 23:59', '');
+    const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+    const prazoTd = (opts.pulseIndex === i)
+      ? `<td class="pg-pulse-hj" style="padding:7px 10px;white-space:nowrap;font-size:11px;color:#2a3a50;--pulse-dur:${pulseDur};">${prazo}</td>`
+      : `<td style="padding:7px 10px;white-space:nowrap;font-size:11px;color:#2a3a50;">${prazo}</td>`;
+    html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
+      ${prazoTd}
+      <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${r['Numero de Serviço']||'—'}</td>
+      <td style="padding:7px 10px;font-size:11px;">${r['Nome e Sobrenome Cliente']||'—'}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:11px;">${r['Código Equipe']||'—'}</td>
+      <td style="padding:7px 10px;font-size:11px;">${r['Município']||'—'}</td>
+    </tr>`;
   });
-  const sorted = Object.entries(eqMap).sort((a,b)=>b[1].est-a[1].est || b[1].hj-a[1].hj).slice(0,10);
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function pgRenderOrdensVencendo(dados) {
+  const porPrioridade = (alvo) => dados
+    .filter(r => getPrioridade(r) === alvo)
+    .map(r => ({ r, dt: parseDateTimeStr(r['Data Prevista Finalização Trabalhos']) }))
+    .sort((a, b) => (a.dt ? a.dt.getTime() : 0) - (b.dt ? b.dt.getTime() : 0));
+
+  const hj = porPrioridade('hj');
+  const est = porPrioridade('est');
+  const LIMITE_EST = 30;
+
+  if (!hj.length && !est.length) {
+    document.getElementById('pg-ordens-vencendo').innerHTML =
+      '<div style="padding:16px;text-align:center;color:var(--gray-400);font-size:12px;">Nenhuma OS estourada ou vencendo hoje 🎉</div>';
+    return;
+  }
+
   let html = '';
-  sorted.forEach(([cod, d]) => {
-    const tipoEq = getTipoEquipe(cod);
-    const icon = tipoEq==='LB'?'🚗':tipoEq==='MM'?'🏍':'⚡';
-    html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--gray-200);">
-      <span style="font-family:monospace;font-size:10px;color:#1565c0;background:#e8f4fd;border-radius:4px;padding:2px 6px;flex-shrink:0;">${icon} ${cod}</span>
-      <span style="font-size:11px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.lider}</span>
-      <span style="display:flex;gap:3px;flex-shrink:0;">
-        ${d.est ? `<span style="background:#fdecea;color:#c0392b;border-radius:10px;padding:2px 6px;font-size:9px;font-weight:700;">${d.est} est.</span>` : ''}
-        ${d.hj ? `<span style="background:#fff3e8;color:#c05010;border-radius:10px;padding:2px 6px;font-size:9px;font-weight:700;">${d.hj} hj</span>` : ''}
-        ${d.ok ? `<span style="background:#eaf7ef;color:#1a7a40;border-radius:10px;padding:2px 6px;font-size:9px;font-weight:700;">${d.ok} ok</span>` : ''}
-      </span>
-    </div>`;
-  });
-  document.getElementById('pg-equipes-criticas').innerHTML = `<div style="grid-column:1/-1;">${html}</div>`;
+  html += `<div style="font-size:10px;font-weight:700;color:#d35400;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">⏰ Vence Hoje (${hj.length}) — a mais antiga pisca</div>`;
+  html += hj.length
+    ? pgOrdensTabelaHTML(hj, { pulseIndex: 0 })
+    : '<div style="padding:10px;color:var(--gray-400);font-size:12px;margin-bottom:12px;">Nenhuma OS vence hoje 🎉</div>';
+
+  html += `<div style="font-size:10px;font-weight:700;color:#c0392b;text-transform:uppercase;letter-spacing:.8px;margin:16px 0 6px;">⚠ Estouradas (${est.length})</div>`;
+  html += est.length
+    ? pgOrdensTabelaHTML(est.slice(0, LIMITE_EST))
+    : '<div style="padding:10px;color:var(--gray-400);font-size:12px;">Nenhuma OS estourada 🎉</div>';
+  if (est.length > LIMITE_EST) {
+    html += `<div style="padding:10px;text-align:center;font-size:11px;color:var(--gray-400);">+ ${est.length - LIMITE_EST} outras — use o card "Estouradas" no topo pra ver a lista completa</div>`;
+  }
+
+  document.getElementById('pg-ordens-vencendo').innerHTML = html;
 }
 
 let pgModalDados = [];
@@ -2370,6 +2406,17 @@ function pgAbrirModal(tipo) {
   pgModalDados = dados.filter(r => getPrioridade(r) === tipo);
   document.getElementById('pg-modal-title').textContent = labels[tipo];
   document.getElementById('pg-modal-sub').textContent = pgModalDados.length + ' ordens de serviço · ' + pgRegiao;
+  document.getElementById('pg-modal-search').value = '';
+  pgFiltrarModal();
+  document.getElementById('pg-modal').style.display = 'flex';
+}
+
+function pgAbrirModalCS(tipo, cs) {
+  const dados = pgFiltrarBase(cs);
+  const labels = { est: '⚠ OS Estouradas', hj: '⏰ OS que vencem hoje', ok: '✓ OS no prazo' };
+  pgModalDados = dados.filter(r => getPrioridade(r) === tipo);
+  document.getElementById('pg-modal-title').textContent = labels[tipo];
+  document.getElementById('pg-modal-sub').textContent = pgModalDados.length + ' ordens de serviço · ' + cs;
   document.getElementById('pg-modal-search').value = '';
   pgFiltrarModal();
   document.getElementById('pg-modal').style.display = 'flex';
@@ -2607,11 +2654,9 @@ function confirmarRegiao(regiao) {
   showToast('✔ ' + allData.length + ' registros carregados' + (regiao ? ' — ' + regiao : ''));
   // Destacar botão da região
   document.getElementById('btn-cloud-sul').classList.toggle('ativo', regiao === 'Sul');
-  document.getElementById('btn-cloud-cs').classList.toggle('ativo', regiao === 'CentroSul');
-  document.getElementById('btn-cloud-leste').classList.toggle('ativo', regiao === 'Leste');
   // Atualizar botões de publicar no header
   if (regiao) {
-    showToast('✔ ' + allData.length + ' registros — clique em ☁ ' + (regiao === 'Sul' ? 'Sul' : 'C.Sul') + ' pra publicar', 4000);
+    showToast('✔ ' + allData.length + ' registros — clique em ☁ Sul pra publicar', 4000);
   }
 }
 
@@ -2643,21 +2688,10 @@ async function checarTimestamps() {
         document.getElementById('ts-sul').textContent = 'Atualizado ' + label;
         document.getElementById('btn-dl-sul').style.display = 'block';
       }
-      if (r.regiao === 'CentroSul') {
-        document.getElementById('ts-cs').textContent = 'Atualizado ' + label;
-        document.getElementById('btn-dl-cs').style.display = 'block';
-      }
-      if (r.regiao === 'Leste') {
-        document.getElementById('ts-leste').textContent = 'Atualizado ' + label;
-        document.getElementById('btn-dl-leste').style.display = 'block';
-      }
     });
     if (!rows.find(r => r.regiao === 'Sul')) document.getElementById('ts-sul').textContent = 'Sem dados';
-    if (!rows.find(r => r.regiao === 'CentroSul')) document.getElementById('ts-cs').textContent = 'Sem dados';
-    if (!rows.find(r => r.regiao === 'Leste')) document.getElementById('ts-leste').textContent = 'Sem dados';
   } catch(e) {
     document.getElementById('ts-sul').textContent = 'Erro ao verificar';
-    document.getElementById('ts-cs').textContent = 'Erro ao verificar';
   }
 }
 
@@ -2699,8 +2733,6 @@ async function carregarNuvem(regiao) {
     showToast('✔ ' + allData.length + ' registros carregados (' + regiao + ')', 3000);
     // Mark active button
     document.getElementById('btn-cloud-sul').classList.toggle('ativo', regiao === 'Sul');
-    document.getElementById('btn-cloud-cs').classList.toggle('ativo', regiao === 'CentroSul');
-    document.getElementById('btn-cloud-leste').classList.toggle('ativo', regiao === 'Leste');
   } catch(e) {
     showToast('Erro: ' + e.message, 4000);
   }
@@ -2793,6 +2825,7 @@ function showToast(msg, duration=2000) {
 // ══ EXECUÇÃO ══
 let execDados = [];
 let execAtualizado = '';
+let execTiposSelecionados = [];
 
 function execGetCentro(r) {
   const cod = r['Recurso/Equipe'] || '';
@@ -2801,6 +2834,15 @@ function execGetCentro(r) {
   if (cod.startsWith('ML') || muni.includes('MILAGRE')) return 'Milagres';
   if (cod.startsWith('CP') || muni.includes('CAMPO')) return 'C. Sales';
   return 'Outros';
+}
+
+function execGetTipo(r) {
+  return (r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || r['Tipo de Serviço'] || '').trim();
+}
+
+function execGetFiltrado() {
+  if (!execTiposSelecionados.length) return execDados;
+  return execDados.filter(r => execTiposSelecionados.includes(execGetTipo(r)));
 }
 
 async function execCarregar() {
@@ -2821,6 +2863,7 @@ async function execCarregar() {
     execDados = rows[0].dados;
     const dt = new Date(rows[0].atualizado_em);
     execAtualizado = 'Atualizado ' + dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    execPopularFiltroTipos();
     execRender();
     showToast('✔ Execução carregada — ' + execDados.length + ' registros', 2000);
   } catch(e) {
@@ -2828,17 +2871,78 @@ async function execCarregar() {
   }
 }
 
+function execPopularFiltroTipos() {
+  const tipos = [...new Set(execDados.map(execGetTipo).filter(Boolean))].sort();
+  // Mantém seleção atual só com tipos que ainda existem nos dados carregados
+  execTiposSelecionados = execTiposSelecionados.filter(t => tipos.includes(t));
+  const wrap = document.getElementById('exec-tipo-opcoes');
+  wrap.innerHTML = tipos.map(t => {
+    const checked = execTiposSelecionados.includes(t) ? 'checked' : '';
+    const codTipo = t.split(' - ')[0] || t;
+    return `<label><input type="checkbox" value="${t.replace(/"/g,'&quot;')}" ${checked} onchange="execToggleTipo(this)"> ${codTipo}</label>`;
+  }).join('');
+  execUpdateTipoBtnLabel();
+}
+
+function execToggleTipoDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('exec-tipo-menu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function execToggleTipo(cb) {
+  const v = cb.value;
+  if (cb.checked) {
+    if (!execTiposSelecionados.includes(v)) execTiposSelecionados.push(v);
+  } else {
+    execTiposSelecionados = execTiposSelecionados.filter(t => t !== v);
+  }
+  execUpdateTipoBtnLabel();
+  execRender();
+}
+
+function execSelectAllTipos() {
+  const boxes = document.querySelectorAll('#exec-tipo-menu input[type=checkbox]');
+  execTiposSelecionados = [...boxes].map(b => { b.checked = true; return b.value; });
+  execUpdateTipoBtnLabel();
+  execRender();
+}
+
+function execClearTipos() {
+  const boxes = document.querySelectorAll('#exec-tipo-menu input[type=checkbox]');
+  boxes.forEach(b => b.checked = false);
+  execTiposSelecionados = [];
+  execUpdateTipoBtnLabel();
+  execRender();
+}
+
+function execUpdateTipoBtnLabel() {
+  const btn = document.getElementById('exec-tipo-btn');
+  if (!btn) return;
+  if (execTiposSelecionados.length === 0) { btn.textContent = 'Todos'; btn.classList.remove('active'); }
+  else if (execTiposSelecionados.length === 1) { btn.textContent = execTiposSelecionados[0].split(' - ')[0]; btn.classList.add('active'); }
+  else { btn.textContent = execTiposSelecionados.length + ' selecionados'; btn.classList.add('active'); }
+}
+
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('exec-tipo-wrap');
+  const menu = document.getElementById('exec-tipo-menu');
+  if (wrap && menu && !wrap.contains(e.target)) menu.style.display = 'none';
+});
+
 function execRender() {
-  document.getElementById('exec-total').textContent = execDados.length;
+  const dados = execGetFiltrado();
+  document.getElementById('exec-total').textContent = dados.length;
   document.getElementById('exec-atualizado').textContent = execAtualizado;
-  const eqs = new Set(execDados.map(r => r['Recurso/Equipe']).filter(Boolean));
+  const eqs = new Set(dados.map(r => r['Recurso/Equipe']).filter(Boolean));
   document.getElementById('exec-equipes').textContent = eqs.size;
-  execRenderCentros();
-  execRenderTiposBars();
+  execRenderCentros(dados);
+  execRenderPorEquipe();
+  execRenderTiposBars(dados);
   execRenderTabela();
 }
 
-function execRenderCentros() {
+function execRenderCentros(dados) {
   const centros = [
     { cs: 'Juazeiro', nome: 'Juazeiro do Norte' },
     { cs: 'C. Sales', nome: 'Campo Sales' },
@@ -2846,7 +2950,7 @@ function execRenderCentros() {
   ];
   let html = '';
   centros.forEach(c => {
-    const n = execDados.filter(r => execGetCentro(r) === c.cs).length;
+    const n = dados.filter(r => execGetCentro(r) === c.cs).length;
     html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;padding:14px 16px;">
       <div style="font-size:10px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">${c.nome}</div>
       <div style="font-size:24px;font-weight:700;color:#1a2535;">${n}</div>
@@ -2856,10 +2960,38 @@ function execRenderCentros() {
   document.getElementById('exec-centros').innerHTML = html;
 }
 
-function execRenderTiposBars() {
+function execRenderPorEquipe() {
+  const search = (document.getElementById('exec-equipe-search')?.value || '').toLowerCase();
+  const dados = execGetFiltrado();
+  const eqMap = {};
+  dados.forEach(r => {
+    const cod = r['Recurso/Equipe'] || '';
+    if (!cod) return;
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muni: {} };
+    eqMap[cod].n++;
+    const m = r['Município'] || '—';
+    eqMap[cod].muni[m] = (eqMap[cod].muni[m] || 0) + 1;
+  });
+  const rows = Object.entries(eqMap)
+    .filter(([cod]) => !search || cod.toLowerCase().includes(search))
+    .sort((a, b) => b[1].n - a[1].n);
+  let html = '';
+  rows.forEach(([cod, d], i) => {
+    const muniPrincipal = Object.entries(d.muni).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+    const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+    html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
+      <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#1565c0;">${cod}</td>
+      <td style="padding:7px 12px;font-size:11px;">${muniPrincipal}</td>
+      <td style="padding:7px 12px;text-align:center;font-weight:700;">${d.n}</td>
+    </tr>`;
+  });
+  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="3" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
+}
+
+function execRenderTiposBars(dados) {
   const tipMap = {};
-  execDados.forEach(r => {
-    const t = (r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || r['Tipo de Serviço'] || '').trim();
+  dados.forEach(r => {
+    const t = execGetTipo(r);
     tipMap[t] = (tipMap[t]||0) + 1;
   });
   const top = Object.entries(tipMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
@@ -2883,14 +3015,14 @@ function execRenderTiposBars() {
 
 function execRenderTabela() {
   const search = (document.getElementById('exec-search')?.value || '').toLowerCase();
-  const rows = execDados.filter(r => {
+  const rows = execGetFiltrado().filter(r => {
     if (!search) return true;
     return Object.values(r).some(v => String(v||'').toLowerCase().includes(search));
   });
   let html = '';
   rows.slice(0, 500).forEach((r, i) => {
     const bg = i%2===0?'#fff':'#f8fafc';
-    const tipo = (r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || '').split(' - ')[0];
+    const tipo = execGetTipo(r).split(' - ')[0];
     html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
       <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${r['Numero de Serviço']||'—'}</td>
       <td style="padding:7px 12px;font-size:11px;color:#8097b8;">${tipo||'—'}</td>
