@@ -99,9 +99,10 @@ def _xp_linha_arquivo(nome_export):
 
 
 class EOrderExecucaoBot:
-    def __init__(self, log_cb, download_dir):
+    def __init__(self, log_cb, download_dir, minimizado=False):
         self.log = log_cb
         self.download_dir = download_dir
+        self.minimizado = minimizado
         self.driver = None
         self.stop_flag = False
         self._frame_cache = {}
@@ -126,6 +127,8 @@ class EOrderExecucaoBot:
         })
         opts.add_argument("--disable-save-password-bubble")
         self.driver = webdriver.Chrome(options=opts)
+        if self.minimizado:
+            self.driver.minimize_window()
 
     def _find(self, xpath, condition=EC.visibility_of_element_located, timeout=20):
         driver = self.driver

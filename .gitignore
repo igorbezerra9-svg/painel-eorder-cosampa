@@ -4,3 +4,5 @@ dist/
 *.exe
 *.spec.bak
 .claude/settings.local.json
+credenciais_eorder.json
+automatico.log
