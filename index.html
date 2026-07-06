@@ -321,9 +321,12 @@
 
     <!-- Por equipe -->
     <div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;margin-bottom:12px;">
-      <div style="padding:16px;border-bottom:0.5px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">
+      <div style="padding:16px;border-bottom:0.5px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;">Executados por equipe</div>
-        <input type="text" id="exec-equipe-search" placeholder="Buscar equipe..." oninput="execRenderPorEquipe()" style="font-size:12px;padding:6px 12px;border:1px solid var(--gray-200);border-radius:8px;width:200px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="exec-equipe-search" placeholder="Buscar equipe..." oninput="execRenderPorEquipe()" style="font-size:12px;padding:6px 12px;border:1px solid var(--gray-200);border-radius:8px;width:200px;">
+          <button onclick="execCopiarEquipes()" id="btn-copiar-equipes" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+        </div>
       </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -332,6 +335,8 @@
               <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
               <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Município</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Executados</th>
+              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#50d080;">Produtivos</th>
+              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#f06060;">Improdutivos</th>
             </tr>
           </thead>
           <tbody id="exec-equipe-body"></tbody>
@@ -1384,15 +1389,27 @@ function execRenderCentros(dados) {
   ];
   let html = '';
   centros.forEach(c => {
-    const n = dados.filter(r => execGetCentro(r) === c.cs).length;
+    const dadosCentro = dados.filter(r => execGetCentro(r) === c.cs);
+    let produtivo = 0, improdutivo = 0;
+    dadosCentro.forEach(r => {
+      const p = execGetProdutividade(r);
+      if (p === 'PRODUTIVO') produtivo++;
+      else if (p === 'IMPRODUTIVO') improdutivo++;
+    });
     html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;padding:14px 16px;">
       <div style="font-size:10px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">${c.nome}</div>
-      <div style="font-size:24px;font-weight:700;color:#1a2535;">${n}</div>
-      <div style="font-size:11px;color:var(--gray-400);margin-top:2px;">executados hoje</div>
+      <div style="font-size:24px;font-weight:700;color:#1a2535;">${dadosCentro.length}</div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:2px;margin-bottom:8px;">executados hoje</div>
+      <div style="display:flex;gap:12px;border-top:0.5px solid var(--gray-200);padding-top:8px;">
+        <div><span style="color:#1a7a40;font-weight:700;font-size:13px;">${produtivo}</span> <span style="color:var(--gray-400);font-size:10px;">prod.</span></div>
+        <div><span style="color:#c0392b;font-weight:700;font-size:13px;">${improdutivo}</span> <span style="color:var(--gray-400);font-size:10px;">improd.</span></div>
+      </div>
     </div>`;
   });
   document.getElementById('exec-centros').innerHTML = html;
 }
+
+let execEquipesRows = [];
 
 function execRenderPorEquipe() {
   const search = (document.getElementById('exec-equipe-search')?.value || '').toLowerCase();
@@ -1401,25 +1418,51 @@ function execRenderPorEquipe() {
   dados.forEach(r => {
     const cod = r['Recurso/Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muni: {} };
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muni: {}, produtivo: 0, improdutivo: 0 };
     eqMap[cod].n++;
     const m = r['Município'] || '—';
     eqMap[cod].muni[m] = (eqMap[cod].muni[m] || 0) + 1;
+    const p = execGetProdutividade(r);
+    if (p === 'PRODUTIVO') eqMap[cod].produtivo++;
+    else if (p === 'IMPRODUTIVO') eqMap[cod].improdutivo++;
   });
-  const rows = Object.entries(eqMap)
+  execEquipesRows = Object.entries(eqMap)
     .filter(([cod]) => !search || cod.toLowerCase().includes(search))
-    .sort((a, b) => b[1].n - a[1].n);
+    .sort((a, b) => b[1].n - a[1].n)
+    .map(([cod, d]) => ({ cod, muni: Object.entries(d.muni).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—', n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo }));
+
   let html = '';
-  rows.forEach(([cod, d], i) => {
-    const muniPrincipal = Object.entries(d.muni).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+  execEquipesRows.forEach((row, i) => {
     const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
     html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
-      <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#1565c0;">${cod}</td>
-      <td style="padding:7px 12px;font-size:11px;">${muniPrincipal}</td>
-      <td style="padding:7px 12px;text-align:center;font-weight:700;">${d.n}</td>
+      <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#1565c0;">${row.cod}</td>
+      <td style="padding:7px 12px;font-size:11px;">${row.muni}</td>
+      <td style="padding:7px 12px;text-align:center;font-weight:700;">${row.n}</td>
+      <td style="padding:7px 12px;text-align:center;color:#1a7a40;font-weight:700;">${row.produtivo || '—'}</td>
+      <td style="padding:7px 12px;text-align:center;color:#c0392b;font-weight:700;">${row.improdutivo || '—'}</td>
     </tr>`;
   });
-  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="3" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
+  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
+}
+
+function execCopiarEquipes() {
+  const linhas = ['Equipe\tMunicípio\tExecutados\tProdutivos\tImprodutivos'];
+  execEquipesRows.forEach(row => {
+    linhas.push(`${row.cod}\t${row.muni}\t${row.n}\t${row.produtivo}\t${row.improdutivo}`);
+  });
+  const texto = linhas.join('\n');
+  navigator.clipboard.writeText(texto).then(() => {
+    const btn = document.getElementById('btn-copiar-equipes');
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    btn.style.color = '#1a7a40';
+    btn.style.borderColor = '#1a7a40';
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
 function execRenderTiposBars(dados) {
