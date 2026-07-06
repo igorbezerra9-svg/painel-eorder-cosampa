@@ -605,7 +605,10 @@ class EOrderExecucaoBot:
         self._datas_referencia_tdc()
         self._buscar_tdc()
         self._exportar_tdc()
-        ok = self._baixar_exportacao(XP_LISTA_EXPORT_TDC, XP_TRES_PONTOS_LISTA_TDC, NOME_EXPORT_TDC)
+        # TdC costuma ter uma base bem maior que a Execução — em horários de
+        # pico o eOrder demora mais pra gerar o export, então esperamos mais
+        # tempo (20 min) antes de desistir, em vez do padrão de 10 min.
+        ok = self._baixar_exportacao(XP_LISTA_EXPORT_TDC, XP_TRES_PONTOS_LISTA_TDC, NOME_EXPORT_TDC, espera_max=1200)
         if ok:
             self._plog("✅ Fluxo TdC concluído. Aguardando download finalizar...")
             time.sleep(5)
