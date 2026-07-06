@@ -62,11 +62,12 @@ $scriptPath = Join-Path $scriptDir "rodar_automatico.py"
 $taskName = "PainelEOrder_Automatico"
 
 $action = New-ScheduledTaskAction -Execute $pyw -Argument "`"$scriptPath`"" -WorkingDirectory $scriptDir
-$trigger = New-ScheduledTaskTrigger -Once -At 7:00AM -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 10)
+$trigger = New-ScheduledTaskTrigger -Daily -At 7:00AM
+$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At 7:00AM -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 10)).Repetition
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Minutes 25) -MultipleInstances IgnoreNew
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings `
-    -Description "Roda o bot eOrder (Busca Execucao + TdC) de hora em hora (07h-17h) e publica automaticamente no painel Supabase" `
+    -Description "Roda o bot eOrder (Busca Execucao + TdC) de hora em hora (07h-17h), todo dia, e publica automaticamente no painel Supabase" `
     -Force | Out-Null
 
 Write-Host "✔ Tarefa '$taskName' criada (dispara de hora em hora, 7h às 17h)"
