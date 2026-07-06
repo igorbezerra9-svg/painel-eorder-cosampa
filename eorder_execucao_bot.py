@@ -360,9 +360,9 @@ class EOrderExecucaoBot:
         self._plog(f"   (ignorando arquivos com timestamp <= {timestamp_limite or '(nenhum existente)'})")
 
         self._plog("⏳ Aguardando arquivo aparecer na lista (clicando em Atualizar)...")
-        decorrido = 0
+        inicio_espera = time.time()
         elemento = None
-        while decorrido < espera_max:
+        while (time.time() - inicio_espera) < espera_max:
             if self.stop_flag:
                 self._plog("🛑 Parado.")
                 return False
@@ -386,7 +386,7 @@ class EOrderExecucaoBot:
             except TimeoutException:
                 pass
             time.sleep(intervalo)
-            decorrido += intervalo
+            decorrido = time.time() - inicio_espera
             # Se a exportação foi rápida demais, o arquivo já podia estar na
             # lista no instante em que tiramos a "foto" do que já existia
             # (timestamp_limite) — nesse caso nunca vamos achar algo
