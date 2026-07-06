@@ -39,7 +39,7 @@ COLS_TDC = [
 ]
 COLS_EXECUCAO = [
     "Numero de Serviço", "Tipo Remessa WIN", " Tipo de Serviço",
-    "Recurso/Equipe", "Município", "Data fim Execução",
+    "Recurso/Equipe", "Município", "Data fim Execução", "Código Resultado",
 ]
 
 # ── XPaths ───────────────────────────────────────────────────────────
