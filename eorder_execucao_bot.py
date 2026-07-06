@@ -376,9 +376,13 @@ class EOrderExecucaoBot:
                 elemento = None
             try:
                 self._click(xp_tres_pontos_lista, timeout=5)
-                time.sleep(0.5)
+                time.sleep(1.5)
                 if not self._click_por_texto("Atualizar"):
-                    self._plog("   ⚠️  Item 'Atualizar' não encontrado no menu.")
+                    # Site pode estar lento pra renderizar o menu — tenta mais
+                    # uma vez antes de desistir dessa rodada
+                    time.sleep(1.0)
+                    if not self._click_por_texto("Atualizar"):
+                        self._plog("   ⚠️  Item 'Atualizar' não encontrado no menu.")
             except TimeoutException:
                 pass
             time.sleep(intervalo)
