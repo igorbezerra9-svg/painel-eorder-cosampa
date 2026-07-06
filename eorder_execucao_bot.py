@@ -438,6 +438,25 @@ class EOrderExecucaoBot:
             decorrido += intervalo
         return None
 
+    def _limpar_exports_antigos(self, prefixo, manter=1):
+        """
+        Mantém só o(s) export(s) mais recente(s) de um prefixo na pasta de
+        downloads e apaga o resto — sem isso a pasta acumula um arquivo
+        novo por hora, todo dia.
+        """
+        try:
+            candidatos = glob.glob(os.path.join(self.download_dir, f"{prefixo}_*.xlsx"))
+            candidatos = [c for c in candidatos if not c.endswith(".crdownload")]
+            candidatos.sort(key=os.path.getmtime, reverse=True)
+            for antigo in candidatos[manter:]:
+                try:
+                    os.remove(antigo)
+                    self._plog(f"🗑️  Removido export antigo: {os.path.basename(antigo)}")
+                except OSError as e:
+                    self._plog(f"⚠️  Não consegui remover {os.path.basename(antigo)}: {e}")
+        except Exception as e:
+            self._plog(f"⚠️  Falha ao limpar exports antigos: {e}")
+
     def _xlsx_para_linhas(self, caminho, colunas):
         wb = openpyxl.load_workbook(caminho, data_only=True)
         ws = wb.active
@@ -505,6 +524,7 @@ class EOrderExecucaoBot:
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
             self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO)
+            self._limpar_exports_antigos(NOME_EXPORT)
         return ok
 
     # ── Fluxo TdC ────────────────────────────────────────────────────
@@ -583,6 +603,7 @@ class EOrderExecucaoBot:
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
             self._publicar_nuvem("Sul", NOME_EXPORT_TDC, COLS_TDC)
+            self._limpar_exports_antigos(NOME_EXPORT_TDC)
         return ok
 
 
