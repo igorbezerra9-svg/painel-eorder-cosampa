@@ -413,25 +413,37 @@ class EOrderExecucaoBot:
             self._plog("❌ Tempo esgotado esperando o arquivo de exportação.")
             return False
 
+        timestamp_baixado = self._timestamp_de(elemento)
         self._plog(f"⬇️  Baixando arquivo mais recente: {elemento.text.strip()}...")
         try:
             webdriver.ActionChains(self.driver).double_click(elemento).perform()
         except Exception:
             self.driver.execute_script(
                 "var ev = new MouseEvent('dblclick', {bubbles: true}); arguments[0].dispatchEvent(ev);", elemento)
-        return True
+        return timestamp_baixado or True
 
     # ── Publicação automática no painel (Supabase) ───────────────────
-    def _achar_export_mais_recente(self, prefixo, espera_max=60, intervalo=2):
+    def _achar_export_mais_recente(self, prefixo, timestamp_esperado=None, espera_max=60, intervalo=2):
         """
         Espera o arquivo baixado aparecer na pasta de downloads (o navegador
         pode levar alguns segundos pra terminar de gravar em disco) e retorna
-        o caminho do mais recente que casa com o prefixo.
+        o caminho do arquivo.
+
+        Se `timestamp_esperado` for passado (o timestamp — embutido no nome —
+        do arquivo que confirmamos ter clicado pra baixar), só aceitamos um
+        arquivo com ESSE timestamp exato no nome, mesmo que exista um arquivo
+        mais antigo do mesmo prefixo ainda não limpo na pasta (ex: sobra de
+        uma rodada anterior que falhou antes de rodar a limpeza) — sem isso,
+        `max(..., key=os.path.getmtime)` podia devolver esse arquivo antigo
+        por engano caso ele aparecesse no glob antes do novo terminar de ser
+        gravado em disco, publicando dados desatualizados no painel.
         """
         decorrido = 0
         while decorrido < espera_max:
             candidatos = glob.glob(os.path.join(self.download_dir, f"{prefixo}_*.xlsx"))
             candidatos = [c for c in candidatos if not c.endswith(".crdownload")]
+            if timestamp_esperado:
+                candidatos = [c for c in candidatos if timestamp_esperado in os.path.basename(c)]
             if candidatos:
                 return max(candidatos, key=os.path.getmtime)
             time.sleep(intervalo)
@@ -471,9 +483,9 @@ class EOrderExecucaoBot:
             linhas.append(registro)
         return linhas
 
-    def _publicar_nuvem(self, regiao, prefixo_arquivo, colunas):
+    def _publicar_nuvem(self, regiao, prefixo_arquivo, colunas, timestamp_esperado=None):
         try:
-            caminho = self._achar_export_mais_recente(prefixo_arquivo)
+            caminho = self._achar_export_mais_recente(prefixo_arquivo, timestamp_esperado=timestamp_esperado)
             if not caminho:
                 self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
                 return
@@ -523,7 +535,8 @@ class EOrderExecucaoBot:
             self._plog("✅ Fluxo Busca Execução concluído. Aguardando download finalizar...")
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
-            self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO)
+            timestamp_esperado = ok if isinstance(ok, str) else None
+            self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO, timestamp_esperado=timestamp_esperado)
             self._limpar_exports_antigos(NOME_EXPORT)
         return ok
 
@@ -613,7 +626,8 @@ class EOrderExecucaoBot:
             self._plog("✅ Fluxo TdC concluído. Aguardando download finalizar...")
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
-            self._publicar_nuvem("Sul", NOME_EXPORT_TDC, COLS_TDC)
+            timestamp_esperado = ok if isinstance(ok, str) else None
+            self._publicar_nuvem("Sul", NOME_EXPORT_TDC, COLS_TDC, timestamp_esperado=timestamp_esperado)
             self._limpar_exports_antigos(NOME_EXPORT_TDC)
         return ok
 

@@ -192,6 +192,20 @@ Vale ler antes de mexer de novo nesse projeto:
 - **GitHub Pages fica com cache do navegador** depois de um push novo
   — se a página não parecer atualizada, force reload
   (`Ctrl+Shift+R`) ou adicione `?v=123` na URL.
+- **Publicação podia pegar um arquivo `.xlsx` antigo em vez do recém-baixado.**
+  `_achar_export_mais_recente()` procurava por `{prefixo}_*.xlsx` na pasta de
+  Downloads e devolvia o de maior data de modificação — mas se uma rodada
+  anterior tivesse **falhado** (ex: timeout no TdC) antes de rodar a limpeza,
+  sobrava um arquivo velho do mesmo prefixo na pasta. Se, no instante exato em
+  que a publicação procurava o arquivo, o novo download ainda não tivesse
+  terminado de ser gravado em disco, a função podia devolver o arquivo velho
+  por engano — publicando dados desatualizados no painel (foi assim que
+  surgiu uma OS "Vence Hoje" no painel que já não existia mais no TdC real).
+  Corrigido: `_baixar_exportacao()` agora devolve o timestamp exato (embutido
+  no nome) do arquivo que confirmou ter clicado pra baixar, e
+  `_publicar_nuvem()`/`_achar_export_mais_recente()` só aceitam um arquivo com
+  **esse timestamp exato** no nome — nunca mais "o mais recente por data de
+  modificação".
 
 ---
 
