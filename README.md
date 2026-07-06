@@ -77,6 +77,13 @@ em `COLS_TDC` / `COLS_EXECUCAO` no início de `eorder_execucao_bot.py`
 e `publicar_teste.py` (mantenha os dois arquivos em sincronia se
 adicionar uma coluna nova).
 
+### Limpeza automática dos exports baixados
+
+Depois de cada publicação bem-sucedida, `_limpar_exports_antigos()`
+apaga os `.xlsx` mais antigos da pasta de Downloads, mantendo só o
+mais recente de cada tipo (`EXECUCAO_*` e `CosampaCDU_*`) — sem isso a
+pasta acumula um arquivo novo por hora, todo dia.
+
 ---
 
 ## Automação (tarefa agendada)
