@@ -518,9 +518,13 @@ function getPrioridade(r) {
   // Vencida: prazo já passou
   if (dt < agora) return 'est';
 
-  // "Vencendo Hoje": vence até 09:00 do dia seguinte
-  const amanha9h = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 1, 9, 0, 0);
-  if (dt <= amanha9h) return 'hj';
+  // "Vencendo Hoje": vence até 09:00 do dia seguinte — exceto no sábado,
+  // quando a janela se estende até 09:00 de segunda (cobre sáb + dom,
+  // já que não tem equipe trabalhando domingo)
+  const ehSabado = hoje.getDay() === 6; // 0=domingo ... 6=sábado
+  const diasJanela = ehSabado ? 2 : 1;
+  const limite9h = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasJanela, 9, 0, 0);
+  if (dt <= limite9h) return 'hj';
 
   return 'ok';
 }
@@ -653,11 +657,13 @@ async function pgCarregar() {
   }
 }
 
-function pgFiltrarBase(csFiltro) {
+function pgFiltrarBase(csFiltro, incluirTodosEstados) {
   const EXCLUIR = ['programáveis','a reprogramar'];
   return pgDados.filter(r => {
-    const estado = (r['Estado TdC'] || '').trim().toLowerCase();
-    if (EXCLUIR.includes(estado)) return false;
+    if (!incluirTodosEstados) {
+      const estado = (r['Estado TdC'] || '').trim().toLowerCase();
+      if (EXCLUIR.includes(estado)) return false;
+    }
     if (pgTipo && getTipoOrdem(r) !== pgTipo) return false;
     if (csFiltro && pgGetCS(r) !== csFiltro) return false;
     if (pgSupervisores.length && !pgSupervisores.includes(getSupervisor(r['Código Equipe']||''))) return false;
@@ -667,6 +673,12 @@ function pgFiltrarBase(csFiltro) {
 
 function pgGetFiltrado() {
   return pgFiltrarBase(pgCS);
+}
+
+// "Vence Hoje" não exclui programáveis/a reprogramar — não pode esconder
+// um serviço que vence hoje só porque caiu pra reprogramação (ver DOC_REGRAS_GERAIS.md)
+function pgGetFiltradoTodos() {
+  return pgFiltrarBase(pgCS, true);
 }
 
 // ══ Intensidade do pulsar "Vence Hoje" — cresce conforme se aproxima do fim de jornada (17h) ══
@@ -696,10 +708,11 @@ function pgRenderComparativo() {
   let html = '';
   centros.forEach(c => {
     const dados = pgFiltrarBase(c.cs);
+    const dadosTodos = pgFiltrarBase(c.cs, true);
     html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">
       <div style="background:#eef3fb;padding:8px 12px;font-size:12px;font-weight:700;color:#1a2535;">${c.nome}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px;">
-        ${pgKpiCardHTML(dados, { clickable: true, compact: true, cs: c.cs })}
+        ${pgKpiCardHTML(dados, { clickable: true, compact: true, cs: c.cs, dadosTodos })}
       </div>
     </div>`;
   });
@@ -708,11 +721,12 @@ function pgRenderComparativo() {
 
 function pgRender() {
   const dados = pgGetFiltrado();
-  pgRenderKPIs(dados);
+  const dadosTodos = pgGetFiltradoTodos();
+  pgRenderKPIs(dados, dadosTodos);
   pgRenderComparativo();
   pgRenderCSBars(dados);
   pgRenderTiposBars(dados);
-  pgRenderOrdensVencendo(dados);
+  pgRenderOrdensVencendo(dados, dadosTodos);
   pgRenderTabela();
   document.getElementById('pg-atualizado').textContent = pgAtualizado;
   const pgUpd = document.getElementById('pg-last-update');
@@ -721,17 +735,19 @@ function pgRender() {
 
 function pgKpiCardHTML(dados, opts) {
   opts = opts || {};
+  const dadosHj = opts.dadosTodos || dados;
   const compact = !!opts.compact;
   const clickable = opts.clickable !== false;
-  let est=0, hj=0, ok=0;
+  let est=0, ok=0;
   const eqs = new Set();
   dados.forEach(r => {
     const p = getPrioridade(r);
     if (p==='est') est++;
-    else if (p==='hj') hj++;
-    else ok++;
+    else if (p!=='hj') ok++;
     if (r['Código Equipe']) eqs.add(r['Código Equipe']);
   });
+  let hj = 0;
+  dadosHj.forEach(r => { if (getPrioridade(r) === 'hj') hj++; });
   const numSize = compact ? '18px' : '28px';
   const pad = compact ? '9px 10px' : '14px 16px';
   const subSize = compact ? '9px' : '11px';
@@ -742,6 +758,7 @@ function pgKpiCardHTML(dados, opts) {
     : '';
   const cursor = clickable ? 'cursor:pointer;transition:opacity .15s;' : '';
   const pulseHj = hj > 0 ? ` class="pg-pulse-hj" style="--pulse-dur:${pgPulseDuration()};background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"` : ` style="background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"`;
+  const textoJanelaHj = hoje.getDay() === 6 ? 'até 09:00 de segunda' : 'até 09:00 amanhã';
   return `
     <div${clk('est')} style="background:#fdecea;border-radius:12px;padding:${pad};${cursor}">
       <div style="font-size:${lblSize};color:#c0392b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⚠ Estouradas</div>
@@ -751,7 +768,7 @@ function pgKpiCardHTML(dados, opts) {
     <div${clk('hj')}${pulseHj}>
       <div style="font-size:${lblSize};color:#d35400;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⏰ Vencem hoje</div>
       <div style="font-size:${numSize};font-weight:700;color:#d35400;line-height:1;">${hj}</div>
-      <div style="font-size:${subSize};color:#ffb74d;margin-top:4px;">até 09:00 amanhã${clickable ? ' · clique pra ver' : ''}</div>
+      <div style="font-size:${subSize};color:#ffb74d;margin-top:4px;">${textoJanelaHj}${clickable ? ' · clique pra ver' : ''}</div>
     </div>
     <div${clk('ok')} style="background:#eaf7ef;border-radius:12px;padding:${pad};${cursor}">
       <div style="font-size:${lblSize};color:#1a7a40;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✓ No prazo</div>
@@ -765,8 +782,8 @@ function pgKpiCardHTML(dados, opts) {
     </div>`;
 }
 
-function pgRenderKPIs(dados) {
-  document.getElementById('pg-kpis').innerHTML = pgKpiCardHTML(dados, { clickable: true, compact: false });
+function pgRenderKPIs(dados, dadosTodos) {
+  document.getElementById('pg-kpis').innerHTML = pgKpiCardHTML(dados, { clickable: true, compact: false, dadosTodos });
 }
 
 function pgRenderCSBars(dados) {
@@ -854,14 +871,14 @@ function pgOrdensTabelaHTML(lista, opts) {
   return html;
 }
 
-function pgRenderOrdensVencendo(dados) {
-  const porPrioridade = (alvo) => dados
+function pgRenderOrdensVencendo(dados, dadosTodos) {
+  const porPrioridade = (fonte, alvo) => fonte
     .filter(r => getPrioridade(r) === alvo)
     .map(r => ({ r, dt: parseDateTimeStr(r['Data Prevista Finalização Trabalhos']) }))
     .sort((a, b) => (a.dt ? a.dt.getTime() : 0) - (b.dt ? b.dt.getTime() : 0));
 
-  const hj = porPrioridade('hj');
-  const est = porPrioridade('est');
+  const hj = porPrioridade(dadosTodos || dados, 'hj');
+  const est = porPrioridade(dados, 'est');
   const LIMITE_EST = 30;
 
   if (!hj.length && !est.length) {
@@ -890,7 +907,7 @@ function pgRenderOrdensVencendo(dados) {
 let pgModalDados = [];
 
 function pgAbrirModal(tipo) {
-  const dados = pgGetFiltrado();
+  const dados = tipo === 'hj' ? pgGetFiltradoTodos() : pgGetFiltrado();
   const labels = { est: '⚠ OS Estouradas', hj: '⏰ OS que vencem hoje', ok: '✓ OS no prazo' };
   pgModalDados = dados.filter(r => getPrioridade(r) === tipo);
   document.getElementById('pg-modal-title').textContent = labels[tipo];
@@ -901,7 +918,7 @@ function pgAbrirModal(tipo) {
 }
 
 function pgAbrirModalCS(tipo, cs) {
-  const dados = pgFiltrarBase(cs);
+  const dados = pgFiltrarBase(cs, tipo === 'hj');
   const labels = { est: '⚠ OS Estouradas', hj: '⏰ OS que vencem hoje', ok: '✓ OS no prazo' };
   pgModalDados = dados.filter(r => getPrioridade(r) === tipo);
   document.getElementById('pg-modal-title').textContent = labels[tipo];
