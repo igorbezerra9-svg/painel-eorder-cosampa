@@ -20,7 +20,10 @@ logging.basicConfig(
 
 
 def log(msg):
-    print(msg)
+    try:
+        print(msg)
+    except Exception:
+        pass
     logging.info(msg)
 
 
@@ -55,8 +58,8 @@ def main():
     if modo == "2":
         acesso1 = cred["acesso1"]
         acesso2 = cred["acesso2"]
-        bot1 = EOrderExecucaoBot(lambda m: log(f"[Execução] {m}"), download_dir, minimizado=True)
-        bot2 = EOrderExecucaoBot(lambda m: log(f"[TdC] {m}"), download_dir, minimizado=True)
+        bot1 = EOrderExecucaoBot(lambda m: log(f"[Execução] {m}"), download_dir, minimizado=False)
+        bot2 = EOrderExecucaoBot(lambda m: log(f"[TdC] {m}"), download_dir, minimizado=False)
 
         t1 = threading.Thread(target=bot1.executar, args=(acesso1["usuario"], acesso1["senha"], data_str))
         t2 = threading.Thread(target=bot2.executar_tdc, args=(acesso2["usuario"], acesso2["senha"]))
@@ -68,7 +71,7 @@ def main():
         _fechar(bot2)
     else:
         acesso1 = cred["acesso1"]
-        bot = EOrderExecucaoBot(lambda m: log(f"[Único] {m}"), download_dir, minimizado=True)
+        bot = EOrderExecucaoBot(lambda m: log(f"[Único] {m}"), download_dir, minimizado=False)
         try:
             bot._start_driver()
             bot._login(acesso1["usuario"], acesso1["senha"])

@@ -6,3 +6,4 @@ dist/
 .claude/settings.local.json
 credenciais_eorder.json
 automatico.log
+.claude/scheduled_tasks.lock
