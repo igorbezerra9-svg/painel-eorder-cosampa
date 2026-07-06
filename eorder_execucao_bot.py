@@ -572,9 +572,17 @@ class EOrderExecucaoBot:
     def _exportar_tdc(self):
         self._plog("📤 Exportando TdCs...")
         self._click(XP_TRES_PONTOS_EXPORT_TDC, timeout=20)
-        time.sleep(0.8)
+        time.sleep(1.5)
         if not self._click_por_texto("Exportar em xls"):
-            self._plog("⚠️  Item 'Exportar em xls' não encontrado no menu.")
+            # Site pode estar lento pra renderizar o menu — tenta mais
+            # algumas vezes antes de desistir (sem clicar de novo nos 3
+            # pontinhos, que pode fechar o menu já aberto)
+            for _ in range(3):
+                time.sleep(1.5)
+                if self._click_por_texto("Exportar em xls"):
+                    break
+            else:
+                self._plog("⚠️  Item 'Exportar em xls' não encontrado no menu.")
         self._plog("   ...abriu menu de exportação")
         self._exportar_generico(NOME_EXPORT_TDC, XP_BTN_OK_EXP_TDC, XP_FECHAR_MSG_TDC)
 
