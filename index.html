@@ -168,6 +168,12 @@
     <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Região:</span>
     <button class="pg-reg-btn active" id="pg-btn-sul" onclick="pgSetRegiao('Sul')">🌍 Sul</button>
     <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Dia:</span>
+      <select id="pg-data-select" onchange="pgSetDataView(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+        <option value="">🔴 Hoje (ao vivo)</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
       <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">C. Serviço:</span>
       <button class="pg-tipo-btn active" id="pg-cs-all" onclick="pgSetCS('')">Todos</button>
       <button class="pg-tipo-btn" id="pg-cs-jz" onclick="pgSetCS('Juazeiro')">Juazeiro</button>
@@ -272,7 +278,11 @@
 
   <div id="exec-content">
     <!-- Filtro por tipo de serviço -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Dia:</span>
+      <select id="exec-data-select" onchange="execSetDataView(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+        <option value="">🔴 Hoje (ao vivo)</option>
+      </select>
       <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo de Serviço:</span>
       <div class="pg-multisel" id="exec-tipo-wrap">
         <button type="button" class="pg-multisel-btn" id="exec-tipo-btn" onclick="execToggleTipoDropdown(event)">Todos</button>
@@ -628,11 +638,31 @@ let pgCS = '';
 let pgSupervisores = [];
 let pgDados = [];
 let pgAtualizado = '';
+let pgDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
 
 function pgSetRegiao(r) {
   pgRegiao = r;
   document.getElementById('pg-btn-sul').classList.toggle('active', r === 'Sul');
   pgCarregar();
+}
+
+function pgSetDataView(v) {
+  pgDataView = v;
+  pgCarregar();
+}
+
+async function pgCarregarDatasHistorico() {
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/snapshots_historico?regiao=eq.' + pgRegiao + '&select=data&order=data.desc', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    const rows = await res.json();
+    const sel = document.getElementById('pg-data-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">🔴 Hoje (ao vivo)</option>' +
+      rows.map(r => `<option value="${r.data}">${r.data.split('-').reverse().join('/')}</option>`).join('');
+    sel.value = pgDataView;
+  } catch(e) { /* seletor de dias não é essencial — falha silenciosa */ }
 }
 
 function pgGetCS(r) {
@@ -712,7 +742,11 @@ function pgSetTipo(t) {
 async function pgCarregar() {
   showToast('⏳ Carregando painel...');
   try {
-    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + pgRegiao + '&select=dados,atualizado_em', {
+    const isHist = !!pgDataView;
+    const url = isHist
+      ? SB_URL + '/rest/v1/snapshots_historico?regiao=eq.' + pgRegiao + '&data=eq.' + pgDataView + '&select=dados,salvo_em'
+      : SB_URL + '/rest/v1/snapshots?regiao=eq.' + pgRegiao + '&select=dados,atualizado_em';
+    const res = await fetch(url, {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     const rows = await res.json();
@@ -725,10 +759,12 @@ async function pgCarregar() {
     document.getElementById('pg-sem-dados').style.display = 'none';
     document.getElementById('pg-content').style.display = 'block';
     pgDados = rows[0].dados;
-    const dt = new Date(rows[0].atualizado_em);
-    pgAtualizado = 'Dados da nuvem · ' + pgRegiao + ' · ' + dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const dt = new Date(isHist ? rows[0].salvo_em : rows[0].atualizado_em);
+    pgAtualizado = (isHist ? '📅 Fechamento de ' + pgDataView.split('-').reverse().join('/') + ' · salvo ' : 'Dados da nuvem · ') +
+      pgRegiao + ' · ' + dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     pgRender();
     showToast('✔ Painel carregado — ' + pgDados.length + ' registros', 2000);
+    pgCarregarDatasHistorico();
   } catch(e) {
     showToast('Erro: ' + e.message, 4000);
   }
@@ -1248,6 +1284,26 @@ function showToast(msg, duration=2000) {
 let execDados = [];
 let execAtualizado = '';
 let execTiposSelecionados = [];
+let execDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
+
+function execSetDataView(v) {
+  execDataView = v;
+  execCarregar();
+}
+
+async function execCarregarDatasHistorico() {
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&select=data&order=data.desc', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    const rows = await res.json();
+    const sel = document.getElementById('exec-data-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">🔴 Hoje (ao vivo)</option>' +
+      rows.map(r => `<option value="${r.data}">${r.data.split('-').reverse().join('/')}</option>`).join('');
+    sel.value = execDataView;
+  } catch(e) { /* seletor de dias não é essencial — falha silenciosa */ }
+}
 
 function execGetCentro(r) {
   const cod = r['Recurso/Equipe'] || '';
@@ -1270,7 +1326,11 @@ function execGetFiltrado() {
 async function execCarregar() {
   showToast('⏳ Carregando Execução...');
   try {
-    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao&select=dados,atualizado_em', {
+    const isHist = !!execDataView;
+    const url = isHist
+      ? SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=eq.' + execDataView + '&select=dados,salvo_em'
+      : SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao&select=dados,atualizado_em';
+    const res = await fetch(url, {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     const rows = await res.json();
@@ -1283,11 +1343,13 @@ async function execCarregar() {
     document.getElementById('exec-sem-dados').style.display = 'none';
     document.getElementById('exec-content').style.display = 'block';
     execDados = rows[0].dados;
-    const dt = new Date(rows[0].atualizado_em);
-    execAtualizado = 'Atualizado ' + dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const dt = new Date(isHist ? rows[0].salvo_em : rows[0].atualizado_em);
+    execAtualizado = (isHist ? '📅 Fechamento de ' + execDataView.split('-').reverse().join('/') + ' · salvo ' : 'Atualizado ') +
+      dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     execPopularFiltroTipos();
     execRender();
     showToast('✔ Execução carregada — ' + execDados.length + ' registros', 2000);
+    execCarregarDatasHistorico();
   } catch(e) {
     showToast('Erro: ' + e.message, 4000);
   }

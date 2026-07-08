@@ -29,6 +29,10 @@ SB_KEY = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6
           "Inhua3ZweGlyZW9vc3JucmZ3Y3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMDA3"
           "NzIsImV4cCI6MjA5ODY3Njc3Mn0.BaCa1dUZAEHhwcqx9Es-U1oXrICk08J14e4mUkieH9g")
 
+# Fechamento diário guardado em snapshots_historico — janela rolante, apaga
+# o que passar disso pra não crescer sem limite (ver criar_tabela_historico.sql).
+HISTORICO_RETENCAO_DIAS = 30
+
 # Só publica as colunas que o painel web realmente usa — export completo
 # tem ~40 colunas e o payload inteiro estoura o timeout de escrita do Supabase.
 COLS_TDC = [
@@ -508,10 +512,49 @@ class EOrderExecucaoBot:
             )
             with urllib.request.urlopen(req) as resp:
                 self._plog(f"☁ Painel atualizado ({regiao}): {len(linhas)} registros — status {resp.status}")
+            self._publicar_historico(regiao, linhas)
         except urllib.error.HTTPError as e:
             self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
             self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e}")
+
+    def _publicar_historico(self, regiao, linhas):
+        """
+        Guarda o snapshot atual como "fechamento" do dia de hoje em
+        snapshots_historico (upsert por regiao+data — a última publicação do
+        dia é a que fica valendo) e apaga fechamentos com mais de
+        HISTORICO_RETENCAO_DIAS dias, mantendo uma janela rolante.
+        """
+        try:
+            hoje = datetime.now().date().isoformat()
+            corpo = json.dumps({
+                "regiao": regiao,
+                "data": hoje,
+                "dados": linhas,
+                "salvo_em": datetime.now(timezone.utc).isoformat(),
+            }, default=str).encode("utf-8")
+            req = urllib.request.Request(
+                SB_URL + "/rest/v1/snapshots_historico",
+                data=corpo,
+                method="POST",
+                headers={
+                    "apikey": SB_KEY,
+                    "Authorization": "Bearer " + SB_KEY,
+                    "Content-Type": "application/json",
+                    "Prefer": "resolution=merge-duplicates",
+                },
+            )
+            with urllib.request.urlopen(req):
+                pass
+            limite = (datetime.now().date() - timedelta(days=HISTORICO_RETENCAO_DIAS)).isoformat()
+            req_del = urllib.request.Request(
+                f"{SB_URL}/rest/v1/snapshots_historico?regiao=eq.{regiao}&data=lt.{limite}",
+                method="DELETE",
+                headers={"apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY},
+            )
+            urllib.request.urlopen(req_del)
+        except Exception as e:
+            self._plog(f"⚠️  Falha ao salvar histórico ({regiao}): {e}")
 
     def executar(self, usuario, senha, data_str):
         try:

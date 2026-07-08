@@ -84,6 +84,38 @@ apaga os `.xlsx` mais antigos da pasta de Downloads, mantendo só o
 mais recente de cada tipo (`EXECUCAO_*` e `CosampaCDU_*`) — sem isso a
 pasta acumula um arquivo novo por hora, todo dia.
 
+### Histórico de fechamentos (últimos 30 dias)
+
+Tabela adicional `snapshots_historico` — precisa ser criada uma vez
+rodando **[`criar_tabela_historico.sql`](criar_tabela_historico.sql)**
+no SQL Editor do Supabase:
+
+```sql
+create table snapshots_historico (
+  regiao text not null,
+  data date not null,
+  dados jsonb not null,
+  salvo_em timestamptz not null default now(),
+  primary key (regiao, data)
+);
+-- RLS liberando select/insert/update/delete públicos (anon key)
+```
+
+A cada publicação bem-sucedida, o bot também faz upsert em
+`snapshots_historico` usando `(regiao, data de hoje)` como chave — ou
+seja, a **última publicação do dia** é a que fica salva como
+"fechamento" daquele dia (as rodadas de hora em hora vão sobrescrevendo
+o mesmo registro até a última do dia). Depois apaga qualquer
+fechamento com mais de `HISTORICO_RETENCAO_DIAS` dias (30, definido no
+topo de `eorder_execucao_bot.py`) — janela **rolante**: nunca cresce
+sem limite, sempre guarda só os últimos 30 dias.
+
+No painel (`index.html`), o seletor "Dia" em cada aba deixa escolher
+entre "Hoje (ao vivo)" (lê de `snapshots`, tempo real) ou um fechamento
+salvo (lê de `snapshots_historico`, foto fixa daquele dia). Estimativa
+de peso: ~3MB/dia (Sul + Execução) × 30 dias ≈ 90MB — bem dentro do
+limite de 500MB do plano gratuito do Supabase.
+
 ---
 
 ## Automação (tarefa agendada)
