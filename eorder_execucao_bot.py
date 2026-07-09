@@ -138,6 +138,13 @@ class EOrderExecucaoBot:
             opts.add_argument("--no-sandbox")
             opts.add_argument("--disable-dev-shm-usage")
         self.driver = webdriver.Chrome(options=opts)
+        # No servidor, o Chrome pode ficar mais lento em horas de pico (varios
+        # Chromes rodando junto -- monitor de equipes + eOrder) -- 120s
+        # (padrão do Selenium) às vezes não é suficiente.
+        try:
+            self.driver.command_executor.set_timeout(300)
+        except Exception:
+            pass
         if self.minimizado:
             self.driver.minimize_window()
 
