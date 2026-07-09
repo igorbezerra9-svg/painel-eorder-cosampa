@@ -639,22 +639,33 @@ function parseDateTimeStr(str) {
   return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]);
 }
 
+// Ao ver um fechamento antigo (histórico), a prioridade tem que ser
+// calculada como estava NAQUELE momento (salvo_em daquele dia), não contra
+// o relógio real de agora — senão tudo que "venceu hoje" ontem aparece como
+// "estourado" ao olhar pra trás, já que o prazo já passou pro relógio atual.
+// pgReferenciaAgora/pgReferenciaHoje ficam null em modo ao vivo (usa
+// new Date()/hoje normalmente) e são fixados pelo pgCarregar() ao abrir um
+// fechamento salvo.
+let pgReferenciaAgora = null;
+let pgReferenciaHoje = null;
+
 function getPrioridade(r) {
   const dateStr = r['Data Prevista Finalização Trabalhos'] || '';
   const dt = parseDateTimeStr(dateStr);
   if (!dt) return 'ok';
 
-  const agora = new Date();
+  const agora = pgReferenciaAgora || new Date();
+  const diaBase = pgReferenciaHoje || hoje;
 
-  // Vencida: prazo já passou
+  // Vencida: prazo já passou (em relação ao momento de referência)
   if (dt < agora) return 'est';
 
   // "Vencendo Hoje": vence até 09:00 do dia seguinte — exceto no sábado,
   // quando a janela se estende até 09:00 de segunda (cobre sáb + dom,
   // já que não tem equipe trabalhando domingo)
-  const ehSabado = hoje.getDay() === 6; // 0=domingo ... 6=sábado
+  const ehSabado = diaBase.getDay() === 6; // 0=domingo ... 6=sábado
   const diasJanela = ehSabado ? 2 : 1;
-  const limite9h = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasJanela, 9, 0, 0);
+  const limite9h = new Date(diaBase.getFullYear(), diaBase.getMonth(), diaBase.getDate() + diasJanela, 9, 0, 0);
   if (dt <= limite9h) return 'hj';
 
   return 'ok';
@@ -804,6 +815,15 @@ async function pgCarregar() {
     document.getElementById('pg-content').style.display = 'block';
     pgDados = rows[0].dados;
     const dt = new Date(isHist ? rows[0].salvo_em : rows[0].atualizado_em);
+    // Fechamento salvo: classifica Estourada/Vence Hoje/No Prazo como estava
+    // NAQUELE momento (salvo_em), não contra o relógio de agora.
+    if (isHist) {
+      pgReferenciaAgora = dt;
+      pgReferenciaHoje = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    } else {
+      pgReferenciaAgora = null;
+      pgReferenciaHoje = null;
+    }
     pgAtualizado = (isHist ? '📅 Fechamento de ' + pgDataView.split('-').reverse().join('/') + ' · salvo ' : 'Dados da nuvem · ') +
       pgRegiao + ' · ' + dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     pgRender();
@@ -914,8 +934,9 @@ function pgKpiCardHTML(dados, opts) {
     ? ` onclick="${cs ? `pgAbrirModalCS('${tipo}','${cs}')` : `pgAbrirModal('${tipo}')`}" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'"`
     : '';
   const cursor = clickable ? 'cursor:pointer;transition:opacity .15s;' : '';
-  const pulseHj = hj > 0 ? ` class="pg-pulse-hj" style="--pulse-dur:${pgPulseDuration()};background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"` : ` style="background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"`;
-  const textoJanelaHj = hoje.getDay() === 6 ? 'até 09:00 de segunda' : 'até 09:00 amanhã';
+  const pulseHj = (hj > 0 && !pgReferenciaAgora) ? ` class="pg-pulse-hj" style="--pulse-dur:${pgPulseDuration()};background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"` : ` style="background:#fff3e8;border-radius:12px;padding:${pad};${cursor}"`;
+  const diaBaseTxt = pgReferenciaHoje || hoje;
+  const textoJanelaHj = diaBaseTxt.getDay() === 6 ? 'até 09:00 de segunda' : 'até 09:00 amanhã';
   return `
     <div${clk('est')} style="background:#fdecea;border-radius:12px;padding:${pad};${cursor}">
       <div style="font-size:${lblSize};color:#c0392b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⚠ Estouradas</div>
@@ -1661,28 +1682,37 @@ function execRenderPorEquipe() {
   const search = (document.getElementById('exec-equipe-search')?.value || '').toLowerCase();
   const dados = execGetFiltrado();
   const eqMap = {};
+  // Semeia com TODAS as equipes planejadas (TdC do dia) já de cara — assim a
+  // tabela mostra a equipe com 0 executado desde o início do dia, e vai
+  // preenchendo Executados/Produtivo/etc à medida que a Execução publica.
+  execFiltrarPlanejadoBase(execCS).forEach(r => {
+    const cod = r['Código Equipe'] || '';
+    if (!cod) return;
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, planejado: 0 };
+    eqMap[cod].planejado++;
+    const m = r['Município'] || '—';
+    eqMap[cod].muniPlan[m] = (eqMap[cod].muniPlan[m] || 0) + 1;
+  });
   dados.forEach(r => {
     const cod = r['Recurso/Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muni: {}, produtivo: 0, improdutivo: 0, devolvido: 0 };
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, planejado: 0 };
     eqMap[cod].n++;
     const m = r['Município'] || '—';
-    eqMap[cod].muni[m] = (eqMap[cod].muni[m] || 0) + 1;
+    eqMap[cod].muniExec[m] = (eqMap[cod].muniExec[m] || 0) + 1;
     const p = execGetProdutividade(r);
     if (p === 'PRODUTIVO') eqMap[cod].produtivo++;
     else if (p === 'IMPRODUTIVO') eqMap[cod].improdutivo++;
     else if (p === 'DEVOLVIDO') eqMap[cod].devolvido++;
   });
-  const planejadoMap = {};
-  execFiltrarPlanejadoBase(execCS).forEach(r => {
-    const cod = r['Código Equipe'] || '';
-    if (!cod) return;
-    planejadoMap[cod] = (planejadoMap[cod] || 0) + 1;
-  });
   execEquipesRows = Object.entries(eqMap)
     .filter(([cod]) => !search || cod.toLowerCase().includes(search))
-    .sort((a, b) => b[1].n - a[1].n)
-    .map(([cod, d]) => ({ cod, muni: Object.entries(d.muni).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—', planejado: planejadoMap[cod] || 0, n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido }));
+    .sort((a, b) => (b[1].planejado - a[1].planejado) || (b[1].n - a[1].n))
+    .map(([cod, d]) => {
+      const muniSrc = Object.keys(d.muniExec).length ? d.muniExec : d.muniPlan;
+      const muni = Object.entries(muniSrc).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+      return { cod, muni, planejado: d.planejado, n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido };
+    });
 
   let html = '';
   execEquipesRows.forEach((row, i) => {
