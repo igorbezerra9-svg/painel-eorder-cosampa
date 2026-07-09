@@ -277,57 +277,99 @@
   </div>
 
   <div id="exec-content">
-    <!-- Filtro por tipo de serviço -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+    <!-- Filtros -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
       <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Dia:</span>
       <select id="exec-data-select" onchange="execSetDataView(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
         <option value="">🔴 Hoje (ao vivo)</option>
       </select>
-      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo de Serviço:</span>
-      <div class="pg-multisel" id="exec-tipo-wrap">
-        <button type="button" class="pg-multisel-btn" id="exec-tipo-btn" onclick="execToggleTipoDropdown(event)">Todos</button>
-        <div class="pg-multisel-menu" id="exec-tipo-menu" style="display:none;max-height:260px;overflow-y:auto;">
-          <div id="exec-tipo-opcoes"></div>
-          <div class="pg-multisel-actions">
-            <a onclick="execSelectAllTipos()">Marcar todos</a>
-            <a onclick="execClearTipos()">Limpar</a>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">C. Serviço:</span>
+        <button class="pg-tipo-btn active" id="exec-cs-all" onclick="execSetCS('')">Todos</button>
+        <button class="pg-tipo-btn" id="exec-cs-jz" onclick="execSetCS('Juazeiro')">Juazeiro</button>
+        <button class="pg-tipo-btn" id="exec-cs-ml" onclick="execSetCS('Milagres')">Milagres</button>
+        <button class="pg-tipo-btn" id="exec-cs-cp" onclick="execSetCS('C. Sales')">C. Sales</button>
+        <button class="pg-tipo-btn" id="exec-comp-toggle" onclick="execToggleComparativo()" style="margin-left:4px;">🔀 Comparar Centros</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Supervisor:</span>
+        <div class="pg-multisel" id="exec-sup-wrap">
+          <button type="button" class="pg-multisel-btn" id="exec-sup-btn" onclick="execToggleSupDropdown(event)">Todos</button>
+          <div class="pg-multisel-menu" id="exec-sup-menu" style="display:none;">
+            <label><input type="checkbox" value="Cirllek Nepomuceno" onchange="execToggleSupervisor(this)"> Cirllek Nepomuceno</label>
+            <label><input type="checkbox" value="Cicera Maria" onchange="execToggleSupervisor(this)"> Cicera Maria</label>
+            <label><input type="checkbox" value="Jorge Luis" onchange="execToggleSupervisor(this)"> Jorge Luis</label>
+            <label><input type="checkbox" value="Amanda Vasques" onchange="execToggleSupervisor(this)"> Amanda Vasques</label>
+            <label><input type="checkbox" value="Helenilton Silva" onchange="execToggleSupervisor(this)"> Helenilton Silva</label>
+            <div class="pg-multisel-actions">
+              <a onclick="execSelectAllSupervisores()">Marcar todos</a>
+              <a onclick="execClearSupervisores()">Limpar</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo:</span>
+        <button class="pg-tipo-btn active" id="exec-regnreg-all" onclick="execSetTipoRegNreg('')">Todas</button>
+        <button class="pg-tipo-btn" id="exec-regnreg-reg" onclick="execSetTipoRegNreg('REG')" style="background:#e8f4fd;color:#1565c0;border-color:#90caf9;">Reguladas</button>
+        <button class="pg-tipo-btn" id="exec-regnreg-nreg" onclick="execSetTipoRegNreg('NREG')" style="background:#fff3e8;color:#bf360c;border-color:#ffb74d;">Não reguladas</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo de Serviço:</span>
+        <div class="pg-multisel" id="exec-tipo-wrap">
+          <button type="button" class="pg-multisel-btn" id="exec-tipo-btn" onclick="execToggleTipoDropdown(event)" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Todos</button>
+          <div class="pg-multisel-menu" id="exec-tipo-menu" style="display:none;max-height:260px;overflow-y:auto;min-width:260px;">
+            <div id="exec-tipo-opcoes"></div>
+            <div class="pg-multisel-actions">
+              <a onclick="execSelectAllTipos()">Marcar todos</a>
+              <a onclick="execClearTipos()">Limpar</a>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Painel total -->
-    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:220px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;" id="exec-kpis">
+      <div style="flex:1;min-width:160px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📋 Planejado</div>
+        <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="exec-planejado">0</div>
+        <div style="font-size:10px;color:#7a8aaa;margin-top:4px;">equipes em campo (TdC)</div>
+      </div>
+      <div style="flex:1;min-width:200px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📈 Executados hoje</div>
         <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="exec-total">0</div>
         <div style="font-size:10px;color:#7a8aaa;margin-top:4px;" id="exec-atualizado">—</div>
       </div>
-      <div style="flex:1;min-width:220px;background:#eaf7ef;border-radius:12px;padding:14px 16px;">
+      <div style="flex:1;min-width:150px;background:#fff8ea;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#8a6400;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">🚦 Farol</div>
+        <div style="font-size:24px;font-weight:700;line-height:1;" id="exec-farol">—</div>
+        <div style="font-size:10px;color:#7a8aaa;margin-top:4px;">executado / planejado</div>
+      </div>
+      <div style="flex:1;min-width:180px;background:#eaf7ef;border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:#1a7a40;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">👷 Equipes em campo</div>
         <div style="font-size:30px;font-weight:700;color:#1a7a40;line-height:1;" id="exec-equipes">0</div>
         <div style="font-size:10px;color:#7a8aaa;margin-top:4px;">com pelo menos 1 execução</div>
       </div>
-      <div style="flex:1;min-width:160px;background:#eaf7ef;border-radius:12px;padding:14px 16px;">
+      <div style="flex:1;min-width:140px;background:#eaf7ef;border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:#1a7a40;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✓ Produtivo</div>
         <div style="font-size:30px;font-weight:700;color:#1a7a40;line-height:1;" id="exec-produtivo">0</div>
         <div style="font-size:10px;color:#7a8aaa;margin-top:4px;" id="exec-produtivo-pct">—</div>
       </div>
-      <div style="flex:1;min-width:160px;background:#fdecea;border-radius:12px;padding:14px 16px;">
+      <div style="flex:1;min-width:140px;background:#fdecea;border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:#c0392b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✗ Improdutivo</div>
         <div style="font-size:30px;font-weight:700;color:#c0392b;line-height:1;" id="exec-improdutivo">0</div>
         <div style="font-size:10px;color:#7a8aaa;margin-top:4px;" id="exec-improdutivo-pct">—</div>
       </div>
-      <div style="flex:1;min-width:160px;background:var(--gray-100);border-radius:12px;padding:14px 16px;">
+      <div style="flex:1;min-width:140px;background:var(--gray-100);border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:var(--gray-700);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">↩ Devolvido</div>
         <div style="font-size:30px;font-weight:700;color:var(--gray-700);line-height:1;" id="exec-devolvido">0</div>
         <div style="font-size:10px;color:#7a8aaa;margin-top:4px;" id="exec-devolvido-pct">—</div>
       </div>
     </div>
 
-    <!-- Dividido por centro de serviço -->
-    <div style="font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Por centro de serviço</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="exec-centros"></div>
+    <!-- Comparativo por centro de serviço (toggle "Comparar Centros") -->
+    <div style="display:none;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="exec-comparativo"></div>
 
     <!-- Por equipe -->
     <div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;margin-bottom:12px;">
@@ -344,9 +386,11 @@
             <tr style="background:#0d1b2a;color:#fff;">
               <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
               <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Município</th>
+              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#90caf9;">Planejado</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Executados</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#50d080;">Produtivos</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#f06060;">Improdutivos</th>
+              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#c0c8d4;">Devolvidos</th>
             </tr>
           </thead>
           <tbody id="exec-equipe-body"></tbody>
@@ -1258,11 +1302,11 @@ function iniciarRealtime() {
 
 function aplicarAtualizacao(regiao) {
   if (!regiao) return;
-  if (regiao === 'Execucao') {
-    if (document.getElementById('execucao-section').style.display !== 'none') execCarregar();
-  } else if (regiao === pgRegiao) {
-    if (document.getElementById('painel-section').style.display !== 'none') pgCarregar();
-  }
+  const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
+  const execVisivel = document.getElementById('execucao-section').style.display !== 'none';
+  if (regiao === pgRegiao && painelVisivel) pgCarregar();
+  // 'Sul' também alimenta o "Planejado" da aba Execução, além de 'Execucao'
+  if ((regiao === 'Execucao' || regiao === 'Sul') && execVisivel) execCarregar();
   atualizarIndicadorTopo();
 }
 
@@ -1282,14 +1326,91 @@ function showToast(msg, duration=2000) {
 
 // ══ EXECUÇÃO ══
 let execDados = [];
+let execPlanejadoDados = [];
 let execAtualizado = '';
 let execTiposSelecionados = [];
 let execDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
+let execCS = '';
+let execSupervisores = [];
+let execTipoRegNreg = '';
+let execModoComparativo = false;
 
 function execSetDataView(v) {
   execDataView = v;
   execCarregar();
 }
+
+function execSetCS(cs) {
+  execCS = cs;
+  ['all','jz','ml','cp'].forEach(k => document.getElementById('exec-cs-' + k).classList.remove('active'));
+  if (cs === '') document.getElementById('exec-cs-all').classList.add('active');
+  else if (cs === 'Juazeiro') document.getElementById('exec-cs-jz').classList.add('active');
+  else if (cs === 'Milagres') document.getElementById('exec-cs-ml').classList.add('active');
+  else if (cs === 'C. Sales') document.getElementById('exec-cs-cp').classList.add('active');
+  execRender();
+}
+
+function execSetTipoRegNreg(t) {
+  execTipoRegNreg = t;
+  ['all','reg','nreg'].forEach(k => document.getElementById('exec-regnreg-' + k).classList.remove('active'));
+  if (t === '') document.getElementById('exec-regnreg-all').classList.add('active');
+  else if (t === 'REG') document.getElementById('exec-regnreg-reg').classList.add('active');
+  else document.getElementById('exec-regnreg-nreg').classList.add('active');
+  execRender();
+}
+
+function execToggleComparativo() {
+  execModoComparativo = !execModoComparativo;
+  document.getElementById('exec-comp-toggle').classList.toggle('active', execModoComparativo);
+  document.getElementById('exec-kpis').style.display = execModoComparativo ? 'none' : 'flex';
+  document.getElementById('exec-comparativo').style.display = execModoComparativo ? 'grid' : 'none';
+}
+
+function execToggleSupDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('exec-sup-menu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function execToggleSupervisor(cb) {
+  const v = cb.value;
+  if (cb.checked) {
+    if (!execSupervisores.includes(v)) execSupervisores.push(v);
+  } else {
+    execSupervisores = execSupervisores.filter(s => s !== v);
+  }
+  execUpdateSupBtnLabel();
+  execRender();
+}
+
+function execSelectAllSupervisores() {
+  const boxes = document.querySelectorAll('#exec-sup-menu input[type=checkbox]');
+  execSupervisores = [...boxes].map(b => { b.checked = true; return b.value; });
+  execUpdateSupBtnLabel();
+  execRender();
+}
+
+function execClearSupervisores() {
+  const boxes = document.querySelectorAll('#exec-sup-menu input[type=checkbox]');
+  boxes.forEach(b => b.checked = false);
+  execSupervisores = [];
+  execUpdateSupBtnLabel();
+  execRender();
+}
+
+function execUpdateSupBtnLabel() {
+  const btn = document.getElementById('exec-sup-btn');
+  if (!btn) return;
+  if (execSupervisores.length === 0) { btn.textContent = 'Todos'; btn.classList.remove('active'); }
+  else if (execSupervisores.length === 1) { btn.textContent = execSupervisores[0]; btn.classList.add('active'); }
+  else { btn.textContent = execSupervisores.length + ' selecionados'; btn.classList.add('active'); }
+}
+
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('exec-sup-wrap');
+  const menu = document.getElementById('exec-sup-menu');
+  if (wrap && menu && !wrap.contains(e.target)) menu.style.display = 'none';
+});
 
 async function execCarregarDatasHistorico() {
   try {
@@ -1318,9 +1439,34 @@ function execGetTipo(r) {
   return (r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || r['Tipo de Serviço'] || '').trim();
 }
 
+function execFiltrarExecutadoBase(csFiltro) {
+  return execDados.filter(r => {
+    if (execTipoRegNreg && getTipoOrdem(r) !== execTipoRegNreg) return false;
+    if (csFiltro && execGetCentro(r) !== csFiltro) return false;
+    if (execSupervisores.length && !execSupervisores.includes(getSupervisor(r['Recurso/Equipe']||''))) return false;
+    if (execTiposSelecionados.length && !execTiposSelecionados.includes(execGetTipo(r))) return false;
+    return true;
+  });
+}
+
+// Base "planejado" = mesma definição do "Total em Campo" do Painel Gerencial
+// (dados de TdC do dia, excluindo programáveis/a reprogramar), filtrada com
+// os mesmos filtros ativos na aba Execução pra comparar igual com igual.
+function execFiltrarPlanejadoBase(csFiltro) {
+  const EXCLUIR = ['programáveis','a reprogramar'];
+  return execPlanejadoDados.filter(r => {
+    const estado = (r['Estado TdC'] || '').trim().toLowerCase();
+    if (EXCLUIR.includes(estado)) return false;
+    if (execTipoRegNreg && getTipoOrdem(r) !== execTipoRegNreg) return false;
+    if (csFiltro && pgGetCS(r) !== csFiltro) return false;
+    if (execSupervisores.length && !execSupervisores.includes(getSupervisor(r['Código Equipe']||''))) return false;
+    if (execTiposSelecionados.length && !execTiposSelecionados.includes(execGetTipo(r))) return false;
+    return true;
+  });
+}
+
 function execGetFiltrado() {
-  if (!execTiposSelecionados.length) return execDados;
-  return execDados.filter(r => execTiposSelecionados.includes(execGetTipo(r)));
+  return execFiltrarExecutadoBase(execCS);
 }
 
 async function execCarregar() {
@@ -1330,10 +1476,16 @@ async function execCarregar() {
     const url = isHist
       ? SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=eq.' + execDataView + '&select=dados,salvo_em'
       : SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao&select=dados,atualizado_em';
-    const res = await fetch(url, {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-    });
+    const urlPlanejado = isHist
+      ? SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Sul&data=eq.' + execDataView + '&select=dados'
+      : SB_URL + '/rest/v1/snapshots?regiao=eq.Sul&select=dados';
+    const [res, resPlan] = await Promise.all([
+      fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }),
+      fetch(urlPlanejado, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
+    ]);
     const rows = await res.json();
+    const rowsPlan = await resPlan.json();
+    execPlanejadoDados = (Array.isArray(rowsPlan) && rowsPlan[0] && rowsPlan[0].dados) || [];
     if (!rows.length || !rows[0].dados) {
       document.getElementById('exec-sem-dados').style.display = 'block';
       document.getElementById('exec-content').style.display = 'none';
@@ -1362,8 +1514,7 @@ function execPopularFiltroTipos() {
   const wrap = document.getElementById('exec-tipo-opcoes');
   wrap.innerHTML = tipos.map(t => {
     const checked = execTiposSelecionados.includes(t) ? 'checked' : '';
-    const codTipo = t.split(' - ')[0] || t;
-    return `<label><input type="checkbox" value="${t.replace(/"/g,'&quot;')}" ${checked} onchange="execToggleTipo(this)"> ${codTipo}</label>`;
+    return `<label title="${t.replace(/"/g,'&quot;')}"><input type="checkbox" value="${t.replace(/"/g,'&quot;')}" ${checked} onchange="execToggleTipo(this)"> ${t}</label>`;
   }).join('');
   execUpdateTipoBtnLabel();
 }
@@ -1403,9 +1554,9 @@ function execClearTipos() {
 function execUpdateTipoBtnLabel() {
   const btn = document.getElementById('exec-tipo-btn');
   if (!btn) return;
-  if (execTiposSelecionados.length === 0) { btn.textContent = 'Todos'; btn.classList.remove('active'); }
-  else if (execTiposSelecionados.length === 1) { btn.textContent = execTiposSelecionados[0].split(' - ')[0]; btn.classList.add('active'); }
-  else { btn.textContent = execTiposSelecionados.length + ' selecionados'; btn.classList.add('active'); }
+  if (execTiposSelecionados.length === 0) { btn.textContent = 'Todos'; btn.title = ''; btn.classList.remove('active'); }
+  else if (execTiposSelecionados.length === 1) { btn.textContent = execTiposSelecionados[0]; btn.title = execTiposSelecionados[0]; btn.classList.add('active'); }
+  else { btn.textContent = execTiposSelecionados.length + ' selecionados'; btn.title = execTiposSelecionados.join(', '); btn.classList.add('active'); }
 }
 
 document.addEventListener('click', function(e) {
@@ -1414,10 +1565,25 @@ document.addEventListener('click', function(e) {
   if (wrap && menu && !wrap.contains(e.target)) menu.style.display = 'none';
 });
 
+// ══ FAROL (executado / planejado) ══
+function execFarol(planejado, executado) {
+  if (!planejado) return { emoji: '⚪', cor: '#98a4b8', label: '—' };
+  const pct = (executado / planejado) * 100;
+  if (pct >= 80) return { emoji: '🟢', cor: '#1a7a40', label: pct.toFixed(0) + '%' };
+  if (pct >= 50) return { emoji: '🟡', cor: '#c68400', label: pct.toFixed(0) + '%' };
+  return { emoji: '🔴', cor: '#c0392b', label: pct.toFixed(0) + '%' };
+}
+
 function execRender() {
   const dados = execGetFiltrado();
+  const planejadoDados = execFiltrarPlanejadoBase(execCS);
+  document.getElementById('exec-planejado').textContent = planejadoDados.length;
   document.getElementById('exec-total').textContent = dados.length;
   document.getElementById('exec-atualizado').textContent = execAtualizado;
+  const farol = execFarol(planejadoDados.length, dados.length);
+  const farolEl = document.getElementById('exec-farol');
+  farolEl.textContent = farol.emoji + ' ' + farol.label;
+  farolEl.style.color = farol.cor;
   const eqs = new Set(dados.map(r => r['Recurso/Equipe']).filter(Boolean));
   document.getElementById('exec-equipes').textContent = eqs.size;
 
@@ -1437,13 +1603,13 @@ function execRender() {
   document.getElementById('exec-devolvido').textContent = devolvido;
   document.getElementById('exec-devolvido-pct').textContent = pct(devolvido);
 
-  execRenderCentros(dados);
+  execRenderComparativo();
   execRenderPorEquipe();
   execRenderTiposBars(dados);
   execRenderTabela();
 }
 
-function execRenderCentros(dados) {
+function execRenderComparativo() {
   const centros = [
     { cs: 'Juazeiro', nome: 'Juazeiro do Norte' },
     { cs: 'C. Sales', nome: 'Campo Sales' },
@@ -1451,24 +1617,42 @@ function execRenderCentros(dados) {
   ];
   let html = '';
   centros.forEach(c => {
-    const dadosCentro = dados.filter(r => execGetCentro(r) === c.cs);
-    let produtivo = 0, improdutivo = 0;
+    const dadosCentro = execFiltrarExecutadoBase(c.cs);
+    const planejadoCentro = execFiltrarPlanejadoBase(c.cs);
+    let produtivo = 0, improdutivo = 0, devolvido = 0;
     dadosCentro.forEach(r => {
       const p = execGetProdutividade(r);
       if (p === 'PRODUTIVO') produtivo++;
       else if (p === 'IMPRODUTIVO') improdutivo++;
+      else if (p === 'DEVOLVIDO') devolvido++;
     });
-    html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:10px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">${c.nome}</div>
-      <div style="font-size:24px;font-weight:700;color:#1a2535;">${dadosCentro.length}</div>
-      <div style="font-size:11px;color:var(--gray-400);margin-top:2px;margin-bottom:8px;">executados hoje</div>
-      <div style="display:flex;gap:12px;border-top:0.5px solid var(--gray-200);padding-top:8px;">
-        <div><span style="color:#1a7a40;font-weight:700;font-size:13px;">${produtivo}</span> <span style="color:var(--gray-400);font-size:10px;">prod.</span></div>
-        <div><span style="color:#c0392b;font-weight:700;font-size:13px;">${improdutivo}</span> <span style="color:var(--gray-400);font-size:10px;">improd.</span></div>
+    const farol = execFarol(planejadoCentro.length, dadosCentro.length);
+    html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">
+      <div style="background:#eef3fb;padding:8px 12px;font-size:12px;font-weight:700;color:#1a2535;">${c.nome}</div>
+      <div style="padding:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <div style="flex:1;">
+            <div style="font-size:9px;color:#1565c0;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Planejado</div>
+            <div style="font-size:18px;font-weight:700;color:#1565c0;">${planejadoCentro.length}</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:9px;color:#1565c0;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Executado</div>
+            <div style="font-size:18px;font-weight:700;color:#1565c0;">${dadosCentro.length}</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:9px;color:#8a6400;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Farol</div>
+            <div style="font-size:16px;font-weight:700;color:${farol.cor};">${farol.emoji} ${farol.label}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;border-top:0.5px solid var(--gray-200);padding-top:8px;">
+          <div><span style="color:#1a7a40;font-weight:700;font-size:13px;">${produtivo}</span> <span style="color:var(--gray-400);font-size:10px;">prod.</span></div>
+          <div><span style="color:#c0392b;font-weight:700;font-size:13px;">${improdutivo}</span> <span style="color:var(--gray-400);font-size:10px;">improd.</span></div>
+          <div><span style="color:var(--gray-700);font-weight:700;font-size:13px;">${devolvido}</span> <span style="color:var(--gray-400);font-size:10px;">devol.</span></div>
+        </div>
       </div>
     </div>`;
   });
-  document.getElementById('exec-centros').innerHTML = html;
+  document.getElementById('exec-comparativo').innerHTML = html;
 }
 
 let execEquipesRows = [];
@@ -1480,18 +1664,25 @@ function execRenderPorEquipe() {
   dados.forEach(r => {
     const cod = r['Recurso/Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muni: {}, produtivo: 0, improdutivo: 0 };
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muni: {}, produtivo: 0, improdutivo: 0, devolvido: 0 };
     eqMap[cod].n++;
     const m = r['Município'] || '—';
     eqMap[cod].muni[m] = (eqMap[cod].muni[m] || 0) + 1;
     const p = execGetProdutividade(r);
     if (p === 'PRODUTIVO') eqMap[cod].produtivo++;
     else if (p === 'IMPRODUTIVO') eqMap[cod].improdutivo++;
+    else if (p === 'DEVOLVIDO') eqMap[cod].devolvido++;
+  });
+  const planejadoMap = {};
+  execFiltrarPlanejadoBase(execCS).forEach(r => {
+    const cod = r['Código Equipe'] || '';
+    if (!cod) return;
+    planejadoMap[cod] = (planejadoMap[cod] || 0) + 1;
   });
   execEquipesRows = Object.entries(eqMap)
     .filter(([cod]) => !search || cod.toLowerCase().includes(search))
     .sort((a, b) => b[1].n - a[1].n)
-    .map(([cod, d]) => ({ cod, muni: Object.entries(d.muni).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—', n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo }));
+    .map(([cod, d]) => ({ cod, muni: Object.entries(d.muni).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—', planejado: planejadoMap[cod] || 0, n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido }));
 
   let html = '';
   execEquipesRows.forEach((row, i) => {
@@ -1499,18 +1690,20 @@ function execRenderPorEquipe() {
     html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
       <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#1565c0;">${row.cod}</td>
       <td style="padding:7px 12px;font-size:11px;">${row.muni}</td>
+      <td style="padding:7px 12px;text-align:center;color:#1565c0;">${row.planejado || '—'}</td>
       <td style="padding:7px 12px;text-align:center;font-weight:700;">${row.n}</td>
       <td style="padding:7px 12px;text-align:center;color:#1a7a40;font-weight:700;">${row.produtivo || '—'}</td>
       <td style="padding:7px 12px;text-align:center;color:#c0392b;font-weight:700;">${row.improdutivo || '—'}</td>
+      <td style="padding:7px 12px;text-align:center;color:var(--gray-700);">${row.devolvido || '—'}</td>
     </tr>`;
   });
-  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
+  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="7" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
 }
 
 function execCopiarEquipes() {
-  const linhas = ['Equipe\tMunicípio\tExecutados\tProdutivos\tImprodutivos'];
+  const linhas = ['Equipe\tMunicípio\tPlanejado\tExecutados\tProdutivos\tImprodutivos\tDevolvidos'];
   execEquipesRows.forEach(row => {
-    linhas.push(`${row.cod}\t${row.muni}\t${row.n}\t${row.produtivo}\t${row.improdutivo}`);
+    linhas.push(`${row.cod}\t${row.muni}\t${row.planejado}\t${row.n}\t${row.produtivo}\t${row.improdutivo}\t${row.devolvido}`);
   });
   const texto = linhas.join('\n');
   navigator.clipboard.writeText(texto).then(() => {
