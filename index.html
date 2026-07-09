@@ -684,6 +684,7 @@ function setTab(tab) {
   });
   if (tab === 'painel') pgCarregar();
   if (tab === 'execucao') execCarregar();
+  atualizarIndicadorTopo();
 }
 
 // ══ PAINEL GERENCIAL ══
@@ -1290,14 +1291,20 @@ function pgRenderTabela() {
 async function atualizarIndicadorTopo() {
   const el = document.getElementById('topo-atualizado');
   if (!el) return;
+  // Mostra o horário da região que está de fato na tela agora (Sul no Painel
+  // Gerencial, Execução na aba Execução) -- em vez de sempre "o mais recente
+  // dos dois", que podia mostrar um horário que não bate com o que está
+  // sendo exibido (ex: Execução atualizou primeiro, mas você está olhando
+  // o Painel Gerencial, que ainda não tinha atualizado).
+  const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
+  const regiaoAtual = painelVisivel ? pgRegiao : 'Execucao';
   try {
-    const res = await fetch(SB_URL + '/rest/v1/snapshots?select=regiao,atualizado_em', {
+    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + regiaoAtual + '&select=atualizado_em', {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     const rows = await res.json();
     if (!rows.length) { el.innerHTML = '<span class="topo-dot"></span> Sem dados publicados ainda'; return; }
-    const maisRecente = rows.sort((a,b) => new Date(b.atualizado_em) - new Date(a.atualizado_em))[0];
-    const dt = new Date(maisRecente.atualizado_em);
+    const dt = new Date(rows[0].atualizado_em);
     const label = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
     el.innerHTML = '<span class="topo-dot"></span> Atualizado ' + label;
   } catch(e) {
