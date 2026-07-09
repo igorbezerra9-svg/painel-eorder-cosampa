@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox, scrolledtext
 import threading
 import time
 import os
+import sys
 import re
 import glob
 import json
@@ -130,6 +131,12 @@ class EOrderExecucaoBot:
             "profile.password_manager_leak_detection": False,
         })
         opts.add_argument("--disable-save-password-bubble")
+        if sys.platform.startswith("linux"):
+            # Chrome recusa a abrir rodando como root sem --no-sandbox; e
+            # --disable-dev-shm-usage evita crash em VPS com pouco /dev/shm
+            # (RAM compartilhada). Não afeta o comportamento no Windows.
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-dev-shm-usage")
         self.driver = webdriver.Chrome(options=opts)
         if self.minimizado:
             self.driver.minimize_window()
