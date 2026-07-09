@@ -334,7 +334,7 @@
       <div style="flex:1;min-width:160px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📋 Planejado</div>
         <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="exec-planejado">0</div>
-        <div style="font-size:10px;color:#7a8aaa;margin-top:4px;">equipes em campo (TdC)</div>
+        <div style="font-size:10px;color:#7a8aaa;margin-top:4px;">pendente no TdC + já executado</div>
       </div>
       <div style="flex:1;min-width:200px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
         <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📈 Executados hoje</div>
@@ -1597,11 +1597,15 @@ function execFarol(planejado, executado) {
 
 function execRender() {
   const dados = execGetFiltrado();
-  const planejadoDados = execFiltrarPlanejadoBase(execCS);
-  document.getElementById('exec-planejado').textContent = planejadoDados.length;
+  // Planejado = ainda pendente no TdC + já executado hoje. Não dá pra usar só
+  // o TdC pendente: assim que a equipe conclui um serviço ele some do TdC
+  // (Finalizado é excluído da busca), então uma equipe muito produtiva podia
+  // "esvaziar" o próprio planejado e aparecer com Executado > Planejado.
+  const planejadoTotal = execFiltrarPlanejadoBase(execCS).length + dados.length;
+  document.getElementById('exec-planejado').textContent = planejadoTotal;
   document.getElementById('exec-total').textContent = dados.length;
   document.getElementById('exec-atualizado').textContent = execAtualizado;
-  const farol = execFarol(planejadoDados.length, dados.length);
+  const farol = execFarol(planejadoTotal, dados.length);
   const farolEl = document.getElementById('exec-farol');
   farolEl.textContent = farol.emoji + ' ' + farol.label;
   farolEl.style.color = farol.cor;
@@ -1639,7 +1643,7 @@ function execRenderComparativo() {
   let html = '';
   centros.forEach(c => {
     const dadosCentro = execFiltrarExecutadoBase(c.cs);
-    const planejadoCentro = execFiltrarPlanejadoBase(c.cs);
+    const planejadoTotalCentro = execFiltrarPlanejadoBase(c.cs).length + dadosCentro.length;
     let produtivo = 0, improdutivo = 0, devolvido = 0;
     dadosCentro.forEach(r => {
       const p = execGetProdutividade(r);
@@ -1647,14 +1651,14 @@ function execRenderComparativo() {
       else if (p === 'IMPRODUTIVO') improdutivo++;
       else if (p === 'DEVOLVIDO') devolvido++;
     });
-    const farol = execFarol(planejadoCentro.length, dadosCentro.length);
+    const farol = execFarol(planejadoTotalCentro, dadosCentro.length);
     html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">
       <div style="background:#eef3fb;padding:8px 12px;font-size:12px;font-weight:700;color:#1a2535;">${c.nome}</div>
       <div style="padding:12px;">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="flex:1;">
             <div style="font-size:9px;color:#1565c0;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Planejado</div>
-            <div style="font-size:18px;font-weight:700;color:#1565c0;">${planejadoCentro.length}</div>
+            <div style="font-size:18px;font-weight:700;color:#1565c0;">${planejadoTotalCentro}</div>
           </div>
           <div style="flex:1;">
             <div style="font-size:9px;color:#1565c0;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Executado</div>
@@ -1688,15 +1692,15 @@ function execRenderPorEquipe() {
   execFiltrarPlanejadoBase(execCS).forEach(r => {
     const cod = r['Código Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, planejado: 0 };
-    eqMap[cod].planejado++;
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, backlog: 0 };
+    eqMap[cod].backlog++;
     const m = r['Município'] || '—';
     eqMap[cod].muniPlan[m] = (eqMap[cod].muniPlan[m] || 0) + 1;
   });
   dados.forEach(r => {
     const cod = r['Recurso/Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, planejado: 0 };
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, backlog: 0 };
     eqMap[cod].n++;
     const m = r['Município'] || '—';
     eqMap[cod].muniExec[m] = (eqMap[cod].muniExec[m] || 0) + 1;
@@ -1705,13 +1709,15 @@ function execRenderPorEquipe() {
     else if (p === 'IMPRODUTIVO') eqMap[cod].improdutivo++;
     else if (p === 'DEVOLVIDO') eqMap[cod].devolvido++;
   });
+  // Planejado = backlog ainda pendente no TdC + já executado (ver execFarol) —
+  // nunca fica menor que Executados.
   execEquipesRows = Object.entries(eqMap)
     .filter(([cod]) => !search || cod.toLowerCase().includes(search))
-    .sort((a, b) => (b[1].planejado - a[1].planejado) || (b[1].n - a[1].n))
+    .sort((a, b) => (b[1].backlog + b[1].n) - (a[1].backlog + a[1].n))
     .map(([cod, d]) => {
       const muniSrc = Object.keys(d.muniExec).length ? d.muniExec : d.muniPlan;
       const muni = Object.entries(muniSrc).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
-      return { cod, muni, planejado: d.planejado, n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido };
+      return { cod, muni, planejado: d.backlog + d.n, n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido };
     });
 
   let html = '';
