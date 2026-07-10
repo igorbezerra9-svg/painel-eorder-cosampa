@@ -1349,9 +1349,21 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ══ BAIXAR ARQUIVO (CSV compatível com Excel) ══
-function gerarCSV(dados) {
+// Mesma ordem das colunas que já aparece nas telas do painel (ver
+// pgFiltrarModal e execRenderTabela) -- o arquivo cru da Enel vem numa
+// ordem diferente, que confundia quem abre o CSV esperando a mesma ordem.
+const ORDEM_COLUNAS_SUL = ['Numero de Serviço', 'Tipo Remessa WIN', ' Tipo de Serviço', 'Código Equipe', 'Nome e Sobrenome Cliente', 'Endereço Completo', 'Data Prevista Finalização Trabalhos', 'Município'];
+const ORDEM_COLUNAS_EXECUCAO = ['Numero de Serviço', 'Tipo Remessa WIN', ' Tipo de Serviço', 'Recurso/Equipe', 'Município', 'Data fim Execução', 'Código Resultado'];
+
+function gerarCSV(dados, ordemPreferida) {
   if (!dados || !dados.length) return '';
-  const colunas = Object.keys(dados[0]);
+  const todasColunas = Object.keys(dados[0]);
+  let colunas = todasColunas;
+  if (ordemPreferida) {
+    const preferidas = ordemPreferida.filter(c => todasColunas.includes(c));
+    const restantes = todasColunas.filter(c => !preferidas.includes(c));
+    colunas = [...preferidas, ...restantes];
+  }
   const linhas = [colunas.join(';')];
   dados.forEach(row => {
     linhas.push(colunas.map(c => {
@@ -1369,8 +1381,9 @@ function baixarArquivoAtual() {
   const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
   const dados = painelVisivel ? pgDados : execDados;
   const nomeBase = painelVisivel ? 'Sul' : 'Execucao';
+  const ordem = painelVisivel ? ORDEM_COLUNAS_SUL : ORDEM_COLUNAS_EXECUCAO;
   if (!dados || !dados.length) { showToast('Sem dados pra baixar', 3000); return; }
-  const csv = gerarCSV(dados);
+  const csv = gerarCSV(dados, ordem);
   const bom = '﻿'; // garante que os acentos apareçam certo no Excel
   const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
