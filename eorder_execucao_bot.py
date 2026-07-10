@@ -639,20 +639,50 @@ class EOrderExecucaoBot:
         self._plog("🔎 Buscando...")
         self._click(XP_BTN_BUSCAR_TDC, timeout=20)
 
+    def _dump_texto_visivel(self, contendo=None, limite=30):
+        """Debug: lista textos curtos visíveis na tela (opcionalmente filtrando
+        por substring, case-insensitive) -- usado quando um clique por texto
+        falha, pra descobrir se o rótulo mudou no site."""
+        script = """
+            var filtro = (arguments[0] || "").toLowerCase();
+            var els = document.querySelectorAll('body *');
+            var vistos = new Set();
+            var out = [];
+            for (var i = 0; i < els.length && out.length < arguments[1]; i++) {
+                var t = (els[i].textContent || "").trim();
+                if (!t || t.length > 60) continue;
+                if (els[i].children.length > 0) continue;
+                if (filtro && t.toLowerCase().indexOf(filtro) === -1) continue;
+                if (vistos.has(t)) continue;
+                vistos.add(t);
+                out.push(t);
+            }
+            return out;
+        """
+        try:
+            return self.driver.execute_script(script, contendo, limite)
+        except Exception:
+            return []
+
     def _exportar_tdc(self):
         self._plog("📤 Exportando TdCs...")
         self._click(XP_TRES_PONTOS_EXPORT_TDC, timeout=20)
         time.sleep(1.5)
-        if not self._click_por_texto("Exportar em xls"):
+        achou = self._click_por_texto("Exportar em xls")
+        if not achou:
             # Site pode estar lento pra renderizar o menu — tenta mais
             # algumas vezes antes de desistir (sem clicar de novo nos 3
             # pontinhos, que pode fechar o menu já aberto)
             for _ in range(3):
                 time.sleep(1.5)
                 if self._click_por_texto("Exportar em xls"):
+                    achou = True
                     break
-            else:
-                self._plog("⚠️  Item 'Exportar em xls' não encontrado no menu.")
+        if not achou:
+            self._plog("⚠️  Item 'Exportar em xls' não encontrado no menu.")
+            textos = self._dump_texto_visivel("export")
+            self._plog(f"🔍 Textos visíveis contendo 'export': {textos}")
+            raise TimeoutException("Item 'Exportar em xls' não encontrado no menu do TdC.")
         self._plog("   ...abriu menu de exportação")
         self._exportar_generico(NOME_EXPORT_TDC, XP_BTN_OK_EXP_TDC, XP_FECHAR_MSG_TDC)
 
