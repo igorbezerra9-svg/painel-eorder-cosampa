@@ -1381,24 +1381,31 @@ async function baixarArquivoAtual() {
   const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
   const nomeBase = painelVisivel ? 'Sul' : 'Execucao';
   const ordem = painelVisivel ? ORDEM_COLUNAS_SUL : ORDEM_COLUNAS_EXECUCAO;
+  // A versão "completa" só existe pro dia de hoje (ao vivo) -- se o usuário
+  // estiver vendo um fechamento de dia passado (seletor "Dia"), teria que
+  // buscar a completa de HOJE por engano e misturar dados de dias
+  // diferentes. Nesse caso nem tenta, já usa direto o que já está na tela.
+  const vendoHistorico = painelVisivel ? !!pgDataView : !!execDataView;
 
-  // A versão "completa" (todas as colunas do arquivo original, não só as
-  // que a tela usa) só é buscada agora, na hora do clique -- assim a tela
-  // ao vivo continua leve, sem carregar esse tanto de dado toda hora.
-  showToast('⏳ Preparando arquivo...');
   let dados = null;
-  try {
-    const res = await fetch(
-      SB_URL + '/rest/v1/snapshots?regiao=eq.' + nomeBase + '_completo&select=dados',
-      { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }
-    );
-    const rows = await res.json();
-    if (rows.length && rows[0].dados && rows[0].dados.length) dados = rows[0].dados;
-  } catch (e) {
-    console.error('Falha ao buscar versão completa pra download:', e);
+  if (!vendoHistorico) {
+    // A versão "completa" (todas as colunas do arquivo original, não só as
+    // que a tela usa) só é buscada agora, na hora do clique -- assim a tela
+    // ao vivo continua leve, sem carregar esse tanto de dado toda hora.
+    showToast('⏳ Preparando arquivo...');
+    try {
+      const res = await fetch(
+        SB_URL + '/rest/v1/snapshots?regiao=eq.' + nomeBase + '_completo&select=dados',
+        { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }
+      );
+      const rows = await res.json();
+      if (rows.length && rows[0].dados && rows[0].dados.length) dados = rows[0].dados;
+    } catch (e) {
+      console.error('Falha ao buscar versão completa pra download:', e);
+    }
   }
-  // Fallback pro que já está carregado na tela, caso a versão completa
-  // ainda não tenha sido publicada (ex.: antes do próximo ciclo do bot).
+  // Fallback pro que já está carregado na tela (histórico, ou versão
+  // completa ainda não publicada -- ex.: antes do próximo ciclo do bot).
   if (!dados) dados = painelVisivel ? pgDados : execDados;
   if (!dados || !dados.length) { showToast('Sem dados pra baixar', 3000); return; }
   const csv = gerarCSV(dados, ordem);
