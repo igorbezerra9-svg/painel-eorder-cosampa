@@ -489,10 +489,11 @@ class EOrderExecucaoBot:
 
     def _xlsx_para_linhas(self, caminho, colunas=None):
         """
-        Lê o xlsx e devolve TODAS as colunas do arquivo original da Enel
-        (não só o subconjunto curado em COLS_TDC/COLS_EXECUCAO) -- o painel
-        só usa os campos que conhece e ignora o resto, mas o botão "Baixar"
-        do painel passa a ter acesso a tudo que veio no export original.
+        Lê o xlsx e devolve as linhas como dicts. Se `colunas` for passado,
+        filtra só esse subconjunto (usado pro snapshot "leve" que alimenta a
+        TV ao vivo); se `colunas` for None, devolve TODAS as colunas do
+        arquivo original (usado só no snapshot "completo" pro botão Baixar,
+        que não é carregado na tela ao vivo).
         """
         wb = openpyxl.load_workbook(caminho, data_only=True)
         ws = wb.active
@@ -501,18 +502,22 @@ class EOrderExecucaoBot:
         for row in ws.iter_rows(min_row=2, values_only=True):
             registro = {}
             for h, v in zip(cabecalho, row):
-                if h is None:
+                if h is None or (colunas is not None and h not in colunas):
                     continue
                 registro[h] = v
             linhas.append(registro)
         return linhas
 
     def _publicar_nuvem(self, regiao, prefixo_arquivo, colunas, timestamp_esperado=None):
+        """Publica o snapshot "leve" (só as colunas curadas) que alimenta a
+        tela ao vivo, e devolve o caminho do xlsx usado (ou None se falhou)
+        pra quem quiser publicar também a versão completa a partir do
+        mesmo arquivo, sem procurar de novo."""
+        caminho = self._achar_export_mais_recente(prefixo_arquivo, timestamp_esperado=timestamp_esperado)
+        if not caminho:
+            self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
+            return None
         try:
-            caminho = self._achar_export_mais_recente(prefixo_arquivo, timestamp_esperado=timestamp_esperado)
-            if not caminho:
-                self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
-                return
             linhas = self._xlsx_para_linhas(caminho, colunas)
             corpo = json.dumps({
                 "regiao": regiao,
@@ -537,6 +542,39 @@ class EOrderExecucaoBot:
             self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
             self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e}")
+        return caminho
+
+    def _publicar_nuvem_completo(self, regiao, caminho):
+        """Publica TODAS as colunas do arquivo original numa região
+        separada (ex.: 'Sul_completo') -- só é buscada quando alguém clica
+        em "Baixar" no painel, nunca na tela ao vivo, então não pesa o
+        carregamento normal da TV."""
+        if not caminho:
+            return
+        try:
+            linhas = self._xlsx_para_linhas(caminho, colunas=None)
+            corpo = json.dumps({
+                "regiao": regiao + "_completo",
+                "dados": linhas,
+                "atualizado_em": datetime.now(timezone.utc).isoformat(),
+            }, default=str).encode("utf-8")
+            req = urllib.request.Request(
+                SB_URL + "/rest/v1/snapshots",
+                data=corpo,
+                method="POST",
+                headers={
+                    "apikey": SB_KEY,
+                    "Authorization": "Bearer " + SB_KEY,
+                    "Content-Type": "application/json",
+                    "Prefer": "resolution=merge-duplicates",
+                },
+            )
+            with urllib.request.urlopen(req) as resp:
+                self._plog(f"☁ Versão completa publicada ({regiao}): {len(linhas)} registros — status {resp.status}")
+        except urllib.error.HTTPError as e:
+            self._plog(f"⚠️  Falha ao publicar versão completa ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            self._plog(f"⚠️  Falha ao publicar versão completa ({regiao}): {e}")
 
     def _publicar_historico(self, regiao, linhas):
         """
@@ -599,7 +637,8 @@ class EOrderExecucaoBot:
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
             timestamp_esperado = ok if isinstance(ok, str) else None
-            self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO, timestamp_esperado=timestamp_esperado)
+            caminho = self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO, timestamp_esperado=timestamp_esperado)
+            self._publicar_nuvem_completo("Execucao", caminho)
             self._limpar_exports_antigos(NOME_EXPORT)
         return ok
 
@@ -723,7 +762,8 @@ class EOrderExecucaoBot:
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
             timestamp_esperado = ok if isinstance(ok, str) else None
-            self._publicar_nuvem("Sul", NOME_EXPORT_TDC, COLS_TDC, timestamp_esperado=timestamp_esperado)
+            caminho = self._publicar_nuvem("Sul", NOME_EXPORT_TDC, COLS_TDC, timestamp_esperado=timestamp_esperado)
+            self._publicar_nuvem_completo("Sul", caminho)
             self._limpar_exports_antigos(NOME_EXPORT_TDC)
         return ok
 
