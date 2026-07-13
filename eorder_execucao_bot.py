@@ -487,7 +487,13 @@ class EOrderExecucaoBot:
         except Exception as e:
             self._plog(f"⚠️  Falha ao limpar exports antigos: {e}")
 
-    def _xlsx_para_linhas(self, caminho, colunas):
+    def _xlsx_para_linhas(self, caminho, colunas=None):
+        """
+        Lê o xlsx e devolve TODAS as colunas do arquivo original da Enel
+        (não só o subconjunto curado em COLS_TDC/COLS_EXECUCAO) -- o painel
+        só usa os campos que conhece e ignora o resto, mas o botão "Baixar"
+        do painel passa a ter acesso a tudo que veio no export original.
+        """
         wb = openpyxl.load_workbook(caminho, data_only=True)
         ws = wb.active
         cabecalho = [c.value for c in ws[1]]
@@ -495,7 +501,7 @@ class EOrderExecucaoBot:
         for row in ws.iter_rows(min_row=2, values_only=True):
             registro = {}
             for h, v in zip(cabecalho, row):
-                if h is None or h not in colunas:
+                if h is None:
                     continue
                 registro[h] = v
             linhas.append(registro)
