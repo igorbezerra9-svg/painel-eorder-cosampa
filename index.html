@@ -1126,7 +1126,8 @@ function pgFiltrarModal() {
         (r['Numero de Serviço']||'').toLowerCase().includes(q) ||
         (r['Nome e Sobrenome Cliente']||'').toLowerCase().includes(q) ||
         (r['Endereço Completo']||'').toLowerCase().includes(q) ||
-        (r['Código Equipe']||'').toLowerCase().includes(q)
+        (r['Código Equipe']||'').toLowerCase().includes(q) ||
+        (r['Tipo Remessa WIN']||r[' Tipo de Serviço']||r['Tipo de Serviço']||'').toLowerCase().includes(q)
       )
     : pgModalDados;
 
@@ -1198,7 +1199,8 @@ function pgCopiarModal() {
         (r['Numero de Serviço']||'').toLowerCase().includes(q) ||
         (r['Nome e Sobrenome Cliente']||'').toLowerCase().includes(q) ||
         (r['Endereço Completo']||'').toLowerCase().includes(q) ||
-        (r['Código Equipe']||'').toLowerCase().includes(q)
+        (r['Código Equipe']||'').toLowerCase().includes(q) ||
+        (r['Tipo Remessa WIN']||r[' Tipo de Serviço']||r['Tipo de Serviço']||'').toLowerCase().includes(q)
       )
     : pgModalDados;
 
