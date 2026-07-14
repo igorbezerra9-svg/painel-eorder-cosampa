@@ -1694,12 +1694,7 @@ function execRender() {
   // "esvaziar" o próprio planejado e aparecer com Executado > Planejado.
   const planejadoTotal = execFiltrarPlanejadoBase(execCS).length + dados.length;
   document.getElementById('exec-planejado').textContent = planejadoTotal;
-  document.getElementById('exec-total').textContent = dados.length;
   document.getElementById('exec-atualizado').textContent = execAtualizado;
-  const farol = execFarol(planejadoTotal, dados.length);
-  const farolEl = document.getElementById('exec-farol');
-  farolEl.textContent = farol.emoji + ' ' + farol.label;
-  farolEl.style.color = farol.cor;
   const eqs = new Set(dados.map(r => r['Recurso/Equipe']).filter(Boolean));
   document.getElementById('exec-equipes').textContent = eqs.size;
 
@@ -1710,6 +1705,14 @@ function execRender() {
     else if (p === 'IMPRODUTIVO') improdutivo++;
     else if (p === 'DEVOLVIDO') devolvido++;
   });
+  // Devolvido não conta como executado (a OS não foi concluída) -- só
+  // Produtivo + Improdutivo entram no "Executados Hoje" e no Farol.
+  const executadoReal = produtivo + improdutivo;
+  document.getElementById('exec-total').textContent = executadoReal;
+  const farol = execFarol(planejadoTotal, executadoReal);
+  const farolEl = document.getElementById('exec-farol');
+  farolEl.textContent = farol.emoji + ' ' + farol.label;
+  farolEl.style.color = farol.cor;
   const totalClassificado = produtivo + improdutivo + devolvido;
   const pct = n => totalClassificado ? ((n/totalClassificado)*100).toFixed(1) + '%' : '—';
   document.getElementById('exec-produtivo').textContent = produtivo;
@@ -1742,7 +1745,8 @@ function execRenderComparativo() {
       else if (p === 'IMPRODUTIVO') improdutivo++;
       else if (p === 'DEVOLVIDO') devolvido++;
     });
-    const farol = execFarol(planejadoTotalCentro, dadosCentro.length);
+    const executadoRealCentro = produtivo + improdutivo; // Devolvido não conta como executado
+    const farol = execFarol(planejadoTotalCentro, executadoRealCentro);
     html += `<div style="background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">
       <div style="background:#eef3fb;padding:8px 12px;font-size:12px;font-weight:700;color:#1a2535;">${c.nome}</div>
       <div style="padding:12px;">
@@ -1753,7 +1757,7 @@ function execRenderComparativo() {
           </div>
           <div style="flex:1;">
             <div style="font-size:9px;color:#1565c0;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Executado</div>
-            <div style="font-size:18px;font-weight:700;color:#1565c0;">${dadosCentro.length}</div>
+            <div style="font-size:18px;font-weight:700;color:#1565c0;">${executadoRealCentro}</div>
           </div>
           <div style="flex:1;">
             <div style="font-size:9px;color:#8a6400;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Farol</div>
@@ -1808,7 +1812,7 @@ function execRenderPorEquipe() {
     .map(([cod, d]) => {
       const muniSrc = Object.keys(d.muniExec).length ? d.muniExec : d.muniPlan;
       const muni = Object.entries(muniSrc).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
-      return { cod, muni, planejado: d.backlog + d.n, n: d.n, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido };
+      return { cod, muni, planejado: d.backlog + d.n, n: d.produtivo + d.improdutivo, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido };
     });
 
   let html = '';
