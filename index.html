@@ -385,16 +385,16 @@
         </div>
       </div>
       <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <table style="width:100%;border-collapse:collapse;font-size:15px;">
           <thead>
             <tr style="background:#0d1b2a;color:#fff;">
-              <th style="padding:12px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
-              <th style="padding:12px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Município</th>
-              <th style="padding:12px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#90caf9;">Planejado</th>
-              <th style="padding:12px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Executados</th>
-              <th style="padding:12px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#50d080;">Produtivos</th>
-              <th style="padding:12px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#f06060;">Improdutivos</th>
-              <th style="padding:12px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#c0c8d4;">Devolvidos</th>
+              <th style="padding:10px 16px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+              <th style="padding:10px 16px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Município</th>
+              <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#90caf9;">Planejado</th>
+              <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Executados</th>
+              <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#50d080;">Produtivos</th>
+              <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#f06060;">Improdutivos</th>
+              <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#c0c8d4;">Devolvidos</th>
             </tr>
           </thead>
           <tbody id="exec-equipe-body"></tbody>
@@ -1820,13 +1820,13 @@ function execRenderPorEquipe() {
   execEquipesRows.forEach((row, i) => {
     const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
     html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
-      <td style="padding:10px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#1565c0;">${row.cod}</td>
-      <td style="padding:10px 14px;font-size:13px;">${row.muni}</td>
-      <td style="padding:10px 14px;text-align:center;font-size:14px;color:#1565c0;">${row.planejado || '—'}</td>
-      <td style="padding:10px 14px;text-align:center;font-size:14px;font-weight:700;">${row.n}</td>
-      <td style="padding:10px 14px;text-align:center;font-size:14px;color:#1a7a40;font-weight:700;">${row.produtivo || '—'}</td>
-      <td style="padding:10px 14px;text-align:center;font-size:14px;color:#c0392b;font-weight:700;">${row.improdutivo || '—'}</td>
-      <td style="padding:10px 14px;text-align:center;font-size:14px;color:var(--gray-700);">${row.devolvido || '—'}</td>
+      <td style="padding:8px 16px;font-family:monospace;font-size:15px;font-weight:700;color:#1565c0;">${row.cod}</td>
+      <td style="padding:8px 16px;font-size:15px;">${row.muni}</td>
+      <td style="padding:8px 16px;text-align:center;font-size:16px;color:#1565c0;">${row.planejado || '—'}</td>
+      <td style="padding:8px 16px;text-align:center;font-size:16px;font-weight:700;">${row.n}</td>
+      <td style="padding:8px 16px;text-align:center;font-size:16px;color:#1a7a40;font-weight:700;">${row.produtivo || '—'}</td>
+      <td style="padding:8px 16px;text-align:center;font-size:16px;color:#c0392b;font-weight:700;">${row.improdutivo || '—'}</td>
+      <td style="padding:8px 16px;text-align:center;font-size:16px;color:var(--gray-700);">${row.devolvido || '—'}</td>
     </tr>`;
   });
   document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="7" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
