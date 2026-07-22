@@ -558,11 +558,33 @@ const TIPO_REGULADA = {
   'OUTRNU':true,'OUTRIM':true,'OUTRAU':true,'OUTCP0':true,'OUTRNL':true,
   'OUTVMT':true,'NOVPRO':true,'OUTOTC':true,'OUTIMR':true,'OUTSTB':true,
   'OUTIRC':true,'OUTMLD':true,'OUTMMI':true,'OUTRCI':true,'OUTRVI':true,
-  'OUTRCO':true
+  'OUTRCO':true,'OUTACB':true,'NOVCAP':true,'OUTCMI':true,'OUTDIR':true,
+  'OUTDGD':true,'OUTDBR':true,'OUTITE':true,'NOVVIR':true,'NOVVIU':true,
+  'OUTSEE':true,'OUTSMA':true,'OUTSML':true,'OUTSMI':true,'OUTVIE':true
 };
 const TIPO_NAO_REGULADA = {
   'OUTCDN':true,'OUTRNN':true,'OUTERM':true,'OUTRFS':true,'OUTCSC':true,
-  'OUTCRT':true
+  'OUTCRT':true,'OUTIRR':true
+};
+
+// ══ MAPA DE TIPO SERVICO (Corte/Ligacao Nova/Perdas/Religacao) ══
+const TIPO_SERVICO_CATEGORIA = {
+  'OUTCDN':'Corte','OUTCP0':'Corte','OUTCRT':'Corte','OUTCSC':'Corte',
+  'OUTERC':'Corte','OUTERM':'Corte','OUTIRR':'Corte','OUTRFS':'Corte','OUTRNN':'Corte',
+  'OUTACB':'Ligação Nova','OUTACT':'Ligação Nova','OUTSDJ':'Ligação Nova','OUTAMC':'Ligação Nova',
+  'NOVCAP':'Ligação Nova','OUTCMI':'Ligação Nova','OUTDCM':'Ligação Nova','OUTDIR':'Ligação Nova',
+  'OUTDGD':'Ligação Nova','OUTDBR':'Ligação Nova','OUTITE':'Ligação Nova','OUTIMB':'Ligação Nova',
+  'OUTIMR':'Ligação Nova','NOVPRO':'Ligação Nova','NOVLBT':'Ligação Nova','OUTRIM':'Ligação Nova',
+  'NOVVIR':'Ligação Nova','NOVVIU':'Ligação Nova','OUTMLD':'Ligação Nova','OUTMMI':'Ligação Nova',
+  'OUTMML':'Ligação Nova','OUTSRL':'Ligação Nova','OUTRNL':'Ligação Nova','OUTSEE':'Ligação Nova',
+  'OUTSEM':'Ligação Nova','OUTSTB':'Ligação Nova','OUTSMA':'Ligação Nova','OUTMGD':'Ligação Nova',
+  'OUTSML':'Ligação Nova','OUTAQM':'Ligação Nova','OUTSMI':'Ligação Nova','OUTVPC':'Ligação Nova',
+  'OUTVIE':'Ligação Nova','OUTVMT':'Ligação Nova',
+  'OUTIRM':'Perdas','OUTIRC':'Perdas','OUTIRD':'Perdas','OUTOTC':'Perdas',
+  'OUTTCP':'Perdas','OUTTME':'Perdas',
+  'OUTNCR':'Religação','OUTNCU':'Religação','OUTRAR':'Religação','OUTRAU':'Religação',
+  'OUTRCI':'Religação','OUTRCO':'Religação','OUTRVI':'Religação','OUTRNR':'Religação',
+  'OUTRNU':'Religação','OUTRUR':'Religação'
 };
 
 // ══ MAPA DE PRODUTIVIDADE (Código Resultado da Execução) ══
@@ -614,7 +636,11 @@ const RESULTADO_PRODUTIVIDADE = {
   'TRAN':'IMPRODUTIVO','0050':'PRODUTIVO','0051':'PRODUTIVO','0053':'PRODUTIVO',
   'MLDE03':'IMPRODUTIVO','RAE07':'PRODUTIVO','ACTE03':'IMPRODUTIVO','ACBV02':'PRODUTIVO',
   'DGD01':'PRODUTIVO','SEE01':'PRODUTIVO','TMEE01':'PRODUTIVO','IRDE01':'PRODUTIVO',
-  'SML01':'PRODUTIVO','IRCE01':'PRODUTIVO'
+  'SML01':'PRODUTIVO','IRCE01':'PRODUTIVO',
+  'APOE01':'PRODUTIVO','VMT01':'PRODUTIVO','VMT02':'IMPRODUTIVO','TMEE02':'IMPRODUTIVO',
+  'TMEE03':'IMPRODUTIVO','DIR02':'PRODUTIVO','TCPE03':'IMPRODUTIVO','SMA03':'IMPRODUTIVO',
+  'CMIE02':'IMPRODUTIVO','MGD05':'PRODUTIVO','ITE01':'PRODUTIVO','DBR01':'PRODUTIVO',
+  'AQME02':'IMPRODUTIVO','IMRE02':'IMPRODUTIVO','0070':'PRODUTIVO'
 };
 
 function execGetProdutividade(r) {
