@@ -134,6 +134,62 @@
     padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600;
     display: none; z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,.3);
   }
+
+  /* ══ PAINEL OPERACIONAL ══ */
+  .op-panel { background:var(--white); border:1px solid var(--gray-200); border-radius:12px; padding:18px 20px; margin-bottom:18px; }
+  .op-panel h3 { font-size:14px; margin:0 0 3px; font-weight:700; color:var(--text); }
+  .op-panel .op-sub { font-size:11.5px; color:var(--gray-400); margin-bottom:14px; }
+  .op-subtab { padding:8px 18px; border-radius:7px; font-size:13px; font-weight:700; color:var(--gray-700); cursor:pointer; border:none; background:transparent; }
+  .op-subtab.active { background:var(--white); color:var(--navy); }
+  .op-hero { display:grid; grid-template-columns:1fr 1fr 1.4fr; gap:14px; margin-bottom:18px; }
+  .op-hcard { background:var(--white); border:1px solid var(--gray-200); border-radius:12px; padding:18px 20px; }
+  .op-hcard .op-l { font-size:10.5px; color:var(--gray-400); font-weight:700; text-transform:uppercase; letter-spacing:.6px; margin-bottom:9px; }
+  .op-hcard .op-v { font-size:32px; font-weight:800; line-height:1; color:var(--text); }
+  .op-hcard .op-d { font-size:12px; color:var(--gray-400); margin-top:8px; }
+  .op-hcard.taxa .op-v { color:var(--red); }
+  .op-hcard .op-split { display:flex; gap:18px; margin-top:4px; flex-wrap:wrap; }
+  .op-hcard .op-split div { font-size:12.5px; color:var(--gray-700); }
+  .op-hcard .op-split b { font-size:16px; display:block; color:var(--text); }
+  .op-hcard.clientes .op-row { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px solid var(--gray-100); }
+  .op-hcard.clientes .op-row:last-child { border-bottom:none; }
+  .op-hcard.clientes .op-row span { font-size:12.5px; color:var(--gray-700); }
+  .op-hcard.clientes .op-row b { font-size:16px; }
+  .op-tipos-table { width:100%; border-collapse:collapse; }
+  .op-tipos-table thead th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--gray-400); font-weight:700; padding:8px 12px; border-bottom:1px solid var(--gray-200); cursor:pointer; }
+  .op-tipos-table tbody td { padding:11px 12px; font-size:13px; vertical-align:middle; border-bottom:1px solid var(--gray-100); }
+  .op-tipos-table td.op-num { font-family:var(--font-mono); text-align:right; }
+  .op-dot { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:8px; }
+  .op-mini-track { width:70px; height:8px; background:var(--gray-100); border-radius:4px; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:8px; }
+  .op-mini-fill { height:100%; border-radius:4px; }
+  .op-contrib-track { width:90px; height:8px; background:var(--gray-100); border-radius:4px; overflow:hidden; display:inline-block; vertical-align:middle; }
+  .op-contrib-fill { height:100%; border-radius:4px; background:var(--gray-700); }
+  .op-narrative { background:var(--white); border:1px solid var(--gray-200); border-left:4px solid var(--accent); border-radius:10px; padding:16px 20px; margin-bottom:18px; font-size:13.5px; line-height:1.7; color:var(--gray-700); }
+  .op-narrative b { color:var(--text); }
+  .op-narrative .op-up { color:var(--red); font-weight:700; }
+  .op-narrative .op-down { color:var(--green); font-weight:700; }
+  .op-charts-row { display:grid; grid-template-columns:1.3fr 1fr; gap:14px; }
+  .op-stack { display:flex; align-items:flex-end; gap:10px; height:150px; }
+  .op-scol { flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; gap:5px; }
+  .op-sbars { width:100%; max-width:34px; display:flex; flex-direction:column-reverse; border-radius:4px 4px 0 0; overflow:hidden; }
+  .op-sseg { width:100%; }
+  .op-smonth { font-size:10.5px; color:var(--gray-400); margin-top:2px; }
+  .op-legend { display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; }
+  .op-litem { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--gray-700); }
+  .op-ldot { width:9px; height:9px; border-radius:2px; }
+  .op-barlist .op-row2 { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .op-barlist .op-lbl { width:210px; font-size:11.5px; color:var(--gray-700); flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .op-barlist .op-track { flex:1; height:14px; background:var(--gray-100); border-radius:4px; overflow:hidden; }
+  .op-barlist .op-fill { height:100%; border-radius:4px; }
+  .op-barlist .op-val { width:52px; text-align:right; font-size:11.5px; font-family:var(--font-mono); color:var(--text); flex-shrink:0; }
+  .op-table { width:100%; border-collapse:collapse; }
+  .op-table thead th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--gray-400); font-weight:700; padding:8px 12px; border-top:1px solid var(--gray-200); border-bottom:1px solid var(--gray-200); cursor:pointer; white-space:nowrap; }
+  .op-table tbody tr { border-bottom:1px solid var(--gray-100); cursor:pointer; }
+  .op-table tbody tr:hover { background:var(--gray-100); }
+  .op-table td { padding:9px 12px; font-size:12.5px; vertical-align:middle; }
+  .op-table td.op-num { font-family:var(--font-mono); text-align:right; }
+  .op-eqcode { font-family:var(--font-mono); font-weight:700; color:#1565c0; }
+  .op-badge { display:inline-block; padding:2px 9px; border-radius:12px; font-size:10.5px; font-weight:700; }
+  .op-badge.op-rec { background:var(--red-soft); color:var(--red); }
 </style>
 </head>
 <body>
@@ -162,6 +218,10 @@
   <button id="tab-execucao" onclick="setTab('execucao')"
     style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
     📈 Execução
+  </button>
+  <button id="tab-operacional" onclick="setTab('operacional')"
+    style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
+    🛠️ Painel Operacional
   </button>
 </div>
 
@@ -468,6 +528,149 @@
   </div>
 </div>
 
+<!-- ══ PAINEL OPERACIONAL ══ -->
+<div id="operacional-section" style="display:none;width:100%;padding:24px 40px;box-sizing:border-box;">
+
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:14px 16px;margin-bottom:18px;">
+    <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Período</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-mes"></div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Centro de Serviço</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-centro"></div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Classificação</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-classif"></div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tipo</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-tipo"></div>
+    </div>
+    <div class="pg-multisel">
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tipo de Serviço</div>
+      <button class="pg-multisel-btn" id="op-servico-btn" onclick="opToggleMenuServico()">Todos</button>
+      <div class="pg-multisel-menu" id="op-servico-menu" style="display:none;"></div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Supervisor</div>
+      <select id="op-select-supervisor" onchange="opSetSupervisor(this.value)" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;background:var(--white);">
+        <option value="">Todos</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:180px;">
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Buscar cliente</div>
+      <input type="text" id="op-busca-cliente" oninput="opSetBusca(this.value)" placeholder="Código ou nome do cliente"
+        style="width:100%;padding:7px 11px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;">
+    </div>
+    <div style="font-size:11.5px;color:#3568c9;font-weight:700;cursor:pointer;align-self:center;" onclick="opLimparFiltros()">Limpar filtros</div>
+  </div>
+
+  <div id="op-loading" style="display:none;color:var(--gray-400);font-size:13px;padding:30px;text-align:center;">⏳ Carregando dados do período selecionado...</div>
+  <div id="op-vazio" style="display:none;color:var(--gray-400);font-size:13px;padding:30px;text-align:center;">Selecione ao menos um mês em "Período" pra carregar os dados.</div>
+
+  <div id="op-conteudo" style="display:none;">
+
+    <div style="display:inline-flex;gap:2px;background:var(--gray-200);border-radius:9px;padding:3px;margin-bottom:18px;">
+      <button class="op-subtab active" id="op-subtab-resumo" onclick="opSetSubtab('resumo')">Resumo Executivo</button>
+      <button class="op-subtab" id="op-subtab-equipes" onclick="opSetSubtab('equipes')">Equipes</button>
+      <button class="op-subtab" id="op-subtab-clientes" onclick="opSetSubtab('clientes')">Clientes</button>
+    </div>
+
+    <div id="op-tab-resumo">
+      <div class="op-hero">
+        <div class="op-hcard">
+          <div class="op-l">Total geral (período)</div>
+          <div class="op-v" id="op-kpi-total">0</div>
+          <div class="op-split" id="op-kpi-split"></div>
+        </div>
+        <div class="op-hcard taxa">
+          <div class="op-l">Taxa de improdutiva geral</div>
+          <div class="op-v" id="op-kpi-taxa">0%</div>
+          <div class="op-d" id="op-kpi-taxa-tend">—</div>
+        </div>
+        <div class="op-hcard clientes">
+          <div class="op-row"><span>Clientes únicos atendidos</span><b id="op-kpi-clientes-unicos">0</b></div>
+          <div class="op-row"><span>Clientes recorrentes (2+ improdutivas)</span><b id="op-kpi-clientes-rec">0</b></div>
+          <div class="op-row"><span>Média de improdutivas por cliente</span><b id="op-kpi-media-cliente">0</b></div>
+        </div>
+      </div>
+
+      <div class="op-panel">
+        <h3>Enviados × produtividade por tipo de serviço</h3>
+        <div class="op-sub">De cada tipo enviado, quanto virou produtivo ou improdutivo — ordenado por quem mais contribui pra taxa geral</div>
+        <table class="op-tipos-table">
+          <thead><tr><th>Tipo</th><th class="op-num">Enviados</th><th class="op-num">Produtivos</th><th class="op-num">Improdutivos</th><th>% improdutivo</th><th>Contribuição p/ taxa geral</th></tr></thead>
+          <tbody id="op-tabela-tipos"></tbody>
+        </table>
+      </div>
+
+      <div class="op-panel" id="op-narrative-wrap"></div>
+
+      <div class="op-panel">
+        <h3>Evolução das improdutivas</h3>
+        <div class="op-sub">Corte × Ligação Nova × Perdas × Religação — mensal</div>
+        <div class="op-stack" id="op-evolucao-chart"></div>
+        <div class="op-legend" id="op-evolucao-legend"></div>
+      </div>
+
+      <div class="op-charts-row">
+        <div class="op-panel">
+          <h3>Diagnóstico de causa raiz</h3>
+          <div class="op-sub">Só entre as Improdutivas do período filtrado</div>
+          <div class="op-barlist" id="op-causaraiz-chart"></div>
+        </div>
+        <div class="op-panel">
+          <h3>Top motivos de improdutivo</h3>
+          <div class="op-sub">Resultados que mais geram retrabalho</div>
+          <div class="op-barlist" id="op-motivos-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="op-tab-equipes" style="display:none;">
+      <div class="op-panel">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
+          <div>
+            <h3>Ranking de equipes por % improdutiva</h3>
+            <div class="op-sub" id="op-equipes-sub">—</div>
+          </div>
+          <select id="op-select-min-os" onchange="opSetMinOs(this.value)" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;">
+            <option value="5">mín. 5 OS no período</option>
+            <option value="10" selected>mín. 10 OS no período</option>
+            <option value="20">mín. 20 OS no período</option>
+            <option value="50">mín. 50 OS no período</option>
+          </select>
+        </div>
+        <table class="op-table" style="margin-top:12px;">
+          <thead><tr><th>Equipe</th><th>Supervisor</th><th>Município</th><th class="op-num">Total OS</th><th>% Improdutiva</th></tr></thead>
+          <tbody id="op-tabela-equipes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="op-tab-clientes" style="display:none;">
+      <div class="op-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <h3>Ranking de clientes</h3>
+            <div class="op-sub" id="op-clientes-sub">—</div>
+          </div>
+          <label style="font-size:12px;color:var(--gray-700);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="op-only-recorrentes" checked onchange="opRenderClientes()"> Só recorrentes (2+)
+          </label>
+        </div>
+        <table class="op-table" style="margin-top:12px;">
+          <thead><tr><th>Cliente</th><th>Município</th><th class="op-num">Total</th><th>Meses com ocorrência</th></tr></thead>
+          <tbody id="op-tabela-clientes"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -706,7 +909,8 @@ function getPrioridade(r) {
 function setTab(tab) {
   document.getElementById('painel-section').style.display = tab === 'painel' ? 'block' : 'none';
   document.getElementById('execucao-section').style.display = tab === 'execucao' ? 'block' : 'none';
-  ['painel','execucao'].forEach(t => {
+  document.getElementById('operacional-section').style.display = tab === 'operacional' ? 'block' : 'none';
+  ['painel','execucao','operacional'].forEach(t => {
     const on = t === tab;
     const btn = document.getElementById('tab-' + t);
     btn.style.color = on ? '#e8a020' : '#8097b8';
@@ -715,6 +919,7 @@ function setTab(tab) {
   });
   if (tab === 'painel') pgCarregar();
   if (tab === 'execucao') execCarregar();
+  if (tab === 'operacional') opCarregar();
   atualizarIndicadorTopo();
 }
 
@@ -1921,6 +2126,502 @@ function execRenderTabela() {
     </tr>`;
   });
   document.getElementById('exec-tabela-body').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8097b8;">Nenhum serviço encontrado</td></tr>';
+}
+
+// ══ PAINEL OPERACIONAL ══
+const OP_MESES_LABEL = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const op = {
+  mesesSelecionados: new Set(),
+  mesesCarregados: new Set(),
+  cache: {},
+  centro: '',
+  classificacao: '',
+  tipo: '',
+  servicosSelecionados: new Set(),
+  supervisor: '',
+  busca: '',
+  subtab: 'resumo',
+  minOs: 10,
+};
+let opDadosAtuais = [];
+
+function opMesesDisponiveis() {
+  const ano = hoje.getFullYear();
+  const mesAtual = hoje.getMonth();
+  const out = [];
+  for (let m = 0; m <= mesAtual; m++) {
+    out.push({ key: ano + '-' + String(m + 1).padStart(2, '0'), label: OP_MESES_LABEL[m] });
+  }
+  return out;
+}
+
+async function opFetchMes(mesKey) {
+  if (op.cache[mesKey]) return op.cache[mesKey];
+  const [ano, mes] = mesKey.split('-').map(Number);
+  const primeiroDia = mesKey + '-01';
+  const ultimoDiaObj = new Date(ano, mes, 0);
+  const ultimoDia = mesKey + '-' + String(ultimoDiaObj.getDate()).padStart(2, '0');
+  const url = SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=gte.' + primeiroDia + '&data=lte.' + ultimoDia + '&select=dados,data';
+  try {
+    const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    const linhas = await res.json();
+    const registros = [];
+    (linhas || []).forEach(l => {
+      (l.dados || []).forEach(r => {
+        r.__data = l.data;
+        registros.push(r);
+      });
+    });
+    op.cache[mesKey] = registros;
+  } catch (e) {
+    op.cache[mesKey] = [];
+  }
+  op.mesesCarregados.add(mesKey);
+  return op.cache[mesKey];
+}
+
+async function opCarregar() {
+  if (op.mesesSelecionados.size === 0) {
+    const disponiveis = opMesesDisponiveis();
+    op.mesesSelecionados.add(disponiveis[disponiveis.length - 1].key);
+  }
+  opRenderChipsMes();
+  opRenderChipsEstaticos();
+  opPopularSupervisores();
+
+  document.getElementById('op-vazio').style.display = 'none';
+  document.getElementById('op-conteudo').style.display = 'none';
+  document.getElementById('op-loading').style.display = 'block';
+
+  const faltando = Array.from(op.mesesSelecionados).filter(m => !op.mesesCarregados.has(m));
+  if (faltando.length) await Promise.all(faltando.map(opFetchMes));
+
+  opPopularServicos();
+  document.getElementById('op-loading').style.display = 'none';
+  document.getElementById('op-conteudo').style.display = 'block';
+  opRenderAll();
+}
+
+function opToggleMes(key) {
+  if (op.mesesSelecionados.has(key)) {
+    if (op.mesesSelecionados.size > 1) op.mesesSelecionados.delete(key);
+  } else {
+    op.mesesSelecionados.add(key);
+  }
+  opCarregar();
+}
+
+function opRenderChipsMes() {
+  const meses = opMesesDisponiveis();
+  document.getElementById('op-chips-mes').innerHTML = meses.map(m => {
+    const active = op.mesesSelecionados.has(m.key);
+    return `<div class="pg-tipo-btn ${active ? 'active' : ''}" onclick="opToggleMes('${m.key}')">${m.label}</div>`;
+  }).join('');
+}
+
+function opRenderChipsEstaticos() {
+  const centros = ['Juazeiro', 'Milagres', 'C. Sales'];
+  document.getElementById('op-chips-centro').innerHTML = ['Todos', ...centros].map(c => {
+    const v = c === 'Todos' ? '' : c;
+    const active = op.centro === v;
+    return `<div class="pg-tipo-btn ${active ? 'active' : ''}" onclick="opSetCentro('${v}')">${c}</div>`;
+  }).join('');
+
+  const labelClassif = { PRODUTIVO: 'Produtivo', IMPRODUTIVO: 'Improdutivo', DEVOLVIDO: 'Devolvido' };
+  document.getElementById('op-chips-classif').innerHTML = ['Todas', 'PRODUTIVO', 'IMPRODUTIVO', 'DEVOLVIDO'].map(c => {
+    const v = c === 'Todas' ? '' : c;
+    const label = c === 'Todas' ? 'Todas' : labelClassif[c];
+    const active = op.classificacao === v;
+    return `<div class="pg-tipo-btn ${active ? 'active' : ''}" onclick="opSetClassificacao('${v}')">${label}</div>`;
+  }).join('');
+
+  document.getElementById('op-chips-tipo').innerHTML = ['Todos', 'Corte', 'Ligação Nova', 'Perdas', 'Religação'].map(t => {
+    const v = t === 'Todos' ? '' : t;
+    const active = op.tipo === v;
+    return `<div class="pg-tipo-btn ${active ? 'active' : ''}" onclick="opSetTipo('${v}')">${t}</div>`;
+  }).join('');
+}
+
+function opSetCentro(v) { op.centro = (op.centro === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
+function opSetClassificacao(v) { op.classificacao = (op.classificacao === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
+function opSetTipo(v) { op.tipo = (op.tipo === v) ? '' : v; opRenderChipsEstaticos(); opPopularServicos(); opRenderAll(); }
+function opSetSupervisor(v) { op.supervisor = v; opRenderAll(); }
+function opSetBusca(v) { op.busca = v; opRenderAll(); }
+function opSetMinOs(v) { op.minOs = parseInt(v, 10) || 10; opRenderEquipes(); }
+
+function opLimparFiltros() {
+  op.centro = ''; op.classificacao = ''; op.tipo = ''; op.supervisor = ''; op.busca = '';
+  op.servicosSelecionados.clear();
+  document.getElementById('op-busca-cliente').value = '';
+  document.getElementById('op-select-supervisor').value = '';
+  opRenderChipsEstaticos();
+  opPopularServicos();
+  opRenderAll();
+}
+
+function opPopularSupervisores() {
+  const sel = document.getElementById('op-select-supervisor');
+  if (sel.dataset.pop) return;
+  const nomes = Array.from(new Set(Object.values(SUPERVISOR_MAP))).sort();
+  nomes.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  sel.dataset.pop = '1';
+}
+
+function opCodigoServico(r) {
+  const t = (r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || '').trim().toUpperCase();
+  return t.split(' - ')[0].trim().split(' ')[0];
+}
+function opDescricaoServico(cod, registros) {
+  const achou = registros.find(r => opCodigoServico(r) === cod);
+  if (!achou) return cod;
+  const t = (achou['Tipo Remessa WIN'] || '').trim();
+  const partes = t.split(' - ');
+  return partes.length > 1 ? partes.slice(1).join(' - ').trim() : cod;
+}
+function opClassificar(r) {
+  const cod = (r['Código Resultado'] || '').toString().trim().toUpperCase();
+  return RESULTADO_PRODUTIVIDADE[cod] || null;
+}
+function opCategoriaServico(r) {
+  return TIPO_SERVICO_CATEGORIA[opCodigoServico(r)] || 'Outros';
+}
+function opReguladaStatus(r) {
+  const cod = opCodigoServico(r);
+  if (TIPO_REGULADA[cod]) return 'Reg';
+  if (TIPO_NAO_REGULADA[cod]) return 'NReg';
+  return '';
+}
+function opCausaRaiz(r) {
+  const res = (r['Resultado'] || '').toUpperCase();
+  if (res.indexOf('JÁ CORTADO') !== -1 || res.indexOf('FATURAS PAGAS') !== -1 || res.indexOf('NOVO TITULAR') !== -1) return 'Sistêmico (lista desatualizada)';
+  if (res.indexOf('AUTORELIGADO') !== -1) return 'Comportamental/Fraude';
+  if (res.indexOf('FECHAD') !== -1 || res.indexOf('NÃO PERMITIU') !== -1 || res.indexOf('NÃO PERMITE') !== -1 || res.indexOf('IMPEDIMENTO ACESSO') !== -1 || res.indexOf('ÁREA DE RISCO') !== -1 || res.indexOf('AMEACA') !== -1 || res.indexOf('ESTRUTURA DE RISCO') !== -1) return 'Campo/Acesso';
+  if (res.indexOf('DEFEITO') !== -1 || res.indexOf('CAIXA TRAVADA') !== -1 || res.indexOf('SEM MEDIDOR') !== -1 || res.indexOf('MEDIDOR NÃO CONFERE') !== -1 || res.indexOf('DEMOLIDA') !== -1 || res.indexOf('DISJUNTOR') !== -1 || res.indexOf('ENDEREÇO NÃO LOCALIZADO') !== -1) return 'Infraestrutura/Cadastral';
+  if (res.indexOf('PODER PUBLICO') !== -1 || res.indexOf('ESSENCIAL A VIDA') !== -1) return 'Regulatório/Protegido';
+  if (res.indexOf('SEM EVIDÊNCIA') !== -1 || res.indexOf('COM EVIDÊNCIA') !== -1 || res.indexOf('NÃO EXECUTAD') !== -1 || res.indexOf('NÃO REALIZAD') !== -1) return 'Sem evidência/Não detalhado';
+  return 'Outros';
+}
+
+function opPopularServicos() {
+  const registros = opRegistrosBase();
+  const grupos = { 'Corte': [], 'Ligação Nova': [], 'Perdas': [], 'Religação': [] };
+  const vistos = new Set();
+  registros.forEach(r => {
+    const cod = opCodigoServico(r);
+    if (!cod || vistos.has(cod)) return;
+    vistos.add(cod);
+    const cat = TIPO_SERVICO_CATEGORIA[cod] || 'Outros';
+    if (!grupos[cat]) grupos[cat] = [];
+    grupos[cat].push({ cod, desc: opDescricaoServico(cod, registros) });
+  });
+  Object.keys(grupos).forEach(g => grupos[g].sort((a, b) => a.desc.localeCompare(b.desc)));
+
+  const menu = document.getElementById('op-servico-menu');
+  let html = '<div class="pg-multisel-actions"><a onclick="opServicoSelAll()">Marcar todos</a><a onclick="opServicoSelNone()">Limpar</a></div>';
+  Object.keys(grupos).forEach(g => {
+    if (!grupos[g].length) return;
+    html += `<div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;padding:6px 8px 2px;">${g}</div>`;
+    grupos[g].forEach(({ cod, desc }) => {
+      const checked = op.servicosSelecionados.has(cod) ? 'checked' : '';
+      html += `<label><input type="checkbox" value="${cod}" ${checked} onchange="opToggleServico('${cod}')"><span>${desc || cod}</span></label>`;
+    });
+  });
+  menu.innerHTML = html;
+  opAtualizaLabelServico();
+}
+function opToggleServico(cod) {
+  if (op.servicosSelecionados.has(cod)) op.servicosSelecionados.delete(cod);
+  else op.servicosSelecionados.add(cod);
+  opAtualizaLabelServico();
+  opRenderAll();
+}
+function opServicoSelAll() {
+  document.querySelectorAll('#op-servico-menu input[type=checkbox]').forEach(cb => { cb.checked = true; op.servicosSelecionados.add(cb.value); });
+  opAtualizaLabelServico(); opRenderAll();
+}
+function opServicoSelNone() {
+  document.querySelectorAll('#op-servico-menu input[type=checkbox]').forEach(cb => cb.checked = false);
+  op.servicosSelecionados.clear();
+  opAtualizaLabelServico(); opRenderAll();
+}
+function opAtualizaLabelServico() {
+  const n = op.servicosSelecionados.size;
+  document.getElementById('op-servico-btn').textContent = n === 0 ? 'Todos' : (n + ' selecionado' + (n > 1 ? 's' : ''));
+}
+function opToggleMenuServico() {
+  const m = document.getElementById('op-servico-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('op-servico-menu');
+  const btn = document.getElementById('op-servico-btn');
+  if (menu && btn && !menu.contains(e.target) && e.target !== btn) menu.style.display = 'none';
+});
+
+function opSetSubtab(tab) {
+  op.subtab = tab;
+  ['resumo', 'equipes', 'clientes'].forEach(t => {
+    document.getElementById('op-subtab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('op-tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function opRegistrosBase() {
+  let out = [];
+  op.mesesSelecionados.forEach(m => { if (op.cache[m]) out = out.concat(op.cache[m]); });
+  return out;
+}
+
+function opRegistrosFiltrados() {
+  let out = opRegistrosBase();
+  if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
+  if (op.classificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
+  if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
+  if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
+  if (op.supervisor) out = out.filter(r => getSupervisor(r['Recurso/Equipe']) === op.supervisor);
+  if (op.busca) {
+    const q = op.busca.toLowerCase();
+    out = out.filter(r => (r['Cliente'] || '').toLowerCase().includes(q) || (r['Código Cliente'] || '').toString().toLowerCase().includes(q));
+  }
+  return out;
+}
+
+function opRenderAll() {
+  opDadosAtuais = opRegistrosFiltrados();
+  opRenderResumo(opDadosAtuais);
+  opRenderEquipes(opDadosAtuais);
+  opRenderClientes(opDadosAtuais);
+}
+
+function opRenderResumo(dados) {
+  dados = dados || opDadosAtuais;
+  let produtivo = 0, improdutivo = 0, devolvido = 0;
+  const porTipo = {};
+  const clientesTodos = new Set();
+  const causaRaizCount = {};
+  const motivoCount = {};
+  const porMesTotais = {};
+
+  dados.forEach(r => {
+    const classif = opClassificar(r);
+    const cat = opCategoriaServico(r);
+    if (!porTipo[cat]) porTipo[cat] = { enviados: 0, produtivo: 0, improdutivo: 0 };
+    porTipo[cat].enviados++;
+
+    const cliCod = (r['Código Cliente'] || '').toString().trim();
+    if (cliCod) clientesTodos.add(cliCod);
+
+    const mesKey = (r.__data || '').slice(0, 7);
+    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0 };
+    if (mesKey) porMesTotais[mesKey].total++;
+
+    if (classif === 'PRODUTIVO') {
+      produtivo++; porTipo[cat].produtivo++;
+    } else if (classif === 'IMPRODUTIVO') {
+      improdutivo++; porTipo[cat].improdutivo++;
+      if (mesKey) {
+        porMesTotais[mesKey].improdutivo++;
+        porMesTotais[mesKey][cat] = (porMesTotais[mesKey][cat] || 0) + 1;
+      }
+      const cr = opCausaRaiz(r);
+      causaRaizCount[cr] = (causaRaizCount[cr] || 0) + 1;
+      const motivo = (r['Resultado'] || '').trim();
+      if (motivo) motivoCount[motivo] = (motivoCount[motivo] || 0) + 1;
+    } else if (classif === 'DEVOLVIDO') {
+      devolvido++;
+    }
+  });
+
+  const totalGeral = produtivo + improdutivo + devolvido;
+  const taxaImprodutiva = totalGeral ? (improdutivo / totalGeral * 100) : 0;
+
+  document.getElementById('op-kpi-total').textContent = totalGeral.toLocaleString('pt-BR');
+  document.getElementById('op-kpi-split').innerHTML = `
+    <div><b style="color:var(--green);">${produtivo.toLocaleString('pt-BR')}</b>Produtivos</div>
+    <div><b style="color:var(--red);">${improdutivo.toLocaleString('pt-BR')}</b>Improdutivos</div>
+    <div><b style="color:var(--gray-700);">${devolvido.toLocaleString('pt-BR')}</b>Devolvidos</div>
+  `;
+  document.getElementById('op-kpi-taxa').textContent = taxaImprodutiva.toFixed(1) + '%';
+
+  const mesesOrdenados = Object.keys(porMesTotais).sort();
+  let tendHtml = '—';
+  if (mesesOrdenados.length >= 2) {
+    const ultimo = mesesOrdenados[mesesOrdenados.length - 1];
+    const penultimo = mesesOrdenados[mesesOrdenados.length - 2];
+    const taxaUlt = porMesTotais[ultimo].total ? (porMesTotais[ultimo].improdutivo / porMesTotais[ultimo].total * 100) : 0;
+    const taxaPen = porMesTotais[penultimo].total ? (porMesTotais[penultimo].improdutivo / porMesTotais[penultimo].total * 100) : 0;
+    const delta = taxaUlt - taxaPen;
+    const sinal = delta >= 0 ? '▲' : '▼';
+    tendHtml = `${sinal} ${Math.abs(delta).toFixed(1)}pp vs ${OP_MESES_LABEL[parseInt(penultimo.split('-')[1], 10) - 1]} (${taxaPen.toFixed(1)}%)`;
+  }
+  document.getElementById('op-kpi-taxa-tend').textContent = tendHtml;
+
+  const clientesImprodPorMes = {};
+  dados.forEach(r => {
+    if (opClassificar(r) !== 'IMPRODUTIVO') return;
+    const cod = (r['Código Cliente'] || '').toString().trim();
+    if (!cod) return;
+    clientesImprodPorMes[cod] = (clientesImprodPorMes[cod] || 0) + 1;
+  });
+  const totalClientesImprod = Object.keys(clientesImprodPorMes).length;
+  const recorrentes = Object.values(clientesImprodPorMes).filter(n => n >= 2);
+  document.getElementById('op-kpi-clientes-unicos').textContent = clientesTodos.size.toLocaleString('pt-BR');
+  document.getElementById('op-kpi-clientes-rec').textContent = recorrentes.length.toLocaleString('pt-BR');
+  document.getElementById('op-kpi-media-cliente').textContent = totalClientesImprod ? (improdutivo / totalClientesImprod).toFixed(2) : '0';
+
+  const categoriasOrdem = ['Corte', 'Ligação Nova', 'Perdas', 'Religação', 'Outros'];
+  const coresCat = { 'Corte': 'var(--red)', 'Ligação Nova': '#98a4b8', 'Perdas': '#e8973d', 'Religação': '#3568c9', 'Outros': '#98a4b8' };
+  const linhasTipo = categoriasOrdem
+    .map(cat => ({ cat, ...(porTipo[cat] || { enviados: 0, produtivo: 0, improdutivo: 0 }) }))
+    .filter(x => x.enviados > 0)
+    .sort((a, b) => b.improdutivo - a.improdutivo);
+
+  let htmlTipos = '';
+  linhasTipo.forEach(l => {
+    const pctImprod = l.enviados ? (l.improdutivo / l.enviados * 100) : 0;
+    const contrib = improdutivo ? (l.improdutivo / improdutivo * 100) : 0;
+    htmlTipos += `<tr>
+      <td><span class="op-dot" style="background:${coresCat[l.cat] || '#98a4b8'};"></span>${l.cat}</td>
+      <td class="op-num">${l.enviados.toLocaleString('pt-BR')}</td>
+      <td class="op-num" style="color:var(--green);">${l.produtivo.toLocaleString('pt-BR')}</td>
+      <td class="op-num" style="color:var(--red);">${l.improdutivo.toLocaleString('pt-BR')}</td>
+      <td><b style="color:${pctImprod >= 15 ? 'var(--red)' : 'var(--text)'};">${pctImprod.toFixed(1)}%</b><span class="op-mini-track"><span class="op-mini-fill" style="width:${Math.min(pctImprod, 100)}%;background:var(--red);"></span></span></td>
+      <td><span class="op-contrib-track"><span class="op-contrib-fill" style="width:${Math.min(contrib, 100)}%;"></span></span> ${contrib.toFixed(1)}%</td>
+    </tr>`;
+  });
+  document.getElementById('op-tabela-tipos').innerHTML = htmlTipos || '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no período/filtro selecionado</td></tr>';
+
+  let texto;
+  if (totalGeral === 0) {
+    texto = 'Sem dados pro período/filtro selecionado.';
+  } else {
+    const piorCat = linhasTipo[0];
+    const causaTop = Object.entries(causaRaizCount).sort((a, b) => b[1] - a[1])[0];
+    texto = `A taxa de improdutiva no período foi de <b>${taxaImprodutiva.toFixed(1)}%</b> (${improdutivo.toLocaleString('pt-BR')} de ${totalGeral.toLocaleString('pt-BR')} execuções).`;
+    if (piorCat) {
+      const pctPior = piorCat.enviados ? (piorCat.improdutivo / piorCat.enviados * 100) : 0;
+      texto += ` <b>${piorCat.cat}</b> é quem mais contribui pro total de improdutivas (${(improdutivo ? piorCat.improdutivo / improdutivo * 100 : 0).toFixed(1)}% delas), com ${pctPior.toFixed(1)}% de taxa própria.`;
+    }
+    if (causaTop && improdutivo) {
+      texto += ` A causa raiz predominante é <b>"${causaTop[0]}"</b>, respondendo por ${(causaTop[1] / improdutivo * 100).toFixed(1)}% das improdutivas.`;
+    }
+    if (recorrentes.length) {
+      texto += ` ${recorrentes.length.toLocaleString('pt-BR')} clientes tiveram 2 ou mais improdutivas no período.`;
+    }
+  }
+  document.getElementById('op-narrative-wrap').innerHTML = `
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:var(--accent-dim);margin-bottom:8px;">Síntese do período filtrado</div>
+    <div style="font-size:13.5px;line-height:1.7;color:var(--gray-700);">${texto}</div>
+  `;
+
+  const coresCatChart = { 'Corte': '#d94040', 'Ligação Nova': '#98a4b8', 'Perdas': '#e8973d', 'Religação': '#3568c9' };
+  const catsChart = ['Corte', 'Ligação Nova', 'Perdas', 'Religação'];
+  const maxMes = Math.max(1, ...mesesOrdenados.map(m => porMesTotais[m].improdutivo || 0));
+  let chartHtml = '';
+  mesesOrdenados.forEach(m => {
+    const info = porMesTotais[m];
+    const totalMes = info.improdutivo || 0;
+    const alturaBarra = totalMes ? Math.max(20, (totalMes / maxMes) * 130) : 4;
+    let segsHtml = '';
+    if (totalMes) {
+      catsChart.forEach(cat => {
+        const v = info[cat] || 0;
+        if (!v) return;
+        const pct = (v / totalMes * 100);
+        segsHtml += `<div class="op-sseg" style="height:${pct}%;background:${coresCatChart[cat]};" title="${cat}: ${v}"></div>`;
+      });
+    }
+    const label = OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1];
+    chartHtml += `<div class="op-scol"><div class="op-sbars" style="height:${alturaBarra}px;">${segsHtml}</div><div class="op-smonth">${label}</div></div>`;
+  });
+  document.getElementById('op-evolucao-chart').innerHTML = chartHtml || '<div style="color:var(--gray-400);font-size:12px;padding:20px;">Sem dados</div>';
+  document.getElementById('op-evolucao-legend').innerHTML = catsChart.map(c => `<div class="op-litem"><span class="op-ldot" style="background:${coresCatChart[c]};"></span>${c}</div>`).join('');
+
+  const causaOrdenada = Object.entries(causaRaizCount).sort((a, b) => b[1] - a[1]);
+  const maxCausa = causaOrdenada.length ? causaOrdenada[0][1] : 1;
+  document.getElementById('op-causaraiz-chart').innerHTML = causaOrdenada.map(([nome, qtd]) => {
+    const pct = improdutivo ? (qtd / improdutivo * 100) : 0;
+    return `<div class="op-row2"><div class="op-lbl">${nome}</div><div class="op-track"><div class="op-fill" style="width:${(qtd / maxCausa * 100)}%;background:var(--accent);"></div></div><div class="op-val">${pct.toFixed(0)}%</div></div>`;
+  }).join('') || '<div style="color:var(--gray-400);font-size:12px;">Sem improdutivas no filtro</div>';
+
+  const motivosOrdenados = Object.entries(motivoCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const maxMotivo = motivosOrdenados.length ? motivosOrdenados[0][1] : 1;
+  document.getElementById('op-motivos-chart').innerHTML = motivosOrdenados.map(([nome, qtd]) => {
+    return `<div class="op-row2"><div class="op-lbl" title="${nome}">${nome}</div><div class="op-track"><div class="op-fill" style="width:${(qtd / maxMotivo * 100)}%;background:var(--red);"></div></div><div class="op-val">${qtd.toLocaleString('pt-BR')}</div></div>`;
+  }).join('') || '<div style="color:var(--gray-400);font-size:12px;">Sem improdutivas no filtro</div>';
+}
+
+function opRenderEquipes(dados) {
+  dados = dados || opDadosAtuais;
+  const porEquipe = {};
+  dados.forEach(r => {
+    const eq = r['Recurso/Equipe'];
+    if (!eq) return;
+    const classif = opClassificar(r);
+    if (classif !== 'PRODUTIVO' && classif !== 'IMPRODUTIVO') return;
+    if (!porEquipe[eq]) porEquipe[eq] = { total: 0, improdutivo: 0, municipio: r['Município'] || '' };
+    porEquipe[eq].total++;
+    if (classif === 'IMPRODUTIVO') porEquipe[eq].improdutivo++;
+  });
+  const minOs = op.minOs;
+  const linhas = Object.entries(porEquipe)
+    .filter(([eq, info]) => info.total >= minOs)
+    .map(([eq, info]) => ({ eq, ...info, pct: info.total ? (info.improdutivo / info.total * 100) : 0, supervisor: getSupervisor(eq) }))
+    .sort((a, b) => b.pct - a.pct);
+
+  document.getElementById('op-equipes-sub').textContent = `${linhas.length} equipes com ${minOs}+ OS no período`;
+
+  let html = '';
+  linhas.forEach(l => {
+    const cor = l.pct >= 20 ? 'var(--red)' : (l.pct >= 12 ? '#e8973d' : 'var(--green)');
+    html += `<tr>
+      <td class="op-eqcode">${l.eq}</td>
+      <td>${l.supervisor || '—'}</td>
+      <td>${l.municipio || '—'}</td>
+      <td class="op-num">${l.total.toLocaleString('pt-BR')}</td>
+      <td><b style="color:${cor};">${l.pct.toFixed(1)}%</b></td>
+    </tr>`;
+  });
+  document.getElementById('op-tabela-equipes').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma equipe com o volume mínimo no filtro atual</td></tr>';
+}
+
+function opRenderClientes(dados) {
+  dados = dados || opDadosAtuais;
+  const porCliente = {};
+  dados.forEach(r => {
+    if (opClassificar(r) !== 'IMPRODUTIVO') return;
+    const cod = (r['Código Cliente'] || '').toString().trim();
+    if (!cod) return;
+    if (!porCliente[cod]) porCliente[cod] = { nome: r['Cliente'] || cod, municipio: r['Município'] || '', total: 0, meses: new Set() };
+    const c = porCliente[cod];
+    c.total++;
+    const mesKey = (r.__data || '').slice(0, 7);
+    if (mesKey) c.meses.add(mesKey);
+  });
+  const soRecorrentes = document.getElementById('op-only-recorrentes').checked;
+  let linhas = Object.values(porCliente);
+  if (soRecorrentes) linhas = linhas.filter(c => c.total >= 2);
+  linhas.sort((a, b) => b.total - a.total);
+  const totalLinhas = linhas.length;
+  linhas = linhas.slice(0, 200);
+
+  document.getElementById('op-clientes-sub').textContent = `${totalLinhas.toLocaleString('pt-BR')} clientes${totalLinhas > 200 ? ' (mostrando os 200 primeiros)' : ''}`;
+
+  let html = '';
+  linhas.forEach(c => {
+    const mesesLabel = Array.from(c.meses).sort().map(m => OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1]).join(' ');
+    html += `<tr>
+      <td>${c.nome}</td>
+      <td>${c.municipio || '—'}</td>
+      <td class="op-num">${c.total}</td>
+      <td>${mesesLabel}</td>
+    </tr>`;
+  });
+  document.getElementById('op-tabela-clientes').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhum cliente no filtro atual</td></tr>';
 }
 
 // ══ AUTO-REFRESH (TV de sala) — cobre também o recálculo da intensidade do pulsar ══
