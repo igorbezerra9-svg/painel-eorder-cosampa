@@ -631,6 +631,14 @@
 
     <div id="op-tab-equipes" style="display:none;">
       <div class="op-panel">
+        <h3>Ranking de supervisores por % improdutiva</h3>
+        <div class="op-sub">Clique num supervisor pra filtrar as equipes dele abaixo</div>
+        <table class="op-table" style="margin-top:12px;">
+          <thead><tr><th>Supervisor</th><th class="op-num">Equipes</th><th class="op-num">Total OS</th><th>% Improdutiva</th></tr></thead>
+          <tbody id="op-tabela-supervisores"></tbody>
+        </table>
+      </div>
+      <div class="op-panel">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
           <div>
             <h3>Ranking de equipes por % improdutiva</h3>
@@ -668,6 +676,34 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<div id="op-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:860px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25);">
+    <div style="background:#0d1b2a;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #e8a020;">
+      <div>
+        <div style="color:#fff;font-size:15px;font-weight:700;" id="op-modal-title">Cliente</div>
+        <div style="color:#8097b8;font-size:11px;margin-top:2px;" id="op-modal-sub"></div>
+      </div>
+      <button onclick="opFecharModal()" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;">✕ Fechar</button>
+    </div>
+    <div style="padding:16px;max-height:70vh;overflow-y:auto;">
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:#0d1b2a;color:#fff;">
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Data</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Nº Serviço</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Tipo</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Resultado</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+            </tr>
+          </thead>
+          <tbody id="op-modal-body"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2376,13 +2412,14 @@ function opRegistrosBase() {
   return out;
 }
 
-function opRegistrosFiltrados() {
+function opRegistrosFiltrados(opcoes) {
+  opcoes = opcoes || {};
   let out = opRegistrosBase();
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
   if (op.classificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
-  if (op.supervisor) out = out.filter(r => getSupervisor(r['Recurso/Equipe']) === op.supervisor);
+  if (op.supervisor && !opcoes.semSupervisor) out = out.filter(r => getSupervisor(r['Recurso/Equipe']) === op.supervisor);
   if (op.busca) {
     const q = op.busca.toLowerCase();
     out = out.filter(r => (r['Cliente'] || '').toLowerCase().includes(q) || (r['Código Cliente'] || '').toString().toLowerCase().includes(q));
@@ -2555,8 +2592,49 @@ function opRenderResumo(dados) {
   }).join('') || '<div style="color:var(--gray-400);font-size:12px;">Sem improdutivas no filtro</div>';
 }
 
+function opRenderRankingSupervisores(dados) {
+  const porSup = {};
+  dados.forEach(r => {
+    const eq = r['Recurso/Equipe'];
+    if (!eq) return;
+    const sup = getSupervisor(eq);
+    if (!sup) return;
+    const classif = opClassificar(r);
+    if (classif !== 'PRODUTIVO' && classif !== 'IMPRODUTIVO') return;
+    if (!porSup[sup]) porSup[sup] = { total: 0, improdutivo: 0, equipes: new Set() };
+    porSup[sup].total++;
+    porSup[sup].equipes.add(eq);
+    if (classif === 'IMPRODUTIVO') porSup[sup].improdutivo++;
+  });
+  const linhas = Object.entries(porSup)
+    .map(([sup, info]) => ({ sup, total: info.total, nEquipes: info.equipes.size, pct: info.total ? (info.improdutivo / info.total * 100) : 0 }))
+    .sort((a, b) => b.pct - a.pct);
+
+  let html = '';
+  linhas.forEach(l => {
+    const cor = l.pct >= 20 ? 'var(--red)' : (l.pct >= 12 ? '#e8973d' : 'var(--green)');
+    const ativo = op.supervisor === l.sup;
+    html += `<tr onclick="opFiltrarPorSupervisor('${l.sup}')" style="${ativo ? 'background:var(--gray-100);' : ''}">
+      <td>${ativo ? '<b>' + l.sup + '</b>' : l.sup}</td>
+      <td class="op-num">${l.nEquipes}</td>
+      <td class="op-num">${l.total.toLocaleString('pt-BR')}</td>
+      <td><b style="color:${cor};">${l.pct.toFixed(1)}%</b></td>
+    </tr>`;
+  });
+  document.getElementById('op-tabela-supervisores').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no filtro atual</td></tr>';
+}
+
+function opFiltrarPorSupervisor(nome) {
+  op.supervisor = (op.supervisor === nome) ? '' : nome;
+  const sel = document.getElementById('op-select-supervisor');
+  if (sel) sel.value = op.supervisor;
+  opRenderAll();
+}
+
 function opRenderEquipes(dados) {
   dados = dados || opDadosAtuais;
+  const dadosSupervisor = op.supervisor ? opRegistrosFiltrados({ semSupervisor: true }) : dados;
+  opRenderRankingSupervisores(dadosSupervisor);
   const porEquipe = {};
   dados.forEach(r => {
     const eq = r['Recurso/Equipe'];
@@ -2596,7 +2674,7 @@ function opRenderClientes(dados) {
     if (opClassificar(r) !== 'IMPRODUTIVO') return;
     const cod = (r['Código Cliente'] || '').toString().trim();
     if (!cod) return;
-    if (!porCliente[cod]) porCliente[cod] = { nome: r['Cliente'] || cod, municipio: r['Município'] || '', total: 0, meses: new Set() };
+    if (!porCliente[cod]) porCliente[cod] = { cod, nome: r['Cliente'] || cod, municipio: r['Município'] || '', total: 0, meses: new Set() };
     const c = porCliente[cod];
     c.total++;
     const mesKey = (r.__data || '').slice(0, 7);
@@ -2614,7 +2692,7 @@ function opRenderClientes(dados) {
   let html = '';
   linhas.forEach(c => {
     const mesesLabel = Array.from(c.meses).sort().map(m => OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1]).join(' ');
-    html += `<tr>
+    html += `<tr onclick="opAbrirModalCliente('${c.cod}')">
       <td>${c.nome}</td>
       <td>${c.municipio || '—'}</td>
       <td class="op-num">${c.total}</td>
@@ -2623,6 +2701,31 @@ function opRenderClientes(dados) {
   });
   document.getElementById('op-tabela-clientes').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhum cliente no filtro atual</td></tr>';
 }
+
+function opAbrirModalCliente(cod) {
+  const registros = opDadosAtuais.filter(r => (r['Código Cliente'] || '').toString().trim() === cod && opClassificar(r) === 'IMPRODUTIVO');
+  registros.sort((a, b) => (b['Data fim Execução'] || '').localeCompare(a['Data fim Execução'] || ''));
+  const nome = registros.length ? (registros[0]['Cliente'] || cod) : cod;
+  document.getElementById('op-modal-title').textContent = nome;
+  document.getElementById('op-modal-sub').textContent = registros.length + ' improdutiva' + (registros.length !== 1 ? 's' : '') + ' no período filtrado · código ' + cod;
+  document.getElementById('op-modal-body').innerHTML = registros.map(r => {
+    const dataFim = (r['Data fim Execução'] || '').split(' ')[0];
+    return `<tr style="border-bottom:1px solid #e8edf5;">
+      <td style="padding:7px 10px;font-size:11px;white-space:nowrap;">${dataFim || '—'}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${r['Numero de Serviço'] || '—'}</td>
+      <td style="padding:7px 10px;font-size:11px;">${opCategoriaServico(r)}</td>
+      <td style="padding:7px 10px;font-size:11px;">${r['Resultado'] || '—'}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:11px;">${r['Recurso/Equipe'] || '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma improdutiva encontrada</td></tr>';
+  document.getElementById('op-modal').style.display = 'flex';
+}
+function opFecharModal() {
+  document.getElementById('op-modal').style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'op-modal') opFecharModal();
+});
 
 // ══ AUTO-REFRESH (TV de sala) — cobre também o recálculo da intensidade do pulsar ══
 setInterval(() => {
