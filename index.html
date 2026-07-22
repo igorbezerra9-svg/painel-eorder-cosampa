@@ -170,7 +170,8 @@
   .op-charts-row { display:grid; grid-template-columns:1.3fr 1fr; gap:14px; }
   .op-stack { display:flex; align-items:flex-end; gap:10px; height:150px; }
   .op-scol { flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; gap:5px; }
-  .op-sbars { width:100%; max-width:34px; display:flex; flex-direction:column-reverse; border-radius:4px 4px 0 0; overflow:hidden; }
+  .op-sbars { width:100%; max-width:52px; display:flex; flex-direction:column-reverse; border-radius:4px 4px 0 0; overflow:hidden; }
+  .op-sseg-label { display:block; text-align:center; font-size:10px; color:#fff; font-weight:700; line-height:1; padding-top:3px; text-shadow:0 1px 1px rgba(0,0,0,.25); }
   .op-sseg { width:100%; }
   .op-smonth { font-size:10.5px; color:var(--gray-400); margin-top:2px; }
   .op-legend { display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; }
@@ -542,6 +543,10 @@
       <div class="pg-multisel-menu" id="op-dias-menu" style="display:none;max-height:280px;overflow-y:auto;"></div>
     </div>
     <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">&nbsp;</div>
+      <div class="pg-tipo-btn" id="op-hoje-btn" onclick="opToggleHojeAoVivo()" style="white-space:nowrap;">🔴 Hoje (ao vivo)</div>
+    </div>
+    <div>
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Centro de Serviço</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-centro"></div>
     </div>
@@ -614,8 +619,16 @@
       <div class="op-panel" id="op-narrative-wrap"></div>
 
       <div class="op-panel">
-        <h3>Evolução das improdutivas</h3>
-        <div class="op-sub">Corte × Ligação Nova × Perdas × Religação — mensal</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div>
+            <h3>Evolução das improdutivas</h3>
+            <div class="op-sub">Corte × Ligação Nova × Perdas × Religação</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <div class="pg-tipo-btn active" id="op-evo-mensal" onclick="opSetEvolucaoModo('mensal')">Mensal</div>
+            <div class="pg-tipo-btn" id="op-evo-semanal" onclick="opSetEvolucaoModo('semanal')">Semanal</div>
+          </div>
+        </div>
         <div class="op-stack" id="op-evolucao-chart"></div>
         <div class="op-legend" id="op-evolucao-legend"></div>
       </div>
@@ -2199,6 +2212,8 @@ const op = {
   minOs: 10,
   causaRaizFiltro: '',
   motivoFiltro: '',
+  evolucaoModo: 'mensal',
+  hojeAoVivo: false,
 };
 let opDadosAtuais = [];
 function opEscJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
@@ -2500,7 +2515,41 @@ function opSetSubtab(tab) {
 function opRegistrosBase() {
   let out = [];
   op.mesesSelecionados.forEach(m => { if (op.cache[m]) out = out.concat(op.cache[m]); });
+  if (op.hojeAoVivo && opLiveHoje) {
+    const hoje = opTodayStr();
+    out = out.filter(r => r.__data !== hoje);
+    out = out.concat(opLiveHoje);
+  }
   return out;
+}
+
+function opTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+let opLiveHoje = null;
+async function opFetchHojeAoVivo() {
+  try {
+    const url = SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao&select=dados';
+    const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    const linhas = await res.json();
+    const hoje = opTodayStr();
+    opLiveHoje = ((linhas[0] && linhas[0].dados) || []).map(r => Object.assign({}, r, { __data: hoje }));
+  } catch (e) {
+    opLiveHoje = [];
+  }
+}
+async function opToggleHojeAoVivo() {
+  op.hojeAoVivo = !op.hojeAoVivo;
+  const btn = document.getElementById('op-hoje-btn');
+  btn.classList.toggle('active', op.hojeAoVivo);
+  if (op.hojeAoVivo) {
+    btn.textContent = '⏳ Carregando...';
+    await opFetchHojeAoVivo();
+    btn.textContent = '🔴 Hoje (ao vivo)';
+  }
+  opPopularServicos();
+  opRenderAll();
 }
 
 function opRegistrosFiltrados(opcoes) {
@@ -2528,6 +2577,30 @@ function opRenderAll() {
   opRenderClientes(opDadosAtuais);
 }
 
+function opBucketInfo(dataStr) {
+  if (!dataStr) return null;
+  if (op.evolucaoModo === 'semanal') {
+    const [y, m, d] = dataStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const day = dt.getDay();
+    const diff = (day === 0 ? -6 : 1) - day;
+    dt.setDate(dt.getDate() + diff);
+    const key = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+    const label = String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0');
+    return { key, label };
+  }
+  const mesKey = dataStr.slice(0, 7);
+  const label = OP_MESES_LABEL[parseInt(mesKey.split('-')[1], 10) - 1];
+  return { key: mesKey, label };
+}
+
+function opSetEvolucaoModo(modo) {
+  op.evolucaoModo = modo;
+  document.getElementById('op-evo-mensal').classList.toggle('active', modo === 'mensal');
+  document.getElementById('op-evo-semanal').classList.toggle('active', modo === 'semanal');
+  opRenderResumo(opDadosAtuais);
+}
+
 function opRenderResumo(dados) {
   dados = dados || opDadosAtuais;
   let produtivo = 0, improdutivo = 0, devolvido = 0;
@@ -2546,8 +2619,9 @@ function opRenderResumo(dados) {
     const cliCod = (r['Código Cliente'] || '').toString().trim();
     if (cliCod) clientesTodos.add(cliCod);
 
-    const mesKey = (r.__data || '').slice(0, 7);
-    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0 };
+    const bucket = opBucketInfo(r.__data);
+    const mesKey = bucket ? bucket.key : '';
+    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0, label: bucket.label };
     if (mesKey) porMesTotais[mesKey].total++;
 
     if (classif === 'PRODUTIVO') {
@@ -2587,7 +2661,7 @@ function opRenderResumo(dados) {
     const taxaPen = porMesTotais[penultimo].total ? (porMesTotais[penultimo].improdutivo / porMesTotais[penultimo].total * 100) : 0;
     const delta = taxaUlt - taxaPen;
     const sinal = delta >= 0 ? '▲' : '▼';
-    tendHtml = `${sinal} ${Math.abs(delta).toFixed(1)}pp vs ${OP_MESES_LABEL[parseInt(penultimo.split('-')[1], 10) - 1]} (${taxaPen.toFixed(1)}%)`;
+    tendHtml = `${sinal} ${Math.abs(delta).toFixed(1)}pp vs ${porMesTotais[penultimo].label} (${taxaPen.toFixed(1)}%)`;
   }
   document.getElementById('op-kpi-taxa-tend').textContent = tendHtml;
 
@@ -2663,10 +2737,11 @@ function opRenderResumo(dados) {
         const v = info[cat] || 0;
         if (!v) return;
         const pct = (v / totalMes * 100);
-        segsHtml += `<div class="op-sseg" style="height:${pct}%;background:${coresCatChart[cat]};" title="${cat}: ${v}"></div>`;
+        const rotulo = pct >= 8 ? `<span class="op-sseg-label">${pct.toFixed(0)}%</span>` : '';
+        segsHtml += `<div class="op-sseg" style="height:${pct}%;background:${coresCatChart[cat]};" title="${cat}: ${v} (${pct.toFixed(0)}%)">${rotulo}</div>`;
       });
     }
-    const label = OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1];
+    const label = info.label;
     chartHtml += `<div class="op-scol"><div class="op-sbars" style="height:${alturaBarra}px;">${segsHtml}</div><div class="op-smonth">${label}</div></div>`;
   });
   document.getElementById('op-evolucao-chart').innerHTML = chartHtml || '<div style="color:var(--gray-400);font-size:12px;padding:20px;">Sem dados</div>';
