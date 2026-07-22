@@ -536,6 +536,11 @@
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Período</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-mes"></div>
     </div>
+    <div class="pg-multisel">
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Dias</div>
+      <button class="pg-multisel-btn" id="op-dias-btn" onclick="opToggleMenuDias()">Todos os dias</button>
+      <div class="pg-multisel-menu" id="op-dias-menu" style="display:none;max-height:280px;overflow-y:auto;"></div>
+    </div>
     <div>
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Centro de Serviço</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-centro"></div>
@@ -675,9 +680,12 @@
             <h3>Ranking de clientes</h3>
             <div class="op-sub" id="op-clientes-sub">—</div>
           </div>
-          <label style="font-size:12px;color:var(--gray-700);display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="op-only-recorrentes" checked onchange="opRenderClientes()"> Só recorrentes (2+)
-          </label>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <label style="font-size:12px;color:var(--gray-700);display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="op-only-recorrentes" checked onchange="opRenderClientes()"> Só recorrentes (2+)
+            </label>
+            <button onclick="opCopiarClientes()" id="btn-copiar-clientes" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+          </div>
         </div>
         <table class="op-table" style="margin-top:12px;">
           <thead><tr><th>Cliente</th><th>Município</th><th class="op-num">Total</th><th>Meses com ocorrência</th></tr></thead>
@@ -2179,6 +2187,7 @@ const OP_MESES_LABEL = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','O
 const op = {
   mesesSelecionados: new Set(),
   mesesCarregados: new Set(),
+  diasSelecionados: new Set(),
   cache: {},
   centro: '',
   classificacao: '',
@@ -2251,6 +2260,7 @@ async function opCarregar() {
   if (faltando.length) await Promise.all(faltando.map(opFetchMes));
 
   opPopularServicos();
+  opPopularDias();
   document.getElementById('op-loading').style.display = 'none';
   document.getElementById('op-conteudo').style.display = 'block';
   opRenderAll();
@@ -2258,11 +2268,57 @@ async function opCarregar() {
 
 function opToggleMes(key) {
   if (op.mesesSelecionados.has(key)) {
-    if (op.mesesSelecionados.size > 1) op.mesesSelecionados.delete(key);
+    if (op.mesesSelecionados.size > 1) {
+      op.mesesSelecionados.delete(key);
+      Array.from(op.diasSelecionados).forEach(d => { if (d.startsWith(key)) op.diasSelecionados.delete(d); });
+    }
   } else {
     op.mesesSelecionados.add(key);
   }
   opCarregar();
+}
+
+function opPopularDias() {
+  const menu = document.getElementById('op-dias-menu');
+  const mesesOrdenados = Array.from(op.mesesSelecionados).sort();
+  let html = '<div class="pg-multisel-actions"><a onclick="opDiaSelAll()">Marcar todos</a><a onclick="opDiaSelNone()">Limpar</a></div>';
+  mesesOrdenados.forEach(mesKey => {
+    const registros = op.cache[mesKey] || [];
+    const dias = Array.from(new Set(registros.map(r => r.__data).filter(Boolean))).sort();
+    if (!dias.length) return;
+    const label = OP_MESES_LABEL[parseInt(mesKey.split('-')[1], 10) - 1];
+    html += `<div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;padding:6px 8px 2px;">${label}</div>`;
+    dias.forEach(dia => {
+      const diaNum = dia.split('-')[2];
+      const checked = op.diasSelecionados.has(dia) ? 'checked' : '';
+      html += `<label><input type="checkbox" value="${dia}" ${checked} onchange="opToggleDia('${dia}')"><span>${diaNum}/${mesKey.split('-')[1]}</span></label>`;
+    });
+  });
+  menu.innerHTML = html;
+  opAtualizaLabelDia();
+}
+function opToggleDia(dia) {
+  if (op.diasSelecionados.has(dia)) op.diasSelecionados.delete(dia);
+  else op.diasSelecionados.add(dia);
+  opAtualizaLabelDia();
+  opRenderAll();
+}
+function opDiaSelAll() {
+  document.querySelectorAll('#op-dias-menu input[type=checkbox]').forEach(cb => { cb.checked = true; op.diasSelecionados.add(cb.value); });
+  opAtualizaLabelDia(); opRenderAll();
+}
+function opDiaSelNone() {
+  document.querySelectorAll('#op-dias-menu input[type=checkbox]').forEach(cb => cb.checked = false);
+  op.diasSelecionados.clear();
+  opAtualizaLabelDia(); opRenderAll();
+}
+function opAtualizaLabelDia() {
+  const n = op.diasSelecionados.size;
+  document.getElementById('op-dias-btn').textContent = n === 0 ? 'Todos os dias' : (n + ' dia' + (n > 1 ? 's' : ''));
+}
+function opToggleMenuDias() {
+  const m = document.getElementById('op-dias-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
 }
 
 function opRenderChipsMes() {
@@ -2298,7 +2354,18 @@ function opRenderChipsEstaticos() {
 
 function opSetCentro(v) { op.centro = (op.centro === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
 function opSetClassificacao(v) { op.classificacao = (op.classificacao === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
-function opSetTipo(v) { op.tipo = (op.tipo === v) ? '' : v; opRenderChipsEstaticos(); opPopularServicos(); opRenderAll(); }
+function opSetTipo(v) {
+  op.tipo = (op.tipo === v) ? '' : v;
+  op.servicosSelecionados.clear();
+  if (op.tipo) {
+    Object.keys(TIPO_SERVICO_CATEGORIA).forEach(cod => {
+      if (TIPO_SERVICO_CATEGORIA[cod] === op.tipo) op.servicosSelecionados.add(cod);
+    });
+  }
+  opRenderChipsEstaticos();
+  opPopularServicos();
+  opRenderAll();
+}
 function opSetSupervisor(v) { op.supervisor = v; opRenderAll(); }
 function opSetBusca(v) { op.busca = v; opRenderAll(); }
 function opSetMinOs(v) { op.minOs = parseInt(v, 10) || 10; opRenderEquipes(); }
@@ -2307,10 +2374,12 @@ function opLimparFiltros() {
   op.centro = ''; op.classificacao = ''; op.tipo = ''; op.supervisor = ''; op.busca = '';
   op.causaRaizFiltro = ''; op.motivoFiltro = '';
   op.servicosSelecionados.clear();
+  op.diasSelecionados.clear();
   document.getElementById('op-busca-cliente').value = '';
   document.getElementById('op-select-supervisor').value = '';
   opRenderChipsEstaticos();
   opPopularServicos();
+  opPopularDias();
   opRenderAll();
 }
 
@@ -2415,6 +2484,9 @@ document.addEventListener('click', (e) => {
   const menu = document.getElementById('op-servico-menu');
   const btn = document.getElementById('op-servico-btn');
   if (menu && btn && !menu.contains(e.target) && e.target !== btn) menu.style.display = 'none';
+  const menuDias = document.getElementById('op-dias-menu');
+  const btnDias = document.getElementById('op-dias-btn');
+  if (menuDias && btnDias && !menuDias.contains(e.target) && e.target !== btnDias) menuDias.style.display = 'none';
 });
 
 function opSetSubtab(tab) {
@@ -2434,6 +2506,7 @@ function opRegistrosBase() {
 function opRegistrosFiltrados(opcoes) {
   opcoes = opcoes || {};
   let out = opRegistrosBase();
+  if (op.diasSelecionados.size) out = out.filter(r => op.diasSelecionados.has(r.__data));
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
   if (op.classificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
@@ -2753,8 +2826,10 @@ function opRenderClientes(dados) {
   document.getElementById('op-clientes-sub').textContent = `${totalLinhas.toLocaleString('pt-BR')} clientes${totalLinhas > 200 ? ' (mostrando os 200 primeiros)' : ''}${opFiltroAtivoLabel()}`;
 
   let html = '';
+  opUltimosClientes = [];
   linhas.forEach(c => {
     const mesesLabel = Array.from(c.meses).sort().map(m => OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1]).join(' ');
+    opUltimosClientes.push({ nome: c.nome, municipio: c.municipio, total: c.total, meses: mesesLabel });
     html += `<tr onclick="opAbrirModalCliente('${c.cod}')">
       <td>${c.nome}</td>
       <td>${c.municipio || '—'}</td>
@@ -2763,6 +2838,13 @@ function opRenderClientes(dados) {
     </tr>`;
   });
   document.getElementById('op-tabela-clientes').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhum cliente no filtro atual</td></tr>';
+}
+
+let opUltimosClientes = [];
+function opCopiarClientes() {
+  const linhas = ['Cliente\tMunicípio\tTotal\tMeses com ocorrência'];
+  opUltimosClientes.forEach(c => linhas.push(`${c.nome}\t${c.municipio}\t${c.total}\t${c.meses}`));
+  opCopiarTexto(linhas.join('\n'), 'btn-copiar-clientes');
 }
 
 function opAbrirModalCliente(cod) {
