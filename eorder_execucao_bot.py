@@ -45,6 +45,7 @@ COLS_TDC = [
 COLS_EXECUCAO = [
     "Numero de Serviço", "Tipo Remessa WIN", " Tipo de Serviço",
     "Recurso/Equipe", "Município", "Data fim Execução", "Código Resultado",
+    "Número da Incidencia", "Código Cliente", "Cliente", "Endereço", "Resultado",
 ]
 
 # ── XPaths ───────────────────────────────────────────────────────────
@@ -580,8 +581,11 @@ class EOrderExecucaoBot:
         """
         Guarda o snapshot atual como "fechamento" do dia de hoje em
         snapshots_historico (upsert por regiao+data — a última publicação do
-        dia é a que fica valendo) e apaga fechamentos com mais de
-        HISTORICO_RETENCAO_DIAS dias, mantendo uma janela rolante.
+        dia é a que fica valendo). Só o Sul (TdC/Painel Gerencial) apaga
+        fechamentos com mais de HISTORICO_RETENCAO_DIAS dias (janela
+        rolante) — o Execucao acumula pra sempre, pra alimentar o Painel
+        Operacional (histórico mensal de Corte/Recorte/Religação, causa
+        raiz, clientes recorrentes).
         """
         try:
             hoje = datetime.now().date().isoformat()
@@ -604,6 +608,8 @@ class EOrderExecucaoBot:
             )
             with urllib.request.urlopen(req):
                 pass
+            if regiao != "Sul":
+                return
             limite = (datetime.now().date() - timedelta(days=HISTORICO_RETENCAO_DIAS)).isoformat()
             req_del = urllib.request.Request(
                 f"{SB_URL}/rest/v1/snapshots_historico?regiao=eq.{regiao}&data=lt.{limite}",
