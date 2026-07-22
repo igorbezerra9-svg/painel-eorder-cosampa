@@ -723,7 +723,7 @@
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
-            <tr style="background:#0d1b2a;color:#fff;">
+            <tr style="background:#0d1b2a;color:#fff;" id="op-modal-thead">
               <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Data</th>
               <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Nº Serviço</th>
               <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Tipo</th>
@@ -2216,6 +2216,8 @@ const op = {
   hojeAoVivo: false,
 };
 let opDadosAtuais = [];
+let opUltimoPorBucket = {};
+let opUltimosBucketsOrdenados = [];
 function opEscJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 function opFiltroAtivoLabel() {
   if (op.causaRaizFiltro) return ' · causa raiz: ' + op.causaRaizFiltro;
@@ -2628,11 +2630,13 @@ function opRenderResumo(dados) {
       produtivo++; porTipo[cat].produtivo++;
     } else if (classif === 'IMPRODUTIVO') {
       improdutivo++; porTipo[cat].improdutivo++;
+      const cr = opCausaRaiz(r);
       if (mesKey) {
         porMesTotais[mesKey].improdutivo++;
         porMesTotais[mesKey][cat] = (porMesTotais[mesKey][cat] || 0) + 1;
+        if (!porMesTotais[mesKey].causaRaiz) porMesTotais[mesKey].causaRaiz = {};
+        porMesTotais[mesKey].causaRaiz[cr] = (porMesTotais[mesKey].causaRaiz[cr] || 0) + 1;
       }
-      const cr = opCausaRaiz(r);
       causaRaizCount[cr] = (causaRaizCount[cr] || 0) + 1;
       const motivo = (r['Resultado'] || '').trim();
       if (motivo) motivoCount[motivo] = (motivoCount[motivo] || 0) + 1;
@@ -2653,6 +2657,8 @@ function opRenderResumo(dados) {
   document.getElementById('op-kpi-taxa').textContent = taxaImprodutiva.toFixed(1) + '%';
 
   const mesesOrdenados = Object.keys(porMesTotais).sort();
+  opUltimoPorBucket = porMesTotais;
+  opUltimosBucketsOrdenados = mesesOrdenados;
   let tendHtml = '—';
   if (mesesOrdenados.length >= 2) {
     const ultimo = mesesOrdenados[mesesOrdenados.length - 1];
@@ -2742,7 +2748,7 @@ function opRenderResumo(dados) {
       });
     }
     const label = info.label;
-    chartHtml += `<div class="op-scol"><div class="op-sbars" style="height:${alturaBarra}px;">${segsHtml}</div><div class="op-smonth">${label}</div></div>`;
+    chartHtml += `<div class="op-scol" onclick="opAbrirDiagnosticoBucket('${m}')" style="cursor:pointer;" title="Clique pra ver o que mudou vs o período anterior"><div class="op-sbars" style="height:${alturaBarra}px;">${segsHtml}</div><div class="op-smonth">${label}</div></div>`;
   });
   document.getElementById('op-evolucao-chart').innerHTML = chartHtml || '<div style="color:var(--gray-400);font-size:12px;padding:20px;">Sem dados</div>';
   document.getElementById('op-evolucao-legend').innerHTML = catsChart.map(c => `<div class="op-litem"><span class="op-ldot" style="background:${coresCatChart[c]};"></span>${c}</div>`).join('');
@@ -2922,7 +2928,18 @@ function opCopiarClientes() {
   opCopiarTexto(linhas.join('\n'), 'btn-copiar-clientes');
 }
 
+function opModalTheadPadrao() {
+  document.getElementById('op-modal-thead').innerHTML = `
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Data</th>
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Nº Serviço</th>
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Tipo</th>
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Resultado</th>
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+  `;
+}
+
 function opAbrirModalCliente(cod) {
+  opModalTheadPadrao();
   const registros = opDadosAtuais.filter(r => (r['Código Cliente'] || '').toString().trim() === cod && opClassificar(r) === 'IMPRODUTIVO');
   registros.sort((a, b) => (b['Data fim Execução'] || '').localeCompare(a['Data fim Execução'] || ''));
   const nome = registros.length ? (registros[0]['Cliente'] || cod) : cod;
@@ -2942,6 +2959,51 @@ function opAbrirModalCliente(cod) {
 }
 function opFecharModal() {
   document.getElementById('op-modal').style.display = 'none';
+}
+
+function opAbrirDiagnosticoBucket(bucketKey) {
+  const idx = opUltimosBucketsOrdenados.indexOf(bucketKey);
+  if (idx === -1) return;
+  const atual = opUltimoPorBucket[bucketKey];
+  const anteriorKey = idx > 0 ? opUltimosBucketsOrdenados[idx - 1] : null;
+  const anterior = anteriorKey ? opUltimoPorBucket[anteriorKey] : null;
+
+  document.getElementById('op-modal-thead').innerHTML = `
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">O que mudou</th>
+    <th style="padding:8px 10px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">${anterior ? anterior.label : '—'}</th>
+    <th style="padding:8px 10px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">${atual.label}</th>
+    <th style="padding:8px 10px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Variação</th>
+  `;
+  document.getElementById('op-modal-title').textContent = anterior ? (anterior.label + ' → ' + atual.label) : atual.label;
+  document.getElementById('op-modal-sub').textContent = `${atual.improdutivo} improdutiva${atual.improdutivo !== 1 ? 's' : ''}${anterior ? ' (era ' + anterior.improdutivo + ')' : ''} · clique numa barra da Evolução pra comparar outro período`;
+
+  const linhas = [];
+  const causasSet = new Set([...Object.keys(atual.causaRaiz || {}), ...Object.keys((anterior && anterior.causaRaiz) || {})]);
+  causasSet.forEach(nome => {
+    const a = (anterior && anterior.causaRaiz && anterior.causaRaiz[nome]) || 0;
+    const b = (atual.causaRaiz && atual.causaRaiz[nome]) || 0;
+    linhas.push({ grupo: 'Causa raiz', nome, anterior: a, atual: b, delta: b - a });
+  });
+  ['Corte', 'Ligação Nova', 'Perdas', 'Religação'].forEach(cat => {
+    const a = (anterior && anterior[cat]) || 0;
+    const b = atual[cat] || 0;
+    if (a === 0 && b === 0) return;
+    linhas.push({ grupo: 'Tipo', nome: cat, anterior: a, atual: b, delta: b - a });
+  });
+  linhas.sort((x, y) => y.delta - x.delta);
+
+  document.getElementById('op-modal-body').innerHTML = linhas.map(l => {
+    const cor = l.delta > 0 ? 'var(--red)' : (l.delta < 0 ? 'var(--green)' : 'var(--gray-400)');
+    const sinal = l.delta > 0 ? '+' : '';
+    return `<tr style="border-bottom:1px solid #e8edf5;">
+      <td style="padding:7px 10px;font-size:11px;"><span style="color:var(--gray-400);font-size:9px;text-transform:uppercase;margin-right:6px;">${l.grupo}</span>${l.nome}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;font-family:monospace;">${l.anterior}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;font-family:monospace;">${l.atual}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;font-family:monospace;font-weight:700;color:${cor};">${sinal}${l.delta}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" style="padding:20px;text-align:center;color:#8097b8;">Sem dados</td></tr>';
+
+  document.getElementById('op-modal').style.display = 'flex';
 }
 document.addEventListener('click', (e) => {
   if (e.target.id === 'op-modal') opFecharModal();
