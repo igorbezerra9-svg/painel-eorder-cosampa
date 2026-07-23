@@ -622,7 +622,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
           <div>
             <h3>Evolução das improdutivas</h3>
-            <div class="op-sub">Corte × Ligação Nova × Perdas × Religação</div>
+            <div class="op-sub">Corte × Ligação Nova × Perdas × Religação — % é a taxa de improdutiva de cada tipo naquele período</div>
           </div>
           <div style="display:flex;gap:6px;">
             <div class="pg-tipo-btn active" id="op-evo-mensal" onclick="opSetEvolucaoModo('mensal')">Mensal</div>
@@ -2623,8 +2623,11 @@ function opRenderResumo(dados) {
 
     const bucket = opBucketInfo(r.__data);
     const mesKey = bucket ? bucket.key : '';
-    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0, label: bucket.label };
-    if (mesKey) porMesTotais[mesKey].total++;
+    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0, label: bucket.label, enviadosCat: {} };
+    if (mesKey) {
+      porMesTotais[mesKey].total++;
+      porMesTotais[mesKey].enviadosCat[cat] = (porMesTotais[mesKey].enviadosCat[cat] || 0) + 1;
+    }
 
     if (classif === 'PRODUTIVO') {
       produtivo++; porTipo[cat].produtivo++;
@@ -2742,9 +2745,11 @@ function opRenderResumo(dados) {
       catsChart.forEach(cat => {
         const v = info[cat] || 0;
         if (!v) return;
-        const pct = (v / totalMes * 100);
-        const rotulo = pct >= 8 ? `<span class="op-sseg-label">${pct.toFixed(0)}%</span>` : '';
-        segsHtml += `<div class="op-sseg" style="height:${pct}%;background:${coresCatChart[cat]};" title="${cat}: ${v} (${pct.toFixed(0)}%)">${rotulo}</div>`;
+        const alturaSeg = (v / totalMes * 100);
+        const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
+        const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
+        const rotulo = alturaSeg >= 8 ? `<span class="op-sseg-label">${taxa.toFixed(0)}%</span>` : '';
+        segsHtml += `<div class="op-sseg" style="height:${alturaSeg}%;background:${coresCatChart[cat]};" title="${cat}: ${v} improdutivas de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
       });
     }
     const label = info.label;
