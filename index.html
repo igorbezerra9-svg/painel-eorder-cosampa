@@ -2748,7 +2748,7 @@ function opRenderResumo(dados) {
         const alturaSeg = (v / totalMes * 100);
         const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
         const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
-        const rotulo = alturaSeg >= 8 ? `<span class="op-sseg-label">${taxa.toFixed(0)}%</span>` : '';
+        const rotulo = alturaSeg >= 8 ? `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>` : '';
         segsHtml += `<div class="op-sseg" style="height:${alturaSeg}%;background:${coresCatChart[cat]};" title="${cat}: ${v} improdutivas de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
       });
     }
