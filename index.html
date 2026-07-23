@@ -596,7 +596,7 @@
           <div class="op-split" id="op-kpi-split"></div>
         </div>
         <div class="op-hcard taxa">
-          <div class="op-l">Taxa de improdutiva geral</div>
+          <div class="op-l" id="op-kpi-taxa-label">Taxa de improdutiva geral</div>
           <div class="op-v" id="op-kpi-taxa">0%</div>
           <div class="op-d" id="op-kpi-taxa-tend">—</div>
         </div>
@@ -673,6 +673,7 @@
             <div class="op-sub" id="op-equipes-sub">—</div>
           </div>
           <select id="op-select-min-os" onchange="opSetMinOs(this.value)" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;">
+            <option value="0">Todas as equipes</option>
             <option value="5">mín. 5 OS no período</option>
             <option value="10" selected>mín. 10 OS no período</option>
             <option value="20">mín. 20 OS no período</option>
@@ -2215,7 +2216,7 @@ const op = {
   evolucaoModo: 'mensal',
   hojeAoVivo: false,
 };
-let opDadosAtuais = [];
+let opDadosParaTaxas = [];
 let opUltimoPorBucket = {};
 let opUltimosBucketsOrdenados = [];
 function opEscJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
@@ -2385,7 +2386,7 @@ function opSetTipo(v) {
 }
 function opSetSupervisor(v) { op.supervisor = v; opRenderAll(); }
 function opSetBusca(v) { op.busca = v; opRenderAll(); }
-function opSetMinOs(v) { op.minOs = parseInt(v, 10) || 10; opRenderEquipes(); }
+function opSetMinOs(v) { const n = parseInt(v, 10); op.minOs = Number.isNaN(n) ? 10 : n; opRenderEquipes(); }
 
 function opLimparFiltros() {
   op.centro = ''; op.classificacao = ''; op.tipo = ''; op.supervisor = ''; op.busca = '';
@@ -2559,7 +2560,7 @@ function opRegistrosFiltrados(opcoes) {
   let out = opRegistrosBase();
   if (op.diasSelecionados.size) out = out.filter(r => op.diasSelecionados.has(r.__data));
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
-  if (op.classificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
+  if (op.classificacao && !opcoes.semClassificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
   if (op.supervisor && !opcoes.semSupervisor) out = out.filter(r => getSupervisor(r['Recurso/Equipe']) === op.supervisor);
@@ -2573,10 +2574,15 @@ function opRegistrosFiltrados(opcoes) {
 }
 
 function opRenderAll() {
-  opDadosAtuais = opRegistrosFiltrados();
-  opRenderResumo(opDadosAtuais);
-  opRenderEquipes(opDadosAtuais);
-  opRenderClientes(opDadosAtuais);
+  // Taxas/rankings/listas precisam do universo Produtivo+Improdutivo completo pra
+  // fazer sentido -- se o filtro de Classificação (Produtivo/Improdutivo/Devolvido)
+  // encolhesse essa base, toda % virava 100% (só sobrava o que foi filtrado) ou a
+  // lista ficava vazia (nada bate com o outro lado). O filtro de Classificação
+  // continua sendo respeitado em tudo o mais (Centro, Tipo, Supervisor, período etc).
+  opDadosParaTaxas = opRegistrosFiltrados({ semClassificacao: true });
+  opRenderResumo(opDadosParaTaxas);
+  opRenderEquipes(opDadosParaTaxas);
+  opRenderClientes(opDadosParaTaxas);
 }
 
 function opBucketInfo(dataStr) {
@@ -2600,11 +2606,11 @@ function opSetEvolucaoModo(modo) {
   op.evolucaoModo = modo;
   document.getElementById('op-evo-mensal').classList.toggle('active', modo === 'mensal');
   document.getElementById('op-evo-semanal').classList.toggle('active', modo === 'semanal');
-  opRenderResumo(opDadosAtuais);
+  opRenderResumo(opDadosParaTaxas);
 }
 
 function opRenderResumo(dados) {
-  dados = dados || opDadosAtuais;
+  dados = dados || opDadosParaTaxas;
   let produtivo = 0, improdutivo = 0, devolvido = 0;
   const porTipo = {};
   const clientesTodos = new Set();
@@ -2650,6 +2656,7 @@ function opRenderResumo(dados) {
 
   const totalGeral = produtivo + improdutivo + devolvido;
   const taxaImprodutiva = totalGeral ? (improdutivo / totalGeral * 100) : 0;
+  const taxaProdutiva = totalGeral ? (produtivo / totalGeral * 100) : 0;
 
   document.getElementById('op-kpi-total').textContent = totalGeral.toLocaleString('pt-BR');
   document.getElementById('op-kpi-split').innerHTML = `
@@ -2657,7 +2664,21 @@ function opRenderResumo(dados) {
     <div><b style="color:var(--red);">${improdutivo.toLocaleString('pt-BR')}</b>Improdutivos</div>
     <div><b style="color:var(--gray-700);">${devolvido.toLocaleString('pt-BR')}</b>Devolvidos</div>
   `;
-  document.getElementById('op-kpi-taxa').textContent = taxaImprodutiva.toFixed(1) + '%';
+  // Card de taxa acompanha a classificação selecionada nos filtros: clicando
+  // "Produtivo" ele vira "Taxa de produtiva geral" (verde); no resto (Improdutivo,
+  // Devolvido ou nenhum selecionado) continua "Taxa de improdutiva geral" (vermelho)
+  // -- e sempre em cima do total real do período, não do subconjunto filtrado.
+  const kpiTaxaEl = document.getElementById('op-kpi-taxa');
+  const kpiTaxaLabelEl = document.getElementById('op-kpi-taxa-label');
+  if (op.classificacao === 'PRODUTIVO') {
+    kpiTaxaLabelEl.textContent = 'Taxa de produtiva geral';
+    kpiTaxaEl.textContent = taxaProdutiva.toFixed(1) + '%';
+    kpiTaxaEl.style.color = 'var(--green)';
+  } else {
+    kpiTaxaLabelEl.textContent = 'Taxa de improdutiva geral';
+    kpiTaxaEl.textContent = taxaImprodutiva.toFixed(1) + '%';
+    kpiTaxaEl.style.color = 'var(--red)';
+  }
 
   const mesesOrdenados = Object.keys(porMesTotais).sort();
   opUltimoPorBucket = porMesTotais;
@@ -2866,8 +2887,8 @@ function opFiltrarPorSupervisor(nome) {
 }
 
 function opRenderEquipes(dados) {
-  dados = dados || opDadosAtuais;
-  const dadosSupervisor = op.supervisor ? opRegistrosFiltrados({ semSupervisor: true }) : dados;
+  dados = dados || opDadosParaTaxas;
+  const dadosSupervisor = op.supervisor ? opRegistrosFiltrados({ semSupervisor: true, semClassificacao: true }) : dados;
   opRenderRankingSupervisores(dadosSupervisor);
   const porEquipe = {};
   dados.forEach(r => {
@@ -2885,7 +2906,8 @@ function opRenderEquipes(dados) {
     .map(([eq, info]) => ({ eq, ...info, pct: info.total ? (info.improdutivo / info.total * 100) : 0, supervisor: getSupervisor(eq) }))
     .sort((a, b) => b.pct - a.pct);
 
-  document.getElementById('op-equipes-sub').textContent = `${linhas.length} equipes com ${minOs}+ OS no período${opFiltroAtivoLabel()}`;
+  const minOsLabel = minOs > 0 ? `com ${minOs}+ OS no período` : 'no período (sem mínimo)';
+  document.getElementById('op-equipes-sub').textContent = `${linhas.length} equipes ${minOsLabel}${opFiltroAtivoLabel()}`;
 
   let html = '';
   linhas.forEach(l => {
@@ -2902,7 +2924,7 @@ function opRenderEquipes(dados) {
 }
 
 function opRenderClientes(dados) {
-  dados = dados || opDadosAtuais;
+  dados = dados || opDadosParaTaxas;
   const porCliente = {};
   dados.forEach(r => {
     if (opClassificar(r) !== 'IMPRODUTIVO') return;
@@ -2957,7 +2979,7 @@ function opModalTheadPadrao() {
 
 function opAbrirModalCliente(cod) {
   opModalTheadPadrao();
-  const registros = opDadosAtuais.filter(r => (r['Código Cliente'] || '').toString().trim() === cod && opClassificar(r) === 'IMPRODUTIVO');
+  const registros = opDadosParaTaxas.filter(r => (r['Código Cliente'] || '').toString().trim() === cod && opClassificar(r) === 'IMPRODUTIVO');
   registros.sort((a, b) => (b['Data fim Execução'] || '').localeCompare(a['Data fim Execução'] || ''));
   const nome = registros.length ? (registros[0]['Cliente'] || cod) : cod;
   document.getElementById('op-modal-title').textContent = nome;
