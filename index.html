@@ -2734,26 +2734,38 @@ function opRenderResumo(dados) {
 
   const coresCatChart = { 'Corte': '#d94040', 'Ligação Nova': '#98a4b8', 'Perdas': '#e8973d', 'Religação': '#3568c9' };
   const catsChart = ['Corte', 'Ligação Nova', 'Perdas', 'Religação'];
-  const maxMes = Math.max(1, ...mesesOrdenados.map(m => porMesTotais[m].improdutivo || 0));
+  // Altura de cada segmento agora é proporcional à TAXA daquela categoria (não ao volume/composição) --
+  // assim uma barra maior sempre corresponde a um % maior, igual o número mostrado dentro dela.
+  let maxTaxa = 0.001;
+  mesesOrdenados.forEach(m => {
+    const info = porMesTotais[m];
+    catsChart.forEach(cat => {
+      const v = info[cat] || 0;
+      const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
+      const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
+      if (taxa > maxTaxa) maxTaxa = taxa;
+    });
+  });
   let chartHtml = '';
   mesesOrdenados.forEach(m => {
     const info = porMesTotais[m];
     const totalMes = info.improdutivo || 0;
-    const alturaBarra = totalMes ? Math.max(20, (totalMes / maxMes) * 130) : 4;
     let segsHtml = '';
+    let alturaBarraPx = 0;
     if (totalMes) {
       catsChart.forEach(cat => {
         const v = info[cat] || 0;
         if (!v) return;
-        const alturaSeg = (v / totalMes * 100);
         const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
         const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
-        const rotulo = alturaSeg >= 8 ? `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>` : '';
-        segsHtml += `<div class="op-sseg" style="height:${alturaSeg}%;background:${coresCatChart[cat]};" title="${cat}: ${v} improdutivas de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
+        const segPx = Math.max(18, (taxa / maxTaxa) * 130);
+        alturaBarraPx += segPx;
+        const rotulo = segPx >= 20 ? `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>` : '';
+        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} improdutivas de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
       });
     }
     const label = info.label;
-    chartHtml += `<div class="op-scol" onclick="opAbrirDiagnosticoBucket('${m}')" style="cursor:pointer;" title="Clique pra ver o que mudou vs o período anterior"><div class="op-sbars" style="height:${alturaBarra}px;">${segsHtml}</div><div class="op-smonth">${label}</div></div>`;
+    chartHtml += `<div class="op-scol" onclick="opAbrirDiagnosticoBucket('${m}')" style="cursor:pointer;" title="Clique pra ver o que mudou vs o período anterior"><div class="op-sbars" style="height:${alturaBarraPx || 4}px;">${segsHtml}</div><div class="op-smonth">${label}</div></div>`;
   });
   document.getElementById('op-evolucao-chart').innerHTML = chartHtml || '<div style="color:var(--gray-400);font-size:12px;padding:20px;">Sem dados</div>';
   document.getElementById('op-evolucao-legend').innerHTML = catsChart.map(c => `<div class="op-litem"><span class="op-ldot" style="background:${coresCatChart[c]};"></span>${c}</div>`).join('');
