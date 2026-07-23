@@ -621,10 +621,11 @@
       <div class="op-panel">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
           <div>
-            <h3>Evolução das improdutivas</h3>
-            <div class="op-sub">Corte × Ligação Nova × Perdas × Religação — % é a taxa de improdutiva de cada tipo naquele período</div>
+            <h3 id="op-evolucao-titulo">Evolução das improdutivas</h3>
+            <div class="op-sub" id="op-evolucao-sub">Corte × Ligação Nova × Perdas × Religação — % é a taxa de improdutiva de cada tipo naquele período</div>
           </div>
           <div style="display:flex;gap:6px;">
+            <div class="pg-tipo-btn" id="op-evo-diario" onclick="opSetEvolucaoModo('diario')">Diário</div>
             <div class="pg-tipo-btn active" id="op-evo-mensal" onclick="opSetEvolucaoModo('mensal')">Mensal</div>
             <div class="pg-tipo-btn" id="op-evo-semanal" onclick="opSetEvolucaoModo('semanal')">Semanal</div>
           </div>
@@ -2516,13 +2517,12 @@ function opSetSubtab(tab) {
 }
 
 function opRegistrosBase() {
+  // "Hoje (ao vivo)" mostra SÓ hoje, isolado -- antes ele juntava o mês inteiro
+  // selecionado (ex: Julho todo) com hoje só "atualizado por cima", o que fazia
+  // parecer que o filtro "ao vivo" não tava filtrando nada.
+  if (op.hojeAoVivo && opLiveHoje) return opLiveHoje;
   let out = [];
   op.mesesSelecionados.forEach(m => { if (op.cache[m]) out = out.concat(op.cache[m]); });
-  if (op.hojeAoVivo && opLiveHoje) {
-    const hoje = opTodayStr();
-    out = out.filter(r => r.__data !== hoje);
-    out = out.concat(opLiveHoje);
-  }
   return out;
 }
 
@@ -2587,6 +2587,11 @@ function opRenderAll() {
 
 function opBucketInfo(dataStr) {
   if (!dataStr) return null;
+  if (op.evolucaoModo === 'diario') {
+    const [, m, d] = dataStr.split('-');
+    const label = d + '/' + m;
+    return { key: dataStr, label };
+  }
   if (op.evolucaoModo === 'semanal') {
     const [y, m, d] = dataStr.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -2604,6 +2609,7 @@ function opBucketInfo(dataStr) {
 
 function opSetEvolucaoModo(modo) {
   op.evolucaoModo = modo;
+  document.getElementById('op-evo-diario').classList.toggle('active', modo === 'diario');
   document.getElementById('op-evo-mensal').classList.toggle('active', modo === 'mensal');
   document.getElementById('op-evo-semanal').classList.toggle('active', modo === 'semanal');
   opRenderResumo(opDadosParaTaxas);
@@ -2629,7 +2635,7 @@ function opRenderResumo(dados) {
 
     const bucket = opBucketInfo(r.__data);
     const mesKey = bucket ? bucket.key : '';
-    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0, label: bucket.label, enviadosCat: {} };
+    if (mesKey && !porMesTotais[mesKey]) porMesTotais[mesKey] = { total: 0, improdutivo: 0, produtivo: 0, label: bucket.label, enviadosCat: {}, produtivoCat: {} };
     if (mesKey) {
       porMesTotais[mesKey].total++;
       porMesTotais[mesKey].enviadosCat[cat] = (porMesTotais[mesKey].enviadosCat[cat] || 0) + 1;
@@ -2637,6 +2643,10 @@ function opRenderResumo(dados) {
 
     if (classif === 'PRODUTIVO') {
       produtivo++; porTipo[cat].produtivo++;
+      if (mesKey) {
+        porMesTotais[mesKey].produtivo++;
+        porMesTotais[mesKey].produtivoCat[cat] = (porMesTotais[mesKey].produtivoCat[cat] || 0) + 1;
+      }
     } else if (classif === 'IMPRODUTIVO') {
       improdutivo++; porTipo[cat].improdutivo++;
       const cr = opCausaRaiz(r);
@@ -2753,15 +2763,27 @@ function opRenderResumo(dados) {
     <div style="font-size:13.5px;line-height:1.7;color:var(--gray-700);">${texto}</div>
   `;
 
-  const coresCatChart = { 'Corte': '#d94040', 'Ligação Nova': '#98a4b8', 'Perdas': '#e8973d', 'Religação': '#3568c9' };
+  // Quando o filtro Classificação está em "Produtivo", o gráfico espelha pra
+  // mostrar a evolução das PRODUTIVAS (verde) em vez das improdutivas (vermelho)
+  // -- mesma lógica, só troca a fonte dos dados por período (produtivoCat vs a
+  // contagem de improdutivo já guardada direto em info[cat]).
+  const modoProdutiva = op.classificacao === 'PRODUTIVO';
+  const coresCatChartImprod = { 'Corte': '#d94040', 'Ligação Nova': '#98a4b8', 'Perdas': '#e8973d', 'Religação': '#3568c9' };
+  const coresCatChartProd = { 'Corte': '#2f9e5c', 'Ligação Nova': '#66c28a', 'Perdas': '#9ad4b0', 'Religação': '#1a7a40' };
+  const coresCatChart = modoProdutiva ? coresCatChartProd : coresCatChartImprod;
   const catsChart = ['Corte', 'Ligação Nova', 'Perdas', 'Religação'];
+  const rotuloClassif = modoProdutiva ? 'produtivas' : 'improdutivas';
+
+  document.getElementById('op-evolucao-titulo').textContent = 'Evolução das ' + rotuloClassif;
+  document.getElementById('op-evolucao-sub').textContent = `Corte × Ligação Nova × Perdas × Religação — % é a taxa de ${modoProdutiva ? 'produtiva' : 'improdutiva'} de cada tipo naquele período`;
+
   // Altura de cada segmento agora é proporcional à TAXA daquela categoria (não ao volume/composição) --
   // assim uma barra maior sempre corresponde a um % maior, igual o número mostrado dentro dela.
   let maxTaxa = 0.001;
   mesesOrdenados.forEach(m => {
     const info = porMesTotais[m];
     catsChart.forEach(cat => {
-      const v = info[cat] || 0;
+      const v = modoProdutiva ? (info.produtivoCat[cat] || 0) : (info[cat] || 0);
       const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
       const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
       if (taxa > maxTaxa) maxTaxa = taxa;
@@ -2770,19 +2792,19 @@ function opRenderResumo(dados) {
   let chartHtml = '';
   mesesOrdenados.forEach(m => {
     const info = porMesTotais[m];
-    const totalMes = info.improdutivo || 0;
+    const totalMes = modoProdutiva ? (info.produtivo || 0) : (info.improdutivo || 0);
     let segsHtml = '';
     let alturaBarraPx = 0;
     if (totalMes) {
       catsChart.forEach(cat => {
-        const v = info[cat] || 0;
+        const v = modoProdutiva ? (info.produtivoCat[cat] || 0) : (info[cat] || 0);
         if (!v) return;
         const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
         const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
         const segPx = Math.max(18, (taxa / maxTaxa) * 130);
         alturaBarraPx += segPx;
         const rotulo = segPx >= 20 ? `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>` : '';
-        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} improdutivas de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
+        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} ${rotuloClassif} de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
       });
     }
     const label = info.label;
