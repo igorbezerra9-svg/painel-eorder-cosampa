@@ -2803,7 +2803,7 @@ function opRenderResumo(dados) {
         const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
         const segPx = Math.max(18, (taxa / maxTaxa) * 130);
         alturaBarraPx += segPx;
-        const rotulo = segPx >= 20 ? `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>` : '';
+        const rotulo = `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>`;
         segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} ${rotuloClassif} de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
       });
     }
