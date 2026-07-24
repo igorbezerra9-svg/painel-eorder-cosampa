@@ -2270,7 +2270,17 @@ async function opFetchMes(mesKey) {
   return op.cache[mesKey];
 }
 
-async function opCarregar() {
+// Clicar em vários meses rápido (um atrás do outro) disparava um opCarregar()
+// por clique, todos rodando ao mesmo tempo -- cada um lançando suas próprias
+// buscas em paralelo com as dos outros, multiplicando a rajada de requisições
+// simultâneas. Essa fila faz cada clique esperar o anterior terminar antes de
+// rodar o dele, então nunca tem mais de um lote de buscas em andamento.
+let _opCarregarFila = Promise.resolve();
+function opCarregar() {
+  _opCarregarFila = _opCarregarFila.then(() => _opCarregarExec()).catch(() => {});
+  return _opCarregarFila;
+}
+async function _opCarregarExec() {
   if (op.mesesSelecionados.size === 0) {
     const disponiveis = opMesesDisponiveis();
     op.mesesSelecionados.add(disponiveis[disponiveis.length - 1].key);
@@ -2284,7 +2294,13 @@ async function opCarregar() {
   document.getElementById('op-loading').style.display = 'block';
 
   const faltando = Array.from(op.mesesSelecionados).filter(m => !op.mesesCarregados.has(m));
-  if (faltando.length) await Promise.all(faltando.map(opFetchMes));
+  // Buscar todos os meses de uma vez (Promise.all) sobrecarregava e fazia várias
+  // requisições falharem juntas -- 2 por vez é bem mais confiável (cada busca
+  // sozinha responde rápido, ~1s, então isso não deixa a espera muito mais longa).
+  const LOTE = 2;
+  for (let i = 0; i < faltando.length; i += LOTE) {
+    await Promise.all(faltando.slice(i, i + LOTE).map(opFetchMes));
+  }
 
   opPopularServicos();
   opPopularDias();
