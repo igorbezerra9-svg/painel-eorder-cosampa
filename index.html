@@ -2244,21 +2244,29 @@ async function opFetchMes(mesKey) {
   const ultimoDiaObj = new Date(ano, mes, 0);
   const ultimoDia = mesKey + '-' + String(ultimoDiaObj.getDate()).padStart(2, '0');
   const url = SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=gte.' + primeiroDia + '&data=lte.' + ultimoDia + '&select=dados,data';
+  // Selecionar vários meses de uma vez dispara todas as buscas juntas -- se
+  // alguma falhar (rede, limite de requisições simultâneas do Supabase), NÃO
+  // guarda vazio aqui: sem isso, um mês que falhou uma vez ficava "0 registros"
+  // pro resto da sessão, sem nunca tentar de novo, e o mês simplesmente
+  // sumia dos gráficos mesmo tendo dado de verdade.
   try {
     const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const linhas = await res.json();
+    if (!Array.isArray(linhas)) throw new Error('resposta inesperada');
     const registros = [];
-    (linhas || []).forEach(l => {
+    linhas.forEach(l => {
       (l.dados || []).forEach(r => {
         r.__data = l.data;
         registros.push(r);
       });
     });
     op.cache[mesKey] = registros;
+    op.mesesCarregados.add(mesKey);
   } catch (e) {
-    op.cache[mesKey] = [];
+    showToast('Falha ao carregar ' + mesKey + ' -- tenta selecionar o mês de novo', 4000);
+    return [];
   }
-  op.mesesCarregados.add(mesKey);
   return op.cache[mesKey];
 }
 
