@@ -915,11 +915,13 @@ const RESULTADO_PRODUTIVIDADE = {
   'AQME02':'IMPRODUTIVO','IMRE02':'IMPRODUTIVO','0070':'PRODUTIVO','ACMV02':'PRODUTIVO'
 };
 
-// Alguns códigos não têm classificação fixa -- depende do texto da nota que
-// vem junto no campo "Resultado" (ex: "MMLE01 - SERVIÇO EXECUTADO" é Produtivo,
-// mas "MMLE01 - MUDANÇA EXECUTADA" é Improdutivo). Cada código lista as notas
-// que contam como Produtivo; qualquer nota fora dessa lista (inclusive nota
-// vazia) cai no padrão Improdutivo. Fonte: tabela_classificacao_improdutivas.xlsx.
+// Alguns códigos não têm classificação fixa -- depende da "Nota Codificada"
+// (coluna própria do export do eOrder, não é o campo "Resultado" -- esse é só
+// um rótulo fixo por código, tipo "LBTVI6-Retornos Improdutivos sem evidência"
+// sempre igual; quem varia registro a registro é a Nota Codificada). Cada
+// código lista as notas que contam como Produtivo; qualquer nota fora dessa
+// lista (inclusive nota vazia/ausente) cai no padrão Improdutivo.
+// Fonte: tabela_classificacao_improdutivas.xlsx.
 const RESULTADO_REGRAS_NOTA = {
   'LBTVI6': ['EXTR-NECESSITA EXTENSAO DE REDE'],
   'MMLE04': ['NECESSITA EXTENSAO DE REDE'],
@@ -928,11 +930,10 @@ const RESULTADO_REGRAS_NOTA = {
   'MMLE01': ['SERVIÇO EXECUTADO'],
 };
 function _classificarResultado(r) {
-  const resultado = (r['Resultado'] || '').toString();
   const cod = (r['Código Resultado'] || '').trim().toUpperCase();
   const regrasNota = RESULTADO_REGRAS_NOTA[cod];
   if (regrasNota) {
-    const nota = resultado.replace(new RegExp('^' + cod + '\\s*-\\s*', 'i'), '').trim().replace(/\s+/g, ' ').toUpperCase();
+    const nota = (r['Nota Codificada'] || '').toString().trim().replace(/\s+/g, ' ').toUpperCase();
     return regrasNota.some(n => n.toUpperCase() === nota) ? 'PRODUTIVO' : 'IMPRODUTIVO';
   }
   return RESULTADO_PRODUTIVIDADE[cod] || null;
