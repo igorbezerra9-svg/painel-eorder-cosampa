@@ -2720,8 +2720,13 @@ function opRenderResumo(dados) {
   });
 
   const totalGeral = produtivo + improdutivo + devolvido;
-  const taxaImprodutiva = totalGeral ? (improdutivo / totalGeral * 100) : 0;
-  const taxaProdutiva = totalGeral ? (produtivo / totalGeral * 100) : 0;
+  // Taxa é sempre sobre o que já foi finalizado (Produtivo+Improdutivo) --
+  // Devolvido não conta no denominador, senão a taxa fica artificialmente
+  // diluída e não bate com o indicador oficial da Enel (que também não
+  // conta Devolvido, já que a OS nem chegou a um resultado final).
+  const totalFinalizado = produtivo + improdutivo;
+  const taxaImprodutiva = totalFinalizado ? (improdutivo / totalFinalizado * 100) : 0;
+  const taxaProdutiva = totalFinalizado ? (produtivo / totalFinalizado * 100) : 0;
 
   document.getElementById('op-kpi-total').textContent = totalGeral.toLocaleString('pt-BR');
   document.getElementById('op-kpi-split').innerHTML = `
@@ -2752,8 +2757,10 @@ function opRenderResumo(dados) {
   if (mesesOrdenados.length >= 2) {
     const ultimo = mesesOrdenados[mesesOrdenados.length - 1];
     const penultimo = mesesOrdenados[mesesOrdenados.length - 2];
-    const taxaUlt = porMesTotais[ultimo].total ? (porMesTotais[ultimo].improdutivo / porMesTotais[ultimo].total * 100) : 0;
-    const taxaPen = porMesTotais[penultimo].total ? (porMesTotais[penultimo].improdutivo / porMesTotais[penultimo].total * 100) : 0;
+    const finUlt = porMesTotais[ultimo].produtivo + porMesTotais[ultimo].improdutivo;
+    const finPen = porMesTotais[penultimo].produtivo + porMesTotais[penultimo].improdutivo;
+    const taxaUlt = finUlt ? (porMesTotais[ultimo].improdutivo / finUlt * 100) : 0;
+    const taxaPen = finPen ? (porMesTotais[penultimo].improdutivo / finPen * 100) : 0;
     const delta = taxaUlt - taxaPen;
     const sinal = delta >= 0 ? '▲' : '▼';
     tendHtml = `${sinal} ${Math.abs(delta).toFixed(1)}pp vs ${porMesTotais[penultimo].label} (${taxaPen.toFixed(1)}%)`;
@@ -2782,7 +2789,8 @@ function opRenderResumo(dados) {
 
   let htmlTipos = '';
   linhasTipo.forEach(l => {
-    const pctImprod = l.enviados ? (l.improdutivo / l.enviados * 100) : 0;
+    const finalizadoTipo = l.produtivo + l.improdutivo;
+    const pctImprod = finalizadoTipo ? (l.improdutivo / finalizadoTipo * 100) : 0;
     const contrib = improdutivo ? (l.improdutivo / improdutivo * 100) : 0;
     htmlTipos += `<tr>
       <td><span class="op-dot" style="background:${coresCat[l.cat] || '#98a4b8'};"></span>${l.cat}</td>
@@ -2801,9 +2809,10 @@ function opRenderResumo(dados) {
   } else {
     const piorCat = linhasTipo[0];
     const causaTop = Object.entries(causaRaizCount).sort((a, b) => b[1] - a[1])[0];
-    texto = `A taxa de improdutiva no período foi de <b>${taxaImprodutiva.toFixed(1)}%</b> (${improdutivo.toLocaleString('pt-BR')} de ${totalGeral.toLocaleString('pt-BR')} execuções).`;
+    texto = `A taxa de improdutiva no período foi de <b>${taxaImprodutiva.toFixed(1)}%</b> (${improdutivo.toLocaleString('pt-BR')} de ${totalFinalizado.toLocaleString('pt-BR')} execuções finalizadas).`;
     if (piorCat) {
-      const pctPior = piorCat.enviados ? (piorCat.improdutivo / piorCat.enviados * 100) : 0;
+      const finalizadoPior = piorCat.produtivo + piorCat.improdutivo;
+      const pctPior = finalizadoPior ? (piorCat.improdutivo / finalizadoPior * 100) : 0;
       texto += ` <b>${piorCat.cat}</b> é quem mais contribui pro total de improdutivas (${(improdutivo ? piorCat.improdutivo / improdutivo * 100 : 0).toFixed(1)}% delas), com ${pctPior.toFixed(1)}% de taxa própria.`;
     }
     if (causaTop && improdutivo) {
@@ -2839,8 +2848,8 @@ function opRenderResumo(dados) {
     const info = porMesTotais[m];
     catsChart.forEach(cat => {
       const v = modoProdutiva ? (info.produtivoCat[cat] || 0) : (info[cat] || 0);
-      const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
-      const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
+      const finalizadoCat = (info.produtivoCat[cat] || 0) + (info[cat] || 0);
+      const taxa = finalizadoCat ? (v / finalizadoCat * 100) : 0;
       if (taxa > maxTaxa) maxTaxa = taxa;
     });
   });
@@ -2854,12 +2863,12 @@ function opRenderResumo(dados) {
       catsChart.forEach(cat => {
         const v = modoProdutiva ? (info.produtivoCat[cat] || 0) : (info[cat] || 0);
         if (!v) return;
-        const enviadosCat = (info.enviadosCat && info.enviadosCat[cat]) || 0;
-        const taxa = enviadosCat ? (v / enviadosCat * 100) : 0;
+        const finalizadoCat = (info.produtivoCat[cat] || 0) + (info[cat] || 0);
+        const taxa = finalizadoCat ? (v / finalizadoCat * 100) : 0;
         const segPx = Math.max(18, (taxa / maxTaxa) * 130);
         alturaBarraPx += segPx;
         const rotulo = `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>`;
-        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} ${rotuloClassif} de ${enviadosCat} enviadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
+        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} ${rotuloClassif} de ${finalizadoCat} finalizadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
       });
     }
     const label = info.label;
