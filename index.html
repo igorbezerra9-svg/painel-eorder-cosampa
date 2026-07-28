@@ -663,7 +663,7 @@
         <h3>Ranking de supervisores por % improdutiva</h3>
         <div class="op-sub">Clique num supervisor pra filtrar as equipes dele abaixo</div>
         <table class="op-table" style="margin-top:12px;">
-          <thead><tr><th>Supervisor</th><th class="op-num">Equipes</th><th class="op-num">Total OS</th><th>% Improdutiva</th></tr></thead>
+          <thead><tr><th>Supervisor</th><th class="op-num">Equipes</th><th class="op-num">Total OS</th><th>% Improdutiva</th><th>Tendência</th></tr></thead>
           <tbody id="op-tabela-supervisores"></tbody>
         </table>
       </div>
@@ -2976,9 +2976,9 @@ function opCopiarTexto(texto, idBotao) {
   }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
-function opRenderRankingSupervisores(dados) {
+function opAgruparPorSupervisor(regs) {
   const porSup = {};
-  dados.forEach(r => {
+  regs.forEach(r => {
     const eq = r['Recurso/Equipe'];
     if (!eq) return;
     const sup = getSupervisor(eq);
@@ -2990,22 +2990,77 @@ function opRenderRankingSupervisores(dados) {
     porSup[sup].equipes.add(eq);
     if (classif === 'IMPRODUTIVO') porSup[sup].improdutivo++;
   });
+  return porSup;
+}
+
+function opMesAnterior(mesKey) {
+  const [ano, mes] = mesKey.split('-').map(Number);
+  const d = new Date(ano, mes - 2, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+// Filtros que fazem sentido reaplicar num mês diferente do selecionado (pra
+// calcular a tendência) -- fica de fora "dias" (não existe no mês anterior),
+// "classificação" (quebraria a comparação Produtivo/Improdutivo) e
+// "supervisor" (é o próprio agrupamento da tabela).
+function opFiltrarGenerico(regs) {
+  let out = regs;
+  if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
+  if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
+  if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
+  return out;
+}
+
+let _opBuscandoTendenciaSupervisor = null;
+function opRenderRankingSupervisores(dados) {
+  const porSup = opAgruparPorSupervisor(dados);
   const linhas = Object.entries(porSup)
     .map(([sup, info]) => ({ sup, total: info.total, nEquipes: info.equipes.size, pct: info.total ? (info.improdutivo / info.total * 100) : 0 }))
     .sort((a, b) => b.pct - a.pct);
+
+  // Tendência só faz sentido comparando UM mês contra o anterior -- com
+  // vários meses marcados juntos não existe "o mês anterior" único.
+  let porSupAnterior = null;
+  if (op.mesesSelecionados.size === 1 && !op.hojeAoVivo) {
+    const mesAtual = Array.from(op.mesesSelecionados)[0];
+    const mesAnterior = opMesAnterior(mesAtual);
+    if (op.cache[mesAnterior]) {
+      porSupAnterior = opAgruparPorSupervisor(opFiltrarGenerico(_opDedupPorOS(op.cache[mesAnterior])));
+    } else if (_opBuscandoTendenciaSupervisor !== mesAnterior) {
+      _opBuscandoTendenciaSupervisor = mesAnterior;
+      opFetchMes(mesAnterior).then(() => { _opBuscandoTendenciaSupervisor = null; opRenderEquipes(); }).catch(() => { _opBuscandoTendenciaSupervisor = null; });
+    }
+  }
 
   let html = '';
   linhas.forEach(l => {
     const cor = l.pct >= 20 ? 'var(--red)' : (l.pct >= 12 ? '#e8973d' : 'var(--green)');
     const ativo = op.supervisor === l.sup;
+    let tendHtml = '<span style="color:var(--gray-400);">—</span>';
+    if (porSupAnterior) {
+      const infoAnt = porSupAnterior[l.sup];
+      if (infoAnt && infoAnt.total) {
+        const pctAnt = infoAnt.improdutivo / infoAnt.total * 100;
+        const delta = l.pct - pctAnt;
+        if (Math.abs(delta) < 0.15) {
+          tendHtml = '<span style="color:var(--gray-400);">— estável</span>';
+        } else {
+          const subiu = delta > 0;
+          const corTend = subiu ? 'var(--red)' : 'var(--green)';
+          const seta = subiu ? '▲' : '▼';
+          tendHtml = `<span style="color:${corTend};">${seta} ${Math.abs(delta).toFixed(2)}pp</span>`;
+        }
+      }
+    }
     html += `<tr onclick="opFiltrarPorSupervisor('${l.sup}')" style="${ativo ? 'background:var(--gray-100);' : ''}">
       <td>${ativo ? '<b>' + l.sup + '</b>' : l.sup}</td>
       <td class="op-num">${l.nEquipes}</td>
       <td class="op-num">${l.total.toLocaleString('pt-BR')}</td>
       <td><b style="color:${cor};">${l.pct.toFixed(2)}%</b></td>
+      <td>${tendHtml}</td>
     </tr>`;
   });
-  document.getElementById('op-tabela-supervisores').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no filtro atual</td></tr>';
+  document.getElementById('op-tabela-supervisores').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no filtro atual</td></tr>';
 }
 
 function opFiltrarPorSupervisor(nome) {
