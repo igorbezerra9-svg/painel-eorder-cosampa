@@ -510,36 +510,43 @@ class EOrderExecucaoBot:
             linhas.append(registro)
         return linhas
 
-    def _publicar_nuvem(self, regiao, prefixo_arquivo, colunas, timestamp_esperado=None):
+    def _publicar_nuvem(self, regiao, prefixo_arquivo, colunas, timestamp_esperado=None,
+                         publicar_ao_vivo=True, data_alvo=None):
         """Publica o snapshot "leve" (só as colunas curadas) que alimenta a
         tela ao vivo, e devolve o caminho do xlsx usado (ou None se falhou)
         pra quem quiser publicar também a versão completa a partir do
-        mesmo arquivo, sem procurar de novo."""
+        mesmo arquivo, sem procurar de novo.
+
+        `publicar_ao_vivo=False` pula o POST em /snapshots (a tela "ao vivo")
+        e só atualiza o snapshots_historico -- usado pra reconsultar um dia
+        anterior sem sobrescrever a tela ao vivo com dado velho. `data_alvo`
+        é a data (aaaa-mm-dd) sendo fechada no histórico; default é hoje."""
         caminho = self._achar_export_mais_recente(prefixo_arquivo, timestamp_esperado=timestamp_esperado)
         if not caminho:
             self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
             return None
         try:
             linhas = self._xlsx_para_linhas(caminho, colunas)
-            corpo = json.dumps({
-                "regiao": regiao,
-                "dados": linhas,
-                "atualizado_em": datetime.now(timezone.utc).isoformat(),
-            }, default=str).encode("utf-8")
-            req = urllib.request.Request(
-                SB_URL + "/rest/v1/snapshots",
-                data=corpo,
-                method="POST",
-                headers={
-                    "apikey": SB_KEY,
-                    "Authorization": "Bearer " + SB_KEY,
-                    "Content-Type": "application/json",
-                    "Prefer": "resolution=merge-duplicates",
-                },
-            )
-            with urllib.request.urlopen(req) as resp:
-                self._plog(f"☁ Painel atualizado ({regiao}): {len(linhas)} registros — status {resp.status}")
-            self._publicar_historico(regiao, linhas)
+            if publicar_ao_vivo:
+                corpo = json.dumps({
+                    "regiao": regiao,
+                    "dados": linhas,
+                    "atualizado_em": datetime.now(timezone.utc).isoformat(),
+                }, default=str).encode("utf-8")
+                req = urllib.request.Request(
+                    SB_URL + "/rest/v1/snapshots",
+                    data=corpo,
+                    method="POST",
+                    headers={
+                        "apikey": SB_KEY,
+                        "Authorization": "Bearer " + SB_KEY,
+                        "Content-Type": "application/json",
+                        "Prefer": "resolution=merge-duplicates",
+                    },
+                )
+                with urllib.request.urlopen(req) as resp:
+                    self._plog(f"☁ Painel atualizado ({regiao}): {len(linhas)} registros — status {resp.status}")
+            self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         except urllib.error.HTTPError as e:
             self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
@@ -578,21 +585,59 @@ class EOrderExecucaoBot:
         except Exception as e:
             self._plog(f"⚠️  Falha ao publicar versão completa ({regiao}): {e}")
 
-    def _publicar_historico(self, regiao, linhas):
+    def _historico_existente(self, regiao, data_alvo):
+        """Busca quantos registros já estão salvos pra regiao+data_alvo, pra
+        servir de referência à trava de _publicar_historico. Retorna None se
+        não achar nada salvo ainda (dia novo, sem baseline pra comparar)."""
+        try:
+            req = urllib.request.Request(
+                f"{SB_URL}/rest/v1/snapshots_historico?regiao=eq.{regiao}&data=eq.{data_alvo}&select=dados",
+                headers={"apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY},
+            )
+            with urllib.request.urlopen(req) as resp:
+                linhas = json.loads(resp.read())
+            if not linhas:
+                return None
+            return len(linhas[0].get("dados") or [])
+        except Exception:
+            return None
+
+    def _publicar_historico(self, regiao, linhas, data_alvo=None):
         """
-        Guarda o snapshot atual como "fechamento" do dia de hoje em
+        Guarda o snapshot atual como "fechamento" do dia em
         snapshots_historico (upsert por regiao+data — a última publicação do
-        dia é a que fica valendo). Só o Sul (TdC/Painel Gerencial) apaga
-        fechamentos com mais de HISTORICO_RETENCAO_DIAS dias (janela
-        rolante) — o Execucao acumula pra sempre, pra alimentar o Painel
-        Operacional (histórico mensal de Corte/Recorte/Religação, causa
-        raiz, clientes recorrentes).
+        dia é a que fica valendo). `data_alvo` é o dia sendo fechado (formato
+        aaaa-mm-dd); se omitido, assume hoje -- mas quando é uma reconsulta de
+        um dia anterior (ver rodar_automatico.py), o chamador passa a data
+        certa explicitamente, senão o fechamento de ontem seria salvo com a
+        chave de hoje por engano.
+
+        Trava: se o novo export vier com bem menos registros do que já
+        estava salvo pra esse dia, não sobrescreve -- só avisa no log. Isso
+        existe porque uma rodada isolada pode pegar um export vazio/quebrado
+        da Enel (rede engasgou, portal deu erro etc.) e, sem essa trava, ela
+        apagaria o dia inteiro que já tinha sido capturado certinho pelas
+        rodadas anteriores (aconteceu de verdade em 26/07, virou um "buraco"
+        permanente no histórico).
+
+        Só o Sul (TdC/Painel Gerencial) apaga fechamentos com mais de
+        HISTORICO_RETENCAO_DIAS dias (janela rolante) — o Execucao acumula
+        pra sempre, pra alimentar o Painel Operacional (histórico mensal de
+        Corte/Recorte/Religação, causa raiz, clientes recorrentes).
         """
         try:
-            hoje = datetime.now().date().isoformat()
+            data_alvo = data_alvo or datetime.now().date().isoformat()
+            existentes = self._historico_existente(regiao, data_alvo)
+            if existentes is not None and existentes >= 20 and len(linhas) < existentes * 0.5:
+                self._plog(
+                    f"⚠️  Histórico ({regiao} {data_alvo}) NÃO atualizado: novo export tem só "
+                    f"{len(linhas)} registros contra {existentes} já salvos -- provável export "
+                    "incompleto da Enel, mantendo o que já tinha."
+                )
+                return
             corpo = json.dumps({
                 "regiao": regiao,
-                "data": hoje,
+                "data": data_alvo,
                 "dados": linhas,
                 "salvo_em": datetime.now(timezone.utc).isoformat(),
             }, default=str).encode("utf-8")
@@ -621,17 +666,27 @@ class EOrderExecucaoBot:
         except Exception as e:
             self._plog(f"⚠️  Falha ao salvar histórico ({regiao}): {e}")
 
-    def executar(self, usuario, senha, data_str):
+    def executar(self, usuario, senha, data_str, data_str_ontem=None, data_alvo_ontem=None):
+        """`data_str_ontem`/`data_alvo_ontem`: quando passados, depois de
+        publicar hoje normalmente, reconsulta esse dia anterior só pra
+        completar o histórico (sem mexer na tela ao vivo) -- cobre serviços
+        fechados depois da última rodada de ontem, que senão nunca seriam
+        capturados (o robô só busca "hoje" em cada rodada)."""
         try:
             self._start_driver()
             self._login(usuario, senha)
             self.fazer_busca_execucao(data_str)
+            if data_str_ontem:
+                self.fazer_busca_execucao(data_str_ontem, publicar_ao_vivo=False, data_alvo=data_alvo_ontem)
         except Exception as e:
             self._plog(f"❌ Erro: {e}")
         finally:
             self._plog("🏁 Finalizado.")
 
-    def fazer_busca_execucao(self, data_str):
+    def fazer_busca_execucao(self, data_str, publicar_ao_vivo=True, data_alvo=None):
+        """`publicar_ao_vivo=False` + `data_alvo` (aaaa-mm-dd) servem pra
+        reconsultar um dia anterior só pra completar o histórico (ver
+        rodar_automatico.py), sem sobrescrever a tela ao vivo com dado velho."""
         self._navegar_busca_execucao()
         self._marcar_centro_operativo()
         self._desmarcar_emergencia()
@@ -644,8 +699,10 @@ class EOrderExecucaoBot:
             time.sleep(5)
             self._plog(f"💾 Verifique a pasta de downloads: {self.download_dir}")
             timestamp_esperado = ok if isinstance(ok, str) else None
-            caminho = self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO, timestamp_esperado=timestamp_esperado)
-            self._publicar_nuvem_completo("Execucao", caminho)
+            caminho = self._publicar_nuvem("Execucao", NOME_EXPORT, COLS_EXECUCAO, timestamp_esperado=timestamp_esperado,
+                                            publicar_ao_vivo=publicar_ao_vivo, data_alvo=data_alvo)
+            if publicar_ao_vivo:
+                self._publicar_nuvem_completo("Execucao", caminho)
             self._limpar_exports_antigos(NOME_EXPORT)
         return ok
 

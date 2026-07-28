@@ -3,9 +3,14 @@ import logging
 import os
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from eorder_execucao_bot import EOrderExecucaoBot
+
+# Nas primeiras rodadas da manhã, reconsulta o dia anterior além de hoje --
+# cobre serviços que a equipe fechou depois da última rodada de ontem (ex:
+# 22h30), que senão nunca seriam capturados (cada rodada só pergunta "hoje").
+HORA_LIMITE_RECONSULTA_ONTEM = 7
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CRED_FILE = os.path.join(BASE_DIR, "credenciais_eorder.json")
@@ -51,9 +56,21 @@ def main():
     cred = carregar_credenciais()
     download_dir = cred.get("download_dir") or os.path.join(os.path.expanduser("~"), "Downloads")
     modo = str(cred.get("modo", "1"))
-    data_str = datetime.now().strftime("%d/%m/%Y")
+    agora = datetime.now()
+    data_str = agora.strftime("%d/%m/%Y")
 
-    log(f"=== Rodada automática iniciada — {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} — data busca: {data_str} — modo {modo} ===")
+    data_str_ontem = None
+    data_alvo_ontem = None
+    if agora.hour < HORA_LIMITE_RECONSULTA_ONTEM:
+        ontem = agora - timedelta(days=1)
+        data_str_ontem = ontem.strftime("%d/%m/%Y")
+        data_alvo_ontem = ontem.date().isoformat()
+
+    log(
+        f"=== Rodada automática iniciada — {agora.strftime('%d/%m/%Y %H:%M:%S')} — data busca: {data_str}"
+        + (f" (+ reconsulta de ontem {data_str_ontem})" if data_str_ontem else "")
+        + f" — modo {modo} ==="
+    )
 
     if modo == "2":
         acesso1 = cred["acesso1"]
@@ -61,7 +78,10 @@ def main():
         bot1 = EOrderExecucaoBot(lambda m: log(f"[Execução] {m}"), download_dir, minimizado=False)
         bot2 = EOrderExecucaoBot(lambda m: log(f"[TdC] {m}"), download_dir, minimizado=False)
 
-        t1 = threading.Thread(target=bot1.executar, args=(acesso1["usuario"], acesso1["senha"], data_str))
+        t1 = threading.Thread(
+            target=bot1.executar,
+            args=(acesso1["usuario"], acesso1["senha"], data_str, data_str_ontem, data_alvo_ontem),
+        )
         t2 = threading.Thread(target=bot2.executar_tdc, args=(acesso2["usuario"], acesso2["senha"]))
         t1.start()
         t2.start()
@@ -76,6 +96,8 @@ def main():
             bot._start_driver()
             bot._login(acesso1["usuario"], acesso1["senha"])
             bot.fazer_busca_execucao(data_str)
+            if data_str_ontem:
+                bot.fazer_busca_execucao(data_str_ontem, publicar_ao_vivo=False, data_alvo=data_alvo_ontem)
             bot.fazer_tdc()
         except Exception as e:
             log(f"❌ Erro: {e}")
