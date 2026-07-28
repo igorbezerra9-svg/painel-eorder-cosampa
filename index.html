@@ -930,12 +930,20 @@ const RESULTADO_REGRAS_NOTA = {
   'VPCE01': ['VIS EXE- UC NORMAL S/LEVANT CARGA', 'VIST. EXEC.- NECESSITA AFERIÇÃO MEDIDOR'],
   'MMLE01': ['SERVIÇO EXECUTADO'],
 };
+// O export do eOrder/Enel vem com acentuação inconsistente (mesma nota aparece
+// às vezes "AFERIÇÃO", às vezes "AFERIÇAO" sem til, dependendo de qual sistema
+// gerou o arquivo) -- comparar o texto exato da nota deixava passar batido
+// casos que deviam bater. Normaliza removendo os acentos dos dois lados antes
+// de comparar, então "AFERIÇÃO" e "AFERIÇAO" contam como a mesma nota.
+function _semAcento(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 function _classificarResultado(r) {
   const cod = (r['Código Resultado'] || '').trim().toUpperCase();
   const regrasNota = RESULTADO_REGRAS_NOTA[cod];
   if (regrasNota) {
-    const nota = (r['Nota Codificada'] || '').toString().trim().replace(/\s+/g, ' ').toUpperCase();
-    return regrasNota.some(n => n.toUpperCase() === nota) ? 'PRODUTIVO' : 'IMPRODUTIVO';
+    const nota = _semAcento((r['Nota Codificada'] || '').toString().trim().replace(/\s+/g, ' ').toUpperCase());
+    return regrasNota.some(n => _semAcento(n.toUpperCase()) === nota) ? 'PRODUTIVO' : 'IMPRODUTIVO';
   }
   return RESULTADO_PRODUTIVIDADE[cod] || null;
 }
