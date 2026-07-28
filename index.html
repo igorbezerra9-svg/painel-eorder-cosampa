@@ -2048,7 +2048,7 @@ function execRender() {
   farolEl.textContent = farol.emoji + ' ' + farol.label;
   farolEl.style.color = farol.cor;
   const totalClassificado = produtivo + improdutivo + devolvido;
-  const pct = n => totalClassificado ? ((n/totalClassificado)*100).toFixed(1) + '%' : '—';
+  const pct = n => totalClassificado ? ((n/totalClassificado)*100).toFixed(2) + '%' : '—';
   document.getElementById('exec-produtivo').textContent = produtivo;
   document.getElementById('exec-produtivo-pct').textContent = pct(produtivo);
   document.getElementById('exec-improdutivo').textContent = improdutivo;
@@ -2772,11 +2772,11 @@ function opRenderResumo(dados) {
   const kpiTaxaLabelEl = document.getElementById('op-kpi-taxa-label');
   if (op.classificacao === 'PRODUTIVO') {
     kpiTaxaLabelEl.textContent = 'Taxa de produtiva geral';
-    kpiTaxaEl.textContent = taxaProdutiva.toFixed(1) + '%';
+    kpiTaxaEl.textContent = taxaProdutiva.toFixed(2) + '%';
     kpiTaxaEl.style.color = 'var(--green)';
   } else {
     kpiTaxaLabelEl.textContent = 'Taxa de improdutiva geral';
-    kpiTaxaEl.textContent = taxaImprodutiva.toFixed(1) + '%';
+    kpiTaxaEl.textContent = taxaImprodutiva.toFixed(2) + '%';
     kpiTaxaEl.style.color = 'var(--red)';
   }
 
@@ -2793,7 +2793,7 @@ function opRenderResumo(dados) {
     const taxaPen = finPen ? (porMesTotais[penultimo].improdutivo / finPen * 100) : 0;
     const delta = taxaUlt - taxaPen;
     const sinal = delta >= 0 ? '▲' : '▼';
-    tendHtml = `${sinal} ${Math.abs(delta).toFixed(1)}pp vs ${porMesTotais[penultimo].label} (${taxaPen.toFixed(1)}%)`;
+    tendHtml = `${sinal} ${Math.abs(delta).toFixed(2)}pp vs ${porMesTotais[penultimo].label} (${taxaPen.toFixed(2)}%)`;
   }
   document.getElementById('op-kpi-taxa-tend').textContent = tendHtml;
 
@@ -2827,8 +2827,8 @@ function opRenderResumo(dados) {
       <td class="op-num">${l.enviados.toLocaleString('pt-BR')}</td>
       <td class="op-num" style="color:var(--green);">${l.produtivo.toLocaleString('pt-BR')}</td>
       <td class="op-num" style="color:var(--red);">${l.improdutivo.toLocaleString('pt-BR')}</td>
-      <td><b style="color:${pctImprod >= 15 ? 'var(--red)' : 'var(--text)'};">${pctImprod.toFixed(1)}%</b><span class="op-mini-track"><span class="op-mini-fill" style="width:${Math.min(pctImprod, 100)}%;background:var(--red);"></span></span></td>
-      <td><span class="op-contrib-track"><span class="op-contrib-fill" style="width:${Math.min(contrib, 100)}%;"></span></span> ${contrib.toFixed(1)}%</td>
+      <td><b style="color:${pctImprod >= 15 ? 'var(--red)' : 'var(--text)'};">${pctImprod.toFixed(2)}%</b><span class="op-mini-track"><span class="op-mini-fill" style="width:${Math.min(pctImprod, 100)}%;background:var(--red);"></span></span></td>
+      <td><span class="op-contrib-track"><span class="op-contrib-fill" style="width:${Math.min(contrib, 100)}%;"></span></span> ${contrib.toFixed(2)}%</td>
     </tr>`;
   });
   document.getElementById('op-tabela-tipos').innerHTML = htmlTipos || '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no período/filtro selecionado</td></tr>';
@@ -2839,14 +2839,14 @@ function opRenderResumo(dados) {
   } else {
     const piorCat = linhasTipo[0];
     const causaTop = Object.entries(causaRaizCount).sort((a, b) => b[1] - a[1])[0];
-    texto = `A taxa de improdutiva no período foi de <b>${taxaImprodutiva.toFixed(1)}%</b> (${improdutivo.toLocaleString('pt-BR')} de ${totalFinalizado.toLocaleString('pt-BR')} execuções finalizadas).`;
+    texto = `A taxa de improdutiva no período foi de <b>${taxaImprodutiva.toFixed(2)}%</b> (${improdutivo.toLocaleString('pt-BR')} de ${totalFinalizado.toLocaleString('pt-BR')} execuções finalizadas).`;
     if (piorCat) {
       const finalizadoPior = piorCat.produtivo + piorCat.improdutivo;
       const pctPior = finalizadoPior ? (piorCat.improdutivo / finalizadoPior * 100) : 0;
-      texto += ` <b>${piorCat.cat}</b> é quem mais contribui pro total de improdutivas (${(improdutivo ? piorCat.improdutivo / improdutivo * 100 : 0).toFixed(1)}% delas), com ${pctPior.toFixed(1)}% de taxa própria.`;
+      texto += ` <b>${piorCat.cat}</b> é quem mais contribui pro total de improdutivas (${(improdutivo ? piorCat.improdutivo / improdutivo * 100 : 0).toFixed(2)}% delas), com ${pctPior.toFixed(2)}% de taxa própria.`;
     }
     if (causaTop && improdutivo) {
-      texto += ` A causa raiz predominante é <b>"${causaTop[0]}"</b>, respondendo por ${(causaTop[1] / improdutivo * 100).toFixed(1)}% das improdutivas.`;
+      texto += ` A causa raiz predominante é <b>"${causaTop[0]}"</b>, respondendo por ${(causaTop[1] / improdutivo * 100).toFixed(2)}% das improdutivas.`;
     }
     if (recorrentes.length) {
       texto += ` ${recorrentes.length.toLocaleString('pt-BR')} clientes tiveram 2 ou mais improdutivas no período.`;
@@ -2897,8 +2897,8 @@ function opRenderResumo(dados) {
         const taxa = finalizadoCat ? (v / finalizadoCat * 100) : 0;
         const segPx = Math.max(18, (taxa / maxTaxa) * 130);
         alturaBarraPx += segPx;
-        const rotulo = `<span class="op-sseg-label">${taxa.toFixed(1).replace('.', ',')}%</span>`;
-        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} ${rotuloClassif} de ${finalizadoCat} finalizadas (${taxa.toFixed(1)}% de taxa)">${rotulo}</div>`;
+        const rotulo = `<span class="op-sseg-label">${taxa.toFixed(2).replace('.', ',')}%</span>`;
+        segsHtml += `<div class="op-sseg" style="height:${segPx}px;background:${coresCatChart[cat]};" title="${cat}: ${v} ${rotuloClassif} de ${finalizadoCat} finalizadas (${taxa.toFixed(2)}% de taxa)">${rotulo}</div>`;
       });
     }
     const label = info.label;
@@ -2940,7 +2940,7 @@ let opUltimaCausaRaiz = [];
 let opUltimosMotivos = [];
 function opCopiarCausaRaiz() {
   const linhas = ['Causa raiz\tImprodutivas\t% das improdutivas'];
-  opUltimaCausaRaiz.forEach(l => linhas.push(`${l.nome}\t${l.qtd}\t${l.pct.toFixed(1)}%`));
+  opUltimaCausaRaiz.forEach(l => linhas.push(`${l.nome}\t${l.qtd}\t${l.pct.toFixed(2)}%`));
   opCopiarTexto(linhas.join('\n'), 'btn-copiar-causaraiz');
 }
 function opCopiarMotivos() {
@@ -2989,7 +2989,7 @@ function opRenderRankingSupervisores(dados) {
       <td>${ativo ? '<b>' + l.sup + '</b>' : l.sup}</td>
       <td class="op-num">${l.nEquipes}</td>
       <td class="op-num">${l.total.toLocaleString('pt-BR')}</td>
-      <td><b style="color:${cor};">${l.pct.toFixed(1)}%</b></td>
+      <td><b style="color:${cor};">${l.pct.toFixed(2)}%</b></td>
     </tr>`;
   });
   document.getElementById('op-tabela-supervisores').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no filtro atual</td></tr>';
@@ -3033,7 +3033,7 @@ function opRenderEquipes(dados) {
       <td>${l.supervisor || '—'}</td>
       <td>${l.municipio || '—'}</td>
       <td class="op-num">${l.total.toLocaleString('pt-BR')}</td>
-      <td><b style="color:${cor};">${l.pct.toFixed(1)}%</b></td>
+      <td><b style="color:${cor};">${l.pct.toFixed(2)}%</b></td>
     </tr>`;
   });
   document.getElementById('op-tabela-equipes').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma equipe com o volume mínimo no filtro atual</td></tr>';
