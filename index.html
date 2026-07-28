@@ -877,7 +877,7 @@ const RESULTADO_PRODUTIVIDADE = {
   'STBE03':'IMPRODUTIVO','REA':'PRODUTIVO','SDJV02':'PRODUTIVO','AMCE02':'PRODUTIVO',
   '0074':'PRODUTIVO','0046':'PRODUTIVO','VIRV02':'PRODUTIVO','EXUE01':'PRODUTIVO',
   'MGDV2':'PRODUTIVO','SEM01':'PRODUTIVO','VIUV02':'PRODUTIVO','VIUV04':'PRODUTIVO',
-  '0020':'PRODUTIVO','MMIE01':'PRODUTIVO','0021':'PRODUTIVO','0044':'IMPRODUTIVO',
+  '0020':'PRODUTIVO','MMIE01':'PRODUTIVO','0021':'PRODUTIVO',
   'VIUV05':'PRODUTIVO','0001':'PRODUTIVO',
   'VIRV01':'PRODUTIVO','SRLV02':'PRODUTIVO','VIUV01':'PRODUTIVO','VIRV05':'PRODUTIVO',
   '0026':'PRODUTIVO','EXRE01':'PRODUTIVO','0002':'PRODUTIVO',
@@ -931,6 +931,14 @@ const RESULTADO_REGRAS_NOTA = {
   'VPCE01': ['VIS EXE- UC NORMAL S/LEVANT CARGA', 'VIST. EXEC.- NECESSITA AFERIÇÃO MEDIDOR'],
   'MMLE01': ['SERVIÇO EXECUTADO'],
 };
+// '0044' é ambíguo: "0044-RELIGAÇÃO NO DISJUNTOR" é Produtivo (a Enel confirma,
+// ex. OS A009708355), mas "0044-IMÓVEL FECHADO..." continua Improdutivo -- não
+// dá pra diferenciar pela Nota Codificada (vem sempre vazia nesses casos), só
+// pelo texto do campo "Resultado". Confirmado com a base de julho/2026: 4 de 5
+// ocorrências eram "RELIGAÇÃO NO DISJUNTOR", 1 era "IMÓVEL FECHADO".
+const RESULTADO_REGRAS_TEXTO_RUIM = {
+  '0044': ['IMOVEL FECHADO'],
+};
 // O export do eOrder/Enel vem com acentuação inconsistente (mesma nota aparece
 // às vezes "AFERIÇÃO", às vezes "AFERIÇAO" sem til, dependendo de qual sistema
 // gerou o arquivo) -- comparar o texto exato da nota deixava passar batido
@@ -945,6 +953,11 @@ function _classificarResultado(r) {
   if (regrasNota) {
     const nota = _semAcento((r['Nota Codificada'] || '').toString().trim().replace(/\s+/g, ' ').toUpperCase());
     return regrasNota.some(n => _semAcento(n.toUpperCase()) === nota) ? 'PRODUTIVO' : 'IMPRODUTIVO';
+  }
+  const textosRuins = RESULTADO_REGRAS_TEXTO_RUIM[cod];
+  if (textosRuins) {
+    const texto = _semAcento((r['Resultado'] || '').toString().toUpperCase());
+    return textosRuins.some(t => texto.includes(_semAcento(t))) ? 'IMPRODUTIVO' : 'PRODUTIVO';
   }
   return RESULTADO_PRODUTIVIDADE[cod] || null;
 }
