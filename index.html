@@ -2571,14 +2571,43 @@ function opSetSubtab(tab) {
   });
 }
 
+// "Data fim Execução" vem como "dd/mm/aaaa hh:mm" -- comparar essa string
+// direto (localeCompare/`<`/`>`) dá resultado errado (ex: "05/07" parece
+// "menor" que "20/06" mesmo sendo depois), porque o dia vem antes do mês.
+// Converte pra um número aaaammddhhmm, que aí sim compara certo.
+function _opParseDataExec(r) {
+  const s = (r && r['Data fim Execução']) || '';
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return 0;
+  const [, d, mo, y, h, mi] = m;
+  return Number(y + mo + d + h + mi);
+}
+
+// A mesma OS pode aparecer mais de uma vez no período (retorno/revisita --
+// ex: vistoria improdutiva seguida de execução produtiva depois). Pra bater
+// com o indicador oficial da Enel, que conta só o resultado FINAL de cada
+// OS (não cada tentativa), mantém só a ocorrência mais recente de cada
+// "Numero de Serviço" -- por timestamp real, não pela ordem que veio do banco.
+function _opDedupPorOS(lista) {
+  const porOS = new Map();
+  let semNumero = [];
+  lista.forEach(r => {
+    const os = (r['Numero de Serviço'] || '').toString().trim();
+    if (!os) { semNumero.push(r); return; }
+    const atual = porOS.get(os);
+    if (!atual || _opParseDataExec(r) >= _opParseDataExec(atual)) porOS.set(os, r);
+  });
+  return Array.from(porOS.values()).concat(semNumero);
+}
+
 function opRegistrosBase() {
   // "Hoje (ao vivo)" mostra SÓ hoje, isolado -- antes ele juntava o mês inteiro
   // selecionado (ex: Julho todo) com hoje só "atualizado por cima", o que fazia
   // parecer que o filtro "ao vivo" não tava filtrando nada.
-  if (op.hojeAoVivo && opLiveHoje) return opLiveHoje;
+  if (op.hojeAoVivo && opLiveHoje) return _opDedupPorOS(opLiveHoje);
   let out = [];
   op.mesesSelecionados.forEach(m => { if (op.cache[m]) out = out.concat(op.cache[m]); });
-  return out;
+  return _opDedupPorOS(out);
 }
 
 function opTodayStr() {
@@ -3066,7 +3095,7 @@ function opModalTheadPadrao() {
 function opAbrirModalCliente(cod) {
   opModalTheadPadrao();
   const registros = opDadosParaTaxas.filter(r => (r['Código Cliente'] || '').toString().trim() === cod && opClassificar(r) === 'IMPRODUTIVO');
-  registros.sort((a, b) => (b['Data fim Execução'] || '').localeCompare(a['Data fim Execução'] || ''));
+  registros.sort((a, b) => _opParseDataExec(b) - _opParseDataExec(a));
   const nome = registros.length ? (registros[0]['Cliente'] || cod) : cod;
   document.getElementById('op-modal-title').textContent = nome;
   document.getElementById('op-modal-sub').textContent = registros.length + ' improdutiva' + (registros.length !== 1 ? 's' : '') + ' no período filtrado · código ' + cod;
