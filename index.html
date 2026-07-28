@@ -703,7 +703,7 @@
           </div>
         </div>
         <table class="op-table" style="margin-top:12px;">
-          <thead><tr><th>Cliente</th><th>Município</th><th class="op-num">Total</th><th>Meses com ocorrência</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Código</th><th>Município</th><th class="op-num">Total</th><th>Meses com ocorrência</th></tr></thead>
           <tbody id="op-tabela-clientes"></tbody>
         </table>
       </div>
@@ -3078,21 +3078,22 @@ function opRenderClientes(dados) {
   opUltimosClientes = [];
   linhas.forEach(c => {
     const mesesLabel = Array.from(c.meses).sort().map(m => OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1]).join(' ');
-    opUltimosClientes.push({ nome: c.nome, municipio: c.municipio, total: c.total, meses: mesesLabel });
+    opUltimosClientes.push({ nome: c.nome, cod: c.cod, municipio: c.municipio, total: c.total, meses: mesesLabel });
     html += `<tr onclick="opAbrirModalCliente('${c.cod}')">
       <td>${c.nome}</td>
+      <td>${c.cod}</td>
       <td>${c.municipio || '—'}</td>
       <td class="op-num">${c.total}</td>
       <td>${mesesLabel}</td>
     </tr>`;
   });
-  document.getElementById('op-tabela-clientes').innerHTML = html || '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhum cliente no filtro atual</td></tr>';
+  document.getElementById('op-tabela-clientes').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhum cliente no filtro atual</td></tr>';
 }
 
 let opUltimosClientes = [];
 function opCopiarClientes() {
-  const linhas = ['Cliente\tMunicípio\tTotal\tMeses com ocorrência'];
-  opUltimosClientes.forEach(c => linhas.push(`${c.nome}\t${c.municipio}\t${c.total}\t${c.meses}`));
+  const linhas = ['Cliente\tCódigo\tMunicípio\tTotal\tMeses com ocorrência'];
+  opUltimosClientes.forEach(c => linhas.push(`${c.nome}\t${c.cod}\t${c.municipio}\t${c.total}\t${c.meses}`));
   opCopiarTexto(linhas.join('\n'), 'btn-copiar-clientes');
 }
 
