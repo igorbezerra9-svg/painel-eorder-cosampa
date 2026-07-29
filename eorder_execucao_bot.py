@@ -44,7 +44,7 @@ COLS_TDC = [
 ]
 COLS_EXECUCAO = [
     "Numero de Serviço", "Tipo Remessa WIN", " Tipo de Serviço",
-    "Recurso/Equipe", "Município", "Data fim Execução", "Código Resultado",
+    "Recurso/Equipe", "Município", "Data início Execução", "Data fim Execução", "Código Resultado",
     "Número da Incidencia", "Código Cliente", "Cliente", "Endereço", "Resultado",
     "Nota Codificada",
 ]

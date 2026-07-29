@@ -2597,6 +2597,26 @@ function _opParseDataExec(r) {
   return Number(y + mo + d + h + mi);
 }
 
+function _opParseDataHora(s) {
+  const m = (s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, d, mo, y, h, mi] = m;
+  return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
+}
+// Quanto tempo a equipe ficou de fato executando aquela OS -- "Data início
+// Execução" até "Data fim Execução". Sem um dos dois (export antigo, antes
+// de a gente passar a coletar "Data início Execução") ou intervalo negativo
+// (erro de digitação/relógio do eOrder), mostra "—" em vez de inventar duração.
+function opDuracaoExecucao(r) {
+  const ini = _opParseDataHora(r['Data início Execução']);
+  const fim = _opParseDataHora(r['Data fim Execução']);
+  if (!ini || !fim) return '—';
+  const diffMin = (fim - ini) / 60000;
+  if (diffMin < 0 || diffMin > 24 * 60) return '—';
+  const h = Math.floor(diffMin / 60), m = Math.round(diffMin % 60);
+  return h > 0 ? `${h}h${String(m).padStart(2, '0')}min` : `${m}min`;
+}
+
 // A mesma OS pode aparecer mais de uma vez no período (retorno/revisita --
 // ex: vistoria improdutiva seguida de execução produtiva depois). Pra bater
 // com o indicador oficial da Enel, que conta só o resultado FINAL de cada
@@ -3159,6 +3179,7 @@ function opModalTheadPadrao() {
     <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Tipo</th>
     <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Resultado</th>
     <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+    <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Duração</th>
   `;
 }
 
@@ -3177,8 +3198,9 @@ function opAbrirModalCliente(cod) {
       <td style="padding:7px 10px;font-size:11px;">${opCategoriaServico(r)}</td>
       <td style="padding:7px 10px;font-size:11px;">${r['Resultado'] || '—'}</td>
       <td style="padding:7px 10px;font-family:monospace;font-size:11px;">${r['Recurso/Equipe'] || '—'}</td>
+      <td style="padding:7px 10px;font-size:11px;white-space:nowrap;">${opDuracaoExecucao(r)}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma improdutiva encontrada</td></tr>';
+  }).join('') || '<tr><td colspan="6" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma improdutiva encontrada</td></tr>';
   document.getElementById('op-modal').style.display = 'flex';
 }
 function opFecharModal() {
