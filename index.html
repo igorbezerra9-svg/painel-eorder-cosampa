@@ -558,6 +558,14 @@
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tipo</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-tipo"></div>
     </div>
+    <div>
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Local do Corte</div>
+      <select id="op-select-local-corte" onchange="opSetLocalCorte(this.value)" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;background:var(--white);">
+        <option value="">Todos</option>
+        <option value="Medidor">Medidor</option>
+        <option value="Poste">Poste</option>
+      </select>
+    </div>
     <div class="pg-multisel">
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tipo de Serviço</div>
       <button class="pg-multisel-btn" id="op-servico-btn" onclick="opToggleMenuServico()">Todos</button>
@@ -632,6 +640,14 @@
         </div>
         <div class="op-stack" id="op-evolucao-chart"></div>
         <div class="op-legend" id="op-evolucao-legend"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
+          <div class="op-sub" style="margin:0;">Corte por período — enviados, produtivo e improdutivo em número</div>
+          <button onclick="opCopiarEvolucaoCorte()" id="btn-copiar-evolucao-corte" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+        </div>
+        <table class="op-table" style="margin-top:8px;">
+          <thead><tr><th>Período</th><th class="op-num">Enviados</th><th class="op-num">Produtivo</th><th class="op-num">Improdutivo</th><th>% Improdutivo</th></tr></thead>
+          <tbody id="op-evolucao-tabela-corte"></tbody>
+        </table>
       </div>
 
       <div class="op-charts-row">
@@ -860,6 +876,19 @@ const TIPO_SERVICO_CATEGORIA = {
   'OUTRCI':'Religação','OUTRCO':'Religação','OUTRVI':'Religação','OUTRNR':'Religação',
   'OUTRNU':'Religação','OUTRUR':'Religação'
 };
+
+// Só faz sentido pra Corte -- onde fisicamente o corte foi feito. Só os
+// códigos que representam a AÇÃO de cortar em si (não "não conseguiu
+// cortar por causa do medidor" etc.) -- fonte: texto do "Código Resultado"
+// nos dados reais de julho/2026.
+const CORTE_LOCAL_POR_CODIGO = {
+  '0002': 'Medidor', '0026': 'Medidor', '0020': 'Medidor',
+  '0001': 'Poste', '0025': 'Poste',
+};
+function opLocalCorte(r) {
+  const cod = (r['Código Resultado'] || '').trim().toUpperCase();
+  return CORTE_LOCAL_POR_CODIGO[cod] || '';
+}
 
 // ══ MAPA DE PRODUTIVIDADE (Código Resultado da Execução) ══
 const RESULTADO_PRODUTIVIDADE = {
@@ -2253,6 +2282,7 @@ const op = {
   centro: '',
   classificacao: '',
   tipo: '',
+  localCorte: '',
   servicosSelecionados: new Set(),
   supervisor: '',
   busca: '',
@@ -2266,6 +2296,7 @@ const op = {
 let opDadosParaTaxas = [];
 let opUltimoPorBucket = {};
 let opUltimosBucketsOrdenados = [];
+let opUltimaEvolucaoCorte = [];
 function opEscJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 function opFiltroAtivoLabel() {
   if (op.causaRaizFiltro) return ' · causa raiz: ' + op.causaRaizFiltro;
@@ -2456,16 +2487,18 @@ function opSetTipo(v) {
   opRenderAll();
 }
 function opSetSupervisor(v) { op.supervisor = v; opRenderAll(); }
+function opSetLocalCorte(v) { op.localCorte = v; opRenderAll(); }
 function opSetBusca(v) { op.busca = v; opRenderAll(); }
 function opSetMinOs(v) { const n = parseInt(v, 10); op.minOs = Number.isNaN(n) ? 10 : n; opRenderEquipes(); }
 
 function opLimparFiltros() {
-  op.centro = ''; op.classificacao = ''; op.tipo = ''; op.supervisor = ''; op.busca = '';
+  op.centro = ''; op.classificacao = ''; op.tipo = ''; op.localCorte = ''; op.supervisor = ''; op.busca = '';
   op.causaRaizFiltro = ''; op.motivoFiltro = '';
   op.servicosSelecionados.clear();
   op.diasSelecionados.clear();
   document.getElementById('op-busca-cliente').value = '';
   document.getElementById('op-select-supervisor').value = '';
+  document.getElementById('op-select-local-corte').value = '';
   opRenderChipsEstaticos();
   opPopularServicos();
   opPopularDias();
@@ -2680,6 +2713,7 @@ function opRegistrosFiltrados(opcoes) {
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
   if (op.classificacao && !opcoes.semClassificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
+  if (op.localCorte) out = out.filter(r => opLocalCorte(r) === op.localCorte);
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
   if (op.supervisor && !opcoes.semSupervisor) out = out.filter(r => getSupervisor(r['Recurso/Equipe']) === op.supervisor);
   if (op.causaRaizFiltro) out = out.filter(r => opClassificar(r) === 'IMPRODUTIVO' && opCausaRaiz(r) === op.causaRaizFiltro);
@@ -2829,6 +2863,22 @@ function opRenderResumo(dados) {
     tendHtml = `${sinal} ${Math.abs(delta).toFixed(2)}pp vs ${porMesTotais[penultimo].label} (${taxaPen.toFixed(2)}%)`;
   }
   document.getElementById('op-kpi-taxa-tend').textContent = tendHtml;
+
+  opUltimaEvolucaoCorte = mesesOrdenados.map(m => {
+    const info = porMesTotais[m];
+    const enviados = (info.enviadosCat && info.enviadosCat['Corte']) || 0;
+    const prod = (info.produtivoCat && info.produtivoCat['Corte']) || 0;
+    const improd = info['Corte'] || 0;
+    const finalizado = prod + improd;
+    return { label: info.label, enviados, produtivo: prod, improdutivo: improd, pct: finalizado ? (improd / finalizado * 100) : 0 };
+  });
+  document.getElementById('op-evolucao-tabela-corte').innerHTML = opUltimaEvolucaoCorte.map(l => `<tr>
+      <td>${l.label}</td>
+      <td class="op-num">${l.enviados.toLocaleString('pt-BR')}</td>
+      <td class="op-num" style="color:var(--green);">${l.produtivo.toLocaleString('pt-BR')}</td>
+      <td class="op-num" style="color:var(--red);">${l.improdutivo.toLocaleString('pt-BR')}</td>
+      <td><b style="color:${l.pct >= 15 ? 'var(--red)' : 'var(--text)'};">${l.pct.toFixed(2)}%</b></td>
+    </tr>`).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no período/filtro selecionado</td></tr>';
 
   const clientesImprodPorMes = {};
   dados.forEach(r => {
@@ -2981,6 +3031,11 @@ function opCopiarMotivos() {
   opUltimosMotivos.forEach(l => linhas.push(`${l.nome}\t${l.qtd}`));
   opCopiarTexto(linhas.join('\n'), 'btn-copiar-motivos');
 }
+function opCopiarEvolucaoCorte() {
+  const linhas = ['Período\tEnviados\tProdutivo\tImprodutivo\t% Improdutivo'];
+  opUltimaEvolucaoCorte.forEach(l => linhas.push(`${l.label}\t${l.enviados}\t${l.produtivo}\t${l.improdutivo}\t${l.pct.toFixed(2)}%`));
+  opCopiarTexto(linhas.join('\n'), 'btn-copiar-evolucao-corte');
+}
 function opCopiarTexto(texto, idBotao) {
   navigator.clipboard.writeText(texto).then(() => {
     const btn = document.getElementById(idBotao);
@@ -3027,6 +3082,7 @@ function opFiltrarGenerico(regs) {
   let out = regs;
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
+  if (op.localCorte) out = out.filter(r => opLocalCorte(r) === op.localCorte);
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
   return out;
 }
