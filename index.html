@@ -558,13 +558,10 @@
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tipo</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-tipo"></div>
     </div>
-    <div>
+    <div class="pg-multisel">
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Local do Corte</div>
-      <select id="op-select-local-corte" onchange="opSetLocalCorte(this.value)" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;background:var(--white);">
-        <option value="">Todos</option>
-        <option value="Medidor">Medidor</option>
-        <option value="Poste">Poste</option>
-      </select>
+      <button class="pg-multisel-btn" id="op-local-corte-btn" onclick="opToggleMenuLocalCorte()">Todos</button>
+      <div class="pg-multisel-menu" id="op-local-corte-menu" style="display:none;"></div>
     </div>
     <div class="pg-multisel">
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tipo de Serviço</div>
@@ -884,7 +881,9 @@ const TIPO_SERVICO_CATEGORIA = {
 const CORTE_LOCAL_POR_CODIGO = {
   '0002': 'Medidor', '0026': 'Medidor', '0020': 'Medidor',
   '0001': 'Poste', '0025': 'Poste',
+  '0024': 'Ramal', '0035': 'Ramal',
 };
+const CORTE_LOCAL_OPCOES = ['Medidor', 'Poste', 'Ramal'];
 function opLocalCorte(r) {
   const cod = (r['Código Resultado'] || '').trim().toUpperCase();
   return CORTE_LOCAL_POR_CODIGO[cod] || '';
@@ -2282,7 +2281,7 @@ const op = {
   centro: '',
   classificacao: '',
   tipo: '',
-  localCorte: '',
+  localCorteSelecionados: new Set(),
   servicosSelecionados: new Set(),
   supervisor: '',
   busca: '',
@@ -2380,6 +2379,7 @@ async function _opCarregarExec() {
   }
 
   opPopularServicos();
+  opPopularLocalCorte();
   opPopularDias();
   document.getElementById('op-loading').style.display = 'none';
   document.getElementById('op-conteudo').style.display = 'block';
@@ -2487,18 +2487,56 @@ function opSetTipo(v) {
   opRenderAll();
 }
 function opSetSupervisor(v) { op.supervisor = v; opRenderAll(); }
-function opSetLocalCorte(v) { op.localCorte = v; opRenderAll(); }
 function opSetBusca(v) { op.busca = v; opRenderAll(); }
 function opSetMinOs(v) { const n = parseInt(v, 10); op.minOs = Number.isNaN(n) ? 10 : n; opRenderEquipes(); }
 
+function opPopularLocalCorte() {
+  const menu = document.getElementById('op-local-corte-menu');
+  let html = '<div class="pg-multisel-actions"><a onclick="opLocalCorteSelAll()">Marcar todos</a><a onclick="opLocalCorteSelNone()">Limpar</a></div>';
+  CORTE_LOCAL_OPCOES.forEach(v => {
+    const checked = op.localCorteSelecionados.has(v) ? 'checked' : '';
+    html += `<label><input type="checkbox" value="${v}" ${checked} onchange="opToggleLocalCorte('${v}')"><span>${v}</span></label>`;
+  });
+  menu.innerHTML = html;
+  opAtualizaLabelLocalCorte();
+}
+function opToggleLocalCorte(v) {
+  if (op.localCorteSelecionados.has(v)) op.localCorteSelecionados.delete(v);
+  else op.localCorteSelecionados.add(v);
+  opAtualizaLabelLocalCorte();
+  opRenderAll();
+}
+function opLocalCorteSelAll() {
+  CORTE_LOCAL_OPCOES.forEach(v => op.localCorteSelecionados.add(v));
+  opPopularLocalCorte(); opRenderAll();
+}
+function opLocalCorteSelNone() {
+  op.localCorteSelecionados.clear();
+  opPopularLocalCorte(); opRenderAll();
+}
+function opAtualizaLabelLocalCorte() {
+  const n = op.localCorteSelecionados.size;
+  document.getElementById('op-local-corte-btn').textContent = n === 0 ? 'Todos' : (n + ' selecionado' + (n > 1 ? 's' : ''));
+}
+function opToggleMenuLocalCorte() {
+  const m = document.getElementById('op-local-corte-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('op-local-corte-menu');
+  const btn = document.getElementById('op-local-corte-btn');
+  if (menu && btn && !menu.contains(e.target) && e.target !== btn) menu.style.display = 'none';
+});
+
 function opLimparFiltros() {
-  op.centro = ''; op.classificacao = ''; op.tipo = ''; op.localCorte = ''; op.supervisor = ''; op.busca = '';
+  op.centro = ''; op.classificacao = ''; op.tipo = ''; op.supervisor = ''; op.busca = '';
   op.causaRaizFiltro = ''; op.motivoFiltro = '';
   op.servicosSelecionados.clear();
+  op.localCorteSelecionados.clear();
   op.diasSelecionados.clear();
   document.getElementById('op-busca-cliente').value = '';
   document.getElementById('op-select-supervisor').value = '';
-  document.getElementById('op-select-local-corte').value = '';
+  opPopularLocalCorte();
   opRenderChipsEstaticos();
   opPopularServicos();
   opPopularDias();
@@ -2713,7 +2751,7 @@ function opRegistrosFiltrados(opcoes) {
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
   if (op.classificacao && !opcoes.semClassificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
-  if (op.localCorte) out = out.filter(r => opLocalCorte(r) === op.localCorte);
+  if (op.localCorteSelecionados.size) out = out.filter(r => op.localCorteSelecionados.has(opLocalCorte(r)));
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
   if (op.supervisor && !opcoes.semSupervisor) out = out.filter(r => getSupervisor(r['Recurso/Equipe']) === op.supervisor);
   if (op.causaRaizFiltro) out = out.filter(r => opClassificar(r) === 'IMPRODUTIVO' && opCausaRaiz(r) === op.causaRaizFiltro);
@@ -3082,7 +3120,7 @@ function opFiltrarGenerico(regs) {
   let out = regs;
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
-  if (op.localCorte) out = out.filter(r => opLocalCorte(r) === op.localCorte);
+  if (op.localCorteSelecionados.size) out = out.filter(r => op.localCorteSelecionados.has(opLocalCorte(r)));
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
   return out;
 }
