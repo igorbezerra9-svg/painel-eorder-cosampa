@@ -3239,15 +3239,19 @@ function opRenderClientes(dados) {
   if (soRecorrentes) linhas = linhas.filter(c => c.total >= 2);
   linhas.sort((a, b) => b.total - a.total);
   const totalLinhas = linhas.length;
-  linhas = linhas.slice(0, 200);
 
   document.getElementById('op-clientes-sub').textContent = `${totalLinhas.toLocaleString('pt-BR')} clientes${totalLinhas > 200 ? ' (mostrando os 200 primeiros)' : ''}${opFiltroAtivoLabel()}`;
 
+  // opUltimosClientes guarda TODA a lista (não só os 200 exibidos), pra
+  // opCopiarClientes copiar tudo mesmo com a tabela cortada por performance.
+  opUltimosClientes = linhas.map(c => ({
+    nome: c.nome, cod: c.cod, municipio: c.municipio, total: c.total,
+    meses: Array.from(c.meses).sort().map(m => OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1]).join(' '),
+  }));
+
   let html = '';
-  opUltimosClientes = [];
-  linhas.forEach(c => {
-    const mesesLabel = Array.from(c.meses).sort().map(m => OP_MESES_LABEL[parseInt(m.split('-')[1], 10) - 1]).join(' ');
-    opUltimosClientes.push({ nome: c.nome, cod: c.cod, municipio: c.municipio, total: c.total, meses: mesesLabel });
+  linhas.slice(0, 200).forEach((c, i) => {
+    const mesesLabel = opUltimosClientes[i].meses;
     html += `<tr onclick="opAbrirModalCliente('${c.cod}')">
       <td>${c.nome}</td>
       <td>${c.cod}</td>
