@@ -510,6 +510,37 @@ class EOrderExecucaoBot:
             linhas.append(registro)
         return linhas
 
+    def _post_supabase(self, url, corpo, tentativas=3, espera_s=3):
+        """POST com retry -- os erros de SSL/timeout do Supabase que aparecem
+        de vez em quando no automatico.log (EOF occurred in violation of
+        protocol, canceling statement due to statement timeout) costumam ser
+        engasgo passageiro de rede, não falha real. Tenta de novo antes de
+        desistir. HTTPError (4xx/5xx com resposta) não tem retry -- é erro do
+        próprio Supabase recusando o payload, tentar de novo não muda nada."""
+        ultimo_erro = None
+        for tentativa in range(1, tentativas + 1):
+            req = urllib.request.Request(
+                url,
+                data=corpo,
+                method="POST",
+                headers={
+                    "apikey": SB_KEY,
+                    "Authorization": "Bearer " + SB_KEY,
+                    "Content-Type": "application/json",
+                    "Prefer": "resolution=merge-duplicates",
+                },
+            )
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    return resp.status
+            except urllib.error.HTTPError:
+                raise
+            except Exception as e:
+                ultimo_erro = e
+                if tentativa < tentativas:
+                    time.sleep(espera_s)
+        raise ultimo_erro
+
     def _publicar_nuvem(self, regiao, prefixo_arquivo, colunas, timestamp_esperado=None,
                          publicar_ao_vivo=True, data_alvo=None):
         """Publica o snapshot "leve" (só as colunas curadas) que alimenta a
@@ -520,37 +551,30 @@ class EOrderExecucaoBot:
         `publicar_ao_vivo=False` pula o POST em /snapshots (a tela "ao vivo")
         e só atualiza o snapshots_historico -- usado pra reconsultar um dia
         anterior sem sobrescrever a tela ao vivo com dado velho. `data_alvo`
-        é a data (aaaa-mm-dd) sendo fechada no histórico; default é hoje."""
+        é a data (aaaa-mm-dd) sendo fechada no histórico; default é hoje.
+
+        A publicação "ao vivo" e o histórico são tentados independentemente
+        -- se o POST da tela ao vivo falhar, o histórico ainda é salvo (senão
+        um engasgo de rede no meio do dia derruba os dois de uma vez)."""
         caminho = self._achar_export_mais_recente(prefixo_arquivo, timestamp_esperado=timestamp_esperado)
         if not caminho:
             self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
             return None
-        try:
-            linhas = self._xlsx_para_linhas(caminho, colunas)
-            if publicar_ao_vivo:
+        linhas = self._xlsx_para_linhas(caminho, colunas)
+        if publicar_ao_vivo:
+            try:
                 corpo = json.dumps({
                     "regiao": regiao,
                     "dados": linhas,
                     "atualizado_em": datetime.now(timezone.utc).isoformat(),
                 }, default=str).encode("utf-8")
-                req = urllib.request.Request(
-                    SB_URL + "/rest/v1/snapshots",
-                    data=corpo,
-                    method="POST",
-                    headers={
-                        "apikey": SB_KEY,
-                        "Authorization": "Bearer " + SB_KEY,
-                        "Content-Type": "application/json",
-                        "Prefer": "resolution=merge-duplicates",
-                    },
-                )
-                with urllib.request.urlopen(req) as resp:
-                    self._plog(f"☁ Painel atualizado ({regiao}): {len(linhas)} registros — status {resp.status}")
-            self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
-        except urllib.error.HTTPError as e:
-            self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
-        except Exception as e:
-            self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e}")
+                status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
+                self._plog(f"☁ Painel atualizado ({regiao}): {len(linhas)} registros — status {status}")
+            except urllib.error.HTTPError as e:
+                self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
+            except Exception as e:
+                self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e}")
+        self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
 
     def _publicar_nuvem_completo(self, regiao, caminho):
@@ -567,19 +591,8 @@ class EOrderExecucaoBot:
                 "dados": linhas,
                 "atualizado_em": datetime.now(timezone.utc).isoformat(),
             }, default=str).encode("utf-8")
-            req = urllib.request.Request(
-                SB_URL + "/rest/v1/snapshots",
-                data=corpo,
-                method="POST",
-                headers={
-                    "apikey": SB_KEY,
-                    "Authorization": "Bearer " + SB_KEY,
-                    "Content-Type": "application/json",
-                    "Prefer": "resolution=merge-duplicates",
-                },
-            )
-            with urllib.request.urlopen(req) as resp:
-                self._plog(f"☁ Versão completa publicada ({regiao}): {len(linhas)} registros — status {resp.status}")
+            status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
+            self._plog(f"☁ Versão completa publicada ({regiao}): {len(linhas)} registros — status {status}")
         except urllib.error.HTTPError as e:
             self._plog(f"⚠️  Falha ao publicar versão completa ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
@@ -641,19 +654,7 @@ class EOrderExecucaoBot:
                 "dados": linhas,
                 "salvo_em": datetime.now(timezone.utc).isoformat(),
             }, default=str).encode("utf-8")
-            req = urllib.request.Request(
-                SB_URL + "/rest/v1/snapshots_historico",
-                data=corpo,
-                method="POST",
-                headers={
-                    "apikey": SB_KEY,
-                    "Authorization": "Bearer " + SB_KEY,
-                    "Content-Type": "application/json",
-                    "Prefer": "resolution=merge-duplicates",
-                },
-            )
-            with urllib.request.urlopen(req):
-                pass
+            self._post_supabase(SB_URL + "/rest/v1/snapshots_historico", corpo)
             if regiao != "Sul":
                 return
             limite = (datetime.now().date() - timedelta(days=HISTORICO_RETENCAO_DIAS)).isoformat()
