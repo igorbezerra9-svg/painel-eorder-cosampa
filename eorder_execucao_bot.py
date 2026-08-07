@@ -678,11 +678,30 @@ class EOrderExecucaoBot:
             self._login(usuario, senha)
             self.fazer_busca_execucao(data_str)
             if data_str_ontem:
-                self.fazer_busca_execucao(data_str_ontem, publicar_ao_vivo=False, data_alvo=data_alvo_ontem)
+                self._reconsultar_ontem(usuario, senha, data_str_ontem, data_alvo_ontem)
         except Exception as e:
             self._plog(f"❌ Erro: {e}")
         finally:
             self._plog("🏁 Finalizado.")
+
+    def _reconsultar_ontem(self, usuario, senha, data_str_ontem, data_alvo_ontem):
+        """Reaproveitar a mesma sessão do navegador que acabou de buscar hoje
+        pra fazer a segunda busca (de ontem) vinha travando 100% das vezes --
+        "Elemento não encontrado" no Centro Operativo ao tentar reabrir Busca
+        Execução pela segunda vez (ver automatico.log: acontece todo santo
+        dia desde 29/07, quando essa reconsulta foi criada -- ela nunca
+        publicou nada de verdade). Em vez de reusar a sessão, fecha o
+        navegador e abre um novo do zero, com login novo -- igual uma rodada
+        comum -- pra não herdar nenhum popup/iframe que sobrou do fluxo de
+        exportação anterior."""
+        try:
+            if self.driver:
+                self.driver.quit()
+        except Exception:
+            pass
+        self._start_driver()
+        self._login(usuario, senha)
+        self.fazer_busca_execucao(data_str_ontem, publicar_ao_vivo=False, data_alvo=data_alvo_ontem)
 
     def fazer_busca_execucao(self, data_str, publicar_ao_vivo=True, data_alvo=None):
         """`publicar_ao_vivo=False` + `data_alvo` (aaaa-mm-dd) servem pra
