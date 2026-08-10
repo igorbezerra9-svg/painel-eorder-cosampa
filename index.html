@@ -638,7 +638,7 @@
         <div class="op-stack" id="op-evolucao-chart"></div>
         <div class="op-legend" id="op-evolucao-legend"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
-          <div class="op-sub" style="margin:0;">Corte por período — enviados, produtivo e improdutivo em número</div>
+          <div class="op-sub" style="margin:0;" id="op-evolucao-tabela-titulo">Corte por período — enviados, produtivo e improdutivo em número</div>
           <button onclick="opCopiarEvolucaoCorte()" id="btn-copiar-evolucao-corte" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
         </div>
         <table class="op-table" style="margin-top:8px;">
@@ -2902,11 +2902,18 @@ function opRenderResumo(dados) {
   }
   document.getElementById('op-kpi-taxa-tend').textContent = tendHtml;
 
+  // A tabela acompanha o filtro de Tipo selecionado (Corte/Ligação Nova/Perdas/
+  // Religação) -- sem filtro nenhum, volta a mostrar Corte (comportamento
+  // original). Antes ela ficava fixa em Corte e mostrava tudo zerado quando
+  // o usuário filtrava por outro tipo.
+  const catEvolucaoTabela = op.tipo || 'Corte';
+  document.getElementById('op-evolucao-tabela-titulo').textContent =
+    `${catEvolucaoTabela} por período — enviados, produtivo e improdutivo em número`;
   opUltimaEvolucaoCorte = mesesOrdenados.map(m => {
     const info = porMesTotais[m];
-    const enviados = (info.enviadosCat && info.enviadosCat['Corte']) || 0;
-    const prod = (info.produtivoCat && info.produtivoCat['Corte']) || 0;
-    const improd = info['Corte'] || 0;
+    const enviados = (info.enviadosCat && info.enviadosCat[catEvolucaoTabela]) || 0;
+    const prod = (info.produtivoCat && info.produtivoCat[catEvolucaoTabela]) || 0;
+    const improd = info[catEvolucaoTabela] || 0;
     const finalizado = prod + improd;
     return { label: info.label, enviados, produtivo: prod, improdutivo: improd, pct: finalizado ? (improd / finalizado * 100) : 0 };
   });
