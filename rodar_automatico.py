@@ -12,6 +12,13 @@ from eorder_execucao_bot import EOrderExecucaoBot
 # 22h30), que senão nunca seriam capturados (cada rodada só pergunta "hoje").
 HORA_LIMITE_RECONSULTA_ONTEM = 7
 
+# Vigia: se a rodada travar (aconteceu de verdade em 14/08/2026 -- ficou 3h+
+# preso esperando um download que nunca terminou), o processo nunca solta o
+# flock e TODAS as rodadas seguintes ficam sem rodar até alguém notar e matar
+# na mão. TdC sozinho já pode esperar até 20min pelo export (ver espera_max em
+# fazer_tdc), então 25min de teto dá folga sem deixar travar pra sempre.
+WATCHDOG_TIMEOUT_S = 25 * 60
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CRED_FILE = os.path.join(BASE_DIR, "credenciais_eorder.json")
 LOG_FILE = os.path.join(BASE_DIR, "automatico.log")
@@ -52,6 +59,43 @@ def _fechar(bot):
         pass
 
 
+def _descendentes(pid):
+    """PIDs de todo mundo debaixo de `pid` na árvore de processos (filhos,
+    netos etc.) -- é assim que o Chrome se ramifica (chromedriver -> chrome
+    -> zygote -> renderer/gpu/utility...), então só matar o filho direto não
+    limpa a árvore inteira."""
+    vistos = set()
+    fila = [pid]
+    while fila:
+        p = fila.pop()
+        try:
+            with open(f"/proc/{p}/task/{p}/children") as f:
+                filhos = [int(x) for x in f.read().split()]
+        except Exception:
+            filhos = []
+        for filho in filhos:
+            if filho not in vistos:
+                vistos.add(filho)
+                fila.append(filho)
+    return vistos
+
+
+def _watchdog_forcar_saida():
+    log(
+        f"⏰ Watchdog: rodada passou de {WATCHDOG_TIMEOUT_S // 60}min sem terminar -- "
+        "matando a árvore de processos (Chrome/chromedriver inclusos) e encerrando à "
+        "força pra soltar o cadeado e não travar as rodadas seguintes."
+    )
+    for pid in _descendentes(os.getpid()):
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
+        except Exception:
+            pass
+    os._exit(1)
+
+
 def main():
     cred = carregar_credenciais()
     download_dir = cred.get("download_dir") or os.path.join(os.path.expanduser("~"), "Downloads")
@@ -72,37 +116,43 @@ def main():
         + f" — modo {modo} ==="
     )
 
-    if modo == "2":
-        acesso1 = cred["acesso1"]
-        acesso2 = cred["acesso2"]
-        bot1 = EOrderExecucaoBot(lambda m: log(f"[Execução] {m}"), download_dir, minimizado=False)
-        bot2 = EOrderExecucaoBot(lambda m: log(f"[TdC] {m}"), download_dir, minimizado=False)
+    watchdog = threading.Timer(WATCHDOG_TIMEOUT_S, _watchdog_forcar_saida)
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        if modo == "2":
+            acesso1 = cred["acesso1"]
+            acesso2 = cred["acesso2"]
+            bot1 = EOrderExecucaoBot(lambda m: log(f"[Execução] {m}"), download_dir, minimizado=False)
+            bot2 = EOrderExecucaoBot(lambda m: log(f"[TdC] {m}"), download_dir, minimizado=False)
 
-        t1 = threading.Thread(
-            target=bot1.executar,
-            args=(acesso1["usuario"], acesso1["senha"], data_str, data_str_ontem, data_alvo_ontem),
-        )
-        t2 = threading.Thread(target=bot2.executar_tdc, args=(acesso2["usuario"], acesso2["senha"]))
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
-        _fechar(bot1)
-        _fechar(bot2)
-    else:
-        acesso1 = cred["acesso1"]
-        bot = EOrderExecucaoBot(lambda m: log(f"[Único] {m}"), download_dir, minimizado=False)
-        try:
-            bot._start_driver()
-            bot._login(acesso1["usuario"], acesso1["senha"])
-            bot.fazer_busca_execucao(data_str)
-            if data_str_ontem:
-                bot.fazer_busca_execucao(data_str_ontem, publicar_ao_vivo=False, data_alvo=data_alvo_ontem)
-            bot.fazer_tdc()
-        except Exception as e:
-            log(f"❌ Erro: {e}")
-        finally:
-            _fechar(bot)
+            t1 = threading.Thread(
+                target=bot1.executar,
+                args=(acesso1["usuario"], acesso1["senha"], data_str, data_str_ontem, data_alvo_ontem),
+            )
+            t2 = threading.Thread(target=bot2.executar_tdc, args=(acesso2["usuario"], acesso2["senha"]))
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+            _fechar(bot1)
+            _fechar(bot2)
+        else:
+            acesso1 = cred["acesso1"]
+            bot = EOrderExecucaoBot(lambda m: log(f"[Único] {m}"), download_dir, minimizado=False)
+            try:
+                bot._start_driver()
+                bot._login(acesso1["usuario"], acesso1["senha"])
+                bot.fazer_busca_execucao(data_str)
+                if data_str_ontem:
+                    bot.fazer_busca_execucao(data_str_ontem, publicar_ao_vivo=False, data_alvo=data_alvo_ontem)
+                bot.fazer_tdc()
+            except Exception as e:
+                log(f"❌ Erro: {e}")
+            finally:
+                _fechar(bot)
+    finally:
+        watchdog.cancel()
 
     log("=== Rodada automática concluída ===")
 
