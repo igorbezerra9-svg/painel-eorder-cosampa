@@ -1075,6 +1075,9 @@ let pgSupervisores = [];
 let pgDados = [];
 let pgAtualizado = '';
 let pgDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
+// Carimbo (atualizado_em) do snapshot que está na tela agora. O auto-refresh
+// compara este valor com o do servidor e só rebaixa os dados se tiver mudado.
+let pgUltimoCarimbo = null;
 
 function pgSetRegiao(r) {
   pgRegiao = r;
@@ -1186,6 +1189,7 @@ async function pgCarregar() {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     const rows = await res.json();
+    pgUltimoCarimbo = isHist ? null : ((rows[0] && rows[0].atualizado_em) || null);
     if (!rows.length || !rows[0].dados) {
       document.getElementById('pg-sem-dados').style.display = 'block';
       document.getElementById('pg-content').style.display = 'none';
@@ -1670,6 +1674,18 @@ function pgRenderTabela() {
 }
 
 // ══ INDICADOR "ATUALIZADO" (topo) ══
+// Só desenha o texto do topo a partir de um carimbo que JÁ temos em mãos --
+// assim o auto-refresh reaproveita o carimbo que acabou de buscar em vez de
+// disparar uma segunda requisição só pra escrever a mesma coisa na tela.
+function pintarIndicadorTopo(carimbo) {
+  const el = document.getElementById('topo-atualizado');
+  if (!el) return;
+  if (!carimbo) { el.innerHTML = '<span class="topo-dot"></span> Sem dados publicados ainda'; return; }
+  const dt = new Date(carimbo);
+  const label = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+  el.innerHTML = '<span class="topo-dot"></span> Atualizado ' + label;
+}
+
 async function atualizarIndicadorTopo() {
   const el = document.getElementById('topo-atualizado');
   if (!el) return;
@@ -1681,14 +1697,7 @@ async function atualizarIndicadorTopo() {
   const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
   const regiaoAtual = painelVisivel ? pgRegiao : 'Execucao';
   try {
-    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + regiaoAtual + '&select=atualizado_em', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-    });
-    const rows = await res.json();
-    if (!rows.length) { el.innerHTML = '<span class="topo-dot"></span> Sem dados publicados ainda'; return; }
-    const dt = new Date(rows[0].atualizado_em);
-    const label = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-    el.innerHTML = '<span class="topo-dot"></span> Atualizado ' + label;
+    pintarIndicadorTopo(await buscarCarimbo(regiaoAtual));
   } catch(e) {
     el.textContent = 'Erro ao verificar atualização';
   }
@@ -1818,6 +1827,10 @@ let execPlanejadoDados = [];
 let execAtualizado = '';
 let execTiposSelecionados = [];
 let execDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
+// Idem pgUltimoCarimbo, mas a Execução depende de dois snapshots: o dela e o
+// 'Sul', que alimenta a coluna Planejado. Qualquer um dos dois pode mudar.
+let execUltimoCarimbo = null;
+let execPlanUltimoCarimbo = null;
 let execCS = '';
 let execSupervisores = [];
 let execTipoRegNreg = '';
@@ -1966,7 +1979,7 @@ async function execCarregar() {
       : SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao&select=dados,atualizado_em';
     const urlPlanejado = isHist
       ? SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Sul&data=eq.' + execDataView + '&select=dados'
-      : SB_URL + '/rest/v1/snapshots?regiao=eq.Sul&select=dados';
+      : SB_URL + '/rest/v1/snapshots?regiao=eq.Sul&select=dados,atualizado_em';
     const [res, resPlan] = await Promise.all([
       fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }),
       fetch(urlPlanejado, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
@@ -1974,6 +1987,8 @@ async function execCarregar() {
     const rows = await res.json();
     const rowsPlan = await resPlan.json();
     execPlanejadoDados = (Array.isArray(rowsPlan) && rowsPlan[0] && rowsPlan[0].dados) || [];
+    execUltimoCarimbo = isHist ? null : ((rows[0] && rows[0].atualizado_em) || null);
+    execPlanUltimoCarimbo = isHist ? null : ((Array.isArray(rowsPlan) && rowsPlan[0] && rowsPlan[0].atualizado_em) || null);
     if (!rows.length || !rows[0].dados) {
       document.getElementById('exec-sem-dados').style.display = 'block';
       document.getElementById('exec-content').style.display = 'none';
@@ -3367,11 +3382,55 @@ document.addEventListener('click', (e) => {
 });
 
 // ══ AUTO-REFRESH (TV de sala) — cobre também o recálculo da intensidade do pulsar ══
-setInterval(() => {
-  if (document.getElementById('painel-section').style.display !== 'none') pgCarregar();
-  if (document.getElementById('execucao-section').style.display !== 'none') execCarregar();
-  atualizarIndicadorTopo();
-}, 120000);
+// Antes daqui saía um rebaixamento do snapshot INTEIRO a cada 2 minutos, mesmo
+// quando nada tinha mudado: ~1,5 MB no Gerencial e ~3 MB na Execução (que puxa
+// Execucao + Sul), mais uma terceira requisição só pro indicador do topo. Com o
+// painel aberto durante um expediente isso dava ~300 MB/dia e estourou a cota
+// de egress do Supabase (9,82 GB de 5,5 GB no ciclo de agosto/2026).
+//
+// Agora a checagem pergunta só o 'atualizado_em' (algumas dezenas de bytes) e
+// só chama o carregamento pesado quando o carimbo mudou de verdade. Pra quem
+// olha a tela o comportamento é o mesmo -- o que some é o tráfego repetido.
+
+async function buscarCarimbo(regiao) {
+  const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + regiao + '&select=atualizado_em', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const rows = await res.json();
+  return (Array.isArray(rows) && rows[0] && rows[0].atualizado_em) || null;
+}
+
+async function verificarAtualizacoes() {
+  // Aba em segundo plano (ou TV com a tela apagada) não precisa consultar nada.
+  if (document.hidden) return;
+  const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
+  const execVisivel = document.getElementById('execucao-section').style.display !== 'none';
+  try {
+    if (painelVisivel) {
+      // Fechamento salvo é dado congelado: não muda mais, não faz sentido checar.
+      if (pgDataView) return;
+      const carimbo = await buscarCarimbo(pgRegiao);
+      if (carimbo !== pgUltimoCarimbo) pgCarregar();
+      else pintarIndicadorTopo(carimbo);
+    } else if (execVisivel) {
+      if (execDataView) return;
+      const [cExec, cPlan] = await Promise.all([buscarCarimbo('Execucao'), buscarCarimbo('Sul')]);
+      if (cExec !== execUltimoCarimbo || cPlan !== execPlanUltimoCarimbo) execCarregar();
+      else pintarIndicadorTopo(cExec);
+    }
+  } catch(e) {
+    console.log('Falha ao checar atualização:', e.message);
+  }
+}
+
+setInterval(verificarAtualizacoes, 120000);
+
+// Ao voltar pra aba (ou religar a tela da TV), checa na hora em vez de esperar
+// até 2 minutos pelo próximo ciclo.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) verificarAtualizacoes();
+});
 </script>
 </body>
 </html>
