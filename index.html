@@ -1741,6 +1741,9 @@ window.addEventListener('DOMContentLoaded', () => {
 // ordem diferente, que confundia quem abre o CSV esperando a mesma ordem.
 const ORDEM_COLUNAS_SUL = ['Numero de Serviço', 'Tipo Remessa WIN', ' Tipo de Serviço', 'Código Equipe', 'Nome e Sobrenome Cliente', 'Endereço Completo', 'Data Prevista Finalização Trabalhos', 'Município'];
 const ORDEM_COLUNAS_EXECUCAO = ['Numero de Serviço', 'Tipo Remessa WIN', ' Tipo de Serviço', 'Recurso/Equipe', 'Município', 'Data fim Execução', 'Código Resultado'];
+// Ordem pedida pelo Igor pro export "completo" (todas as colunas) do Painel
+// Gerencial -- o arquivo cru da Enel não vem nessa ordem.
+const ORDEM_EXPORT_COMPLETO_SUL = ['CO', 'Contratado', 'Contrato', 'Data e Hora de Criação TdC', 'Código TdC', 'Código Sistema Externo de Origem', 'Código externo do TdC', 'Numero de Serviço', 'Processo', 'Tipo TdC', 'Ciclo de trabalho', ' Tipo de Serviço', 'Tipo Remessa WIN', 'Estado TdC', 'Causa-Descritivo de Cancelamento/Suspensão', 'Nome TdC pré-homologação', 'Código Cliente', 'Nome e Sobrenome Cliente', 'Rota de Leitura', 'Área', 'Longitude', 'Latitude', 'Centro Operacional Cliente', 'Tipo Rua', 'Núm. Rua Endereço', 'Núm. Placa Endereço', 'Cód. Unidade Predial', 'Núm. da Unidade Predial', 'Cód. Modalidade Unidade Predial', 'Núm. Modalidade Unidade Predial', 'Dica Localização', 'Município', 'Bairro', 'Código Equipe', 'Equipe', 'Chefe/Responsável de Equipe', 'Tipo Agrupamento', 'Código Postal', 'Endereço Completo', 'Estado', 'Agrupamento', 'Espaço urbano', 'Lote', 'Prazo ANS Legal', 'Prazo ANS Interno', 'Data vencimento ANS Contratada', 'Data Prevista Início atividades', 'Data Prevista Finalização Trabalhos', 'Id Reclamação'];
 
 function gerarCSV(dados, ordemPreferida) {
   if (!dados || !dados.length) return '';
@@ -1767,8 +1770,8 @@ function gerarCSV(dados, ordemPreferida) {
 async function baixarArquivoAtual() {
   const painelVisivel = document.getElementById('painel-section').style.display !== 'none';
   const nomeBase = painelVisivel ? 'Sul' : 'Execucao';
-  // Download sai na ordem natural do arquivo original (sem reordenar) --
-  // pode ser usado noutro lugar que espera essa estrutura crua.
+  // Painel Gerencial (Sul) sai na ordem pedida pelo Igor (ORDEM_EXPORT_COMPLETO_SUL);
+  // Execução continua na ordem natural do arquivo original (sem reordenar).
   // A versão "completa" só existe pro dia de hoje (ao vivo) -- se o usuário
   // estiver vendo um fechamento de dia passado (seletor "Dia"), teria que
   // buscar a completa de HOJE por engano e misturar dados de dias
@@ -1796,7 +1799,7 @@ async function baixarArquivoAtual() {
   // completa ainda não publicada -- ex.: antes do próximo ciclo do bot).
   if (!dados) dados = painelVisivel ? pgDados : execDados;
   if (!dados || !dados.length) { showToast('Sem dados pra baixar', 3000); return; }
-  const csv = gerarCSV(dados);
+  const csv = gerarCSV(dados, painelVisivel ? ORDEM_EXPORT_COMPLETO_SUL : null);
   const bom = '﻿'; // garante que os acentos apareçam certo no Excel
   const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
