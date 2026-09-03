@@ -259,6 +259,26 @@ def _eh_reincidente_hoje(entry):
         return entry.get('data'), entry.get('motivo') or ''
     return None
 
+
+# Cache local dos Código Cliente do TdC (Sul) de hoje -- usado só pra saber
+# quais clientes filtrar na hora de publicar reincidentes (ver
+# _publicar_reincidentes). TdC e Execução rodam em chamadas/threads
+# separadas (ver rodar_automatico.py), mas dentro do mesmo ciclo de 30min
+# -- salvar aqui (de graça, o TdC já tem `linhas` em mãos) e reler evita um
+# GET de ~2,24MB no Supabase a cada rodada (medido: quase 40% da cota
+# mensal de egress só nisso). Fica levemente desatualizado entre rodadas
+# (o arquivo é do ciclo anterior até o TdC de hoje rodar), mas isso não
+# importa pra esse uso -- só precisa estar "aproximadamente certo".
+CLIENTES_SUL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "clientes_sul_hoje.json")
+
+
+def _salvar_clientes_sul_local(clientes):
+    _salvar_json_idx(CLIENTES_SUL_PATH, sorted(c for c in clientes if c))
+
+
+def _carregar_clientes_sul_local():
+    return set(_carregar_json_idx(CLIENTES_SUL_PATH) or [])
+
 # ── XPaths ───────────────────────────────────────────────────────────
 XP_USER          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[1]/td[2]/input"
 XP_PASS          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[2]/td[2]/input"
@@ -771,6 +791,14 @@ class EOrderExecucaoBot:
             self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
             return None
         linhas = self._xlsx_para_linhas(caminho, colunas)
+        if regiao == "Sul":
+            # TdC e Execução rodam em threads/chamadas separadas -- salva os
+            # clientes de hoje aqui, de graça (já está com `linhas` em mãos),
+            # pra Execução ler depois sem precisar buscar de novo no Supabase
+            # (ver _buscar_clientes_sul_hoje: um GET do snapshot Sul inteiro
+            # tinha medido 2,24MB -- rodando em toda rodada, uns 2GB/mês só
+            # nisso, quase 40% da cota de egress).
+            _salvar_clientes_sul_local({(r.get("Código Cliente") or "").strip() for r in linhas if r.get("Código Cliente")})
         # Atualiza o índice de reincidentes com o que acabou de ser lido --
         # roda mesmo quando publicar_ao_vivo=False (reconsulta de ontem
         # também traz resultado válido pra incorporar), antes do POST ao
@@ -803,27 +831,11 @@ class EOrderExecucaoBot:
                 # CLAUDE.md). A tela só usa a parte de clientes que aparecem no
                 # Planejado de hoje, então filtra pra só isso antes de publicar.
                 clientes_hoje = {(r.get("Código Cliente") or "").strip() for r in linhas if r.get("Código Cliente")}
-                clientes_hoje |= self._buscar_clientes_sul_hoje()
+                clientes_hoje |= _carregar_clientes_sul_local()
                 clientes_hoje.discard("")
                 self._publicar_reincidentes(regiao, reincidentes, contagem or {}, clientes_hoje)
         self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
-
-    def _buscar_clientes_sul_hoje(self):
-        """GET leve só pra saber quais Código Cliente estão no TdC de hoje
-        (regiao='Sul' ao vivo) -- usado só pra filtrar o índice de
-        reincidentes antes de publicar (ver _publicar_nuvem)."""
-        try:
-            req = urllib.request.Request(
-                f"{SB_URL}/rest/v1/snapshots?regiao=eq.Sul&select=dados",
-                headers={"apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY},
-            )
-            with urllib.request.urlopen(req) as resp:
-                rows = json.loads(resp.read())
-            dados = (rows[0].get("dados") if rows else None) or []
-            return {(r.get("Código Cliente") or "").strip() for r in dados if r.get("Código Cliente")}
-        except Exception:
-            return set()
 
     def _publicar_reincidentes(self, regiao, reincidentes, contagem, clientes_relevantes):
         """Publica, como uma linha separada (regiao + "_reincidentes",
