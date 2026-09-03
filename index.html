@@ -2469,13 +2469,27 @@ function execModalStatusLabel(l) {
   if (l.produtividade === 'PRODUTIVO') return '<span style="color:#1a7a40;font-weight:700;">✓ Produtivo</span>';
   if (l.produtividade === 'IMPRODUTIVO') {
     const motivo = (l.resultado || '').trim();
-    const contagem = l.contagemAno ? ` <span style="color:#b8860b;">×${l.contagemAno} este ano</span>` : '';
-    return '<span style="color:#c0392b;font-weight:700;">✗ Improdutivo</span>' + contagem +
+    return '<span style="color:#c0392b;font-weight:700;">✗ Improdutivo</span>' +
       (motivo ? `<br><span style="font-size:9px;color:#8097b8;">${motivo}</span>` : '');
   }
   if (l.produtividade === 'DEVOLVIDO') return '<span style="color:var(--gray-700);font-weight:700;">↩ Devolvido</span>';
   if (l.produtividade === null) return '<span style="color:#8097b8;">⏳ Aguardando execução</span>';
   return '—';
+}
+
+// Junta, embaixo do nome do cliente, o histórico de improdutivo anterior
+// (se tiver) e a contagem do ano (se for improdutivo hoje) -- antes ficava
+// espalhado (reincidente na coluna Cliente, ×N na coluna Status).
+function execClienteSubinfo(l) {
+  const partes = [];
+  if (l.reincidenteInfo) {
+    partes.push('🔁 já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''));
+  }
+  if (l.produtividade === 'IMPRODUTIVO' && l.contagemAno) {
+    partes.push(`×${l.contagemAno} este ano`);
+  }
+  if (!partes.length) return '';
+  return `<br><span style="font-size:9px;font-weight:700;color:#b8860b;">${partes.join(' · ')}</span>`;
 }
 
 function execModalFiltrarDados(dados, q) {
@@ -2504,7 +2518,7 @@ function execFiltrarModal() {
       <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${l.ns}</td>
       <td style="padding:7px 10px;font-size:11px;color:#8097b8;">${(l.tipo || '').split(' - ')[0]}</td>
       <td style="padding:7px 10px;font-family:monospace;font-size:11px;">${l.equipe}</td>
-      <td style="padding:7px 10px;font-size:12px;font-weight:600;">${l.cliente}${l.reincidenteInfo ? `<br><span style="font-size:9px;font-weight:700;color:#b8860b;">🔁 já teve Improdutivo em ${(l.reincidenteInfo.data||'').split(' ')[0]}${l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''}</span>` : ''}</td>
+      <td style="padding:7px 10px;font-size:12px;font-weight:600;">${l.cliente}${execClienteSubinfo(l)}</td>
       <td style="padding:7px 10px;font-size:11px;">${execModalStatusLabel(l)}</td>
       <td style="padding:7px 10px;font-size:11px;white-space:nowrap;">${l.dataRef || '—'}</td>
       <td style="padding:7px 10px;font-size:11px;color:#8097b8;">${l.municipio}</td>
@@ -2526,7 +2540,7 @@ function execCopiarModal() {
   const statusLinha = l => {
     if (l.produtividade === null) return '⏰ Prazo: ' + (l.dataRef || '—').replace(' 23:59', '');
     if (l.produtividade === 'PRODUTIVO') return '✅ Produtivo em ' + (l.dataRef || '—');
-    if (l.produtividade === 'IMPRODUTIVO') return '❌ Improdutivo em ' + (l.dataRef || '—') + (l.contagemAno ? ` (×${l.contagemAno} este ano)` : '') + (l.resultado ? ' — ' + l.resultado : '');
+    if (l.produtividade === 'IMPRODUTIVO') return '❌ Improdutivo em ' + (l.dataRef || '—') + (l.resultado ? ' — ' + l.resultado : '');
     if (l.produtividade === 'DEVOLVIDO') return '↩ Devolvido em ' + (l.dataRef || '—');
     return '';
   };
@@ -2534,9 +2548,10 @@ function execCopiarModal() {
   const linhas = filtrado.map((l, i) => {
     const regLabel = l.tipoOrdem === 'REG' ? '[REG]' : l.tipoOrdem === 'NREG' ? '[NÃO REG]' : '';
     const gps = l.lat && l.lng ? '\nhttps://www.google.com/maps?q=' + l.lat + ',' + l.lng : '';
-    const reinc = l.reincidenteInfo
-      ? '\n🔁 já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : '')
-      : '';
+    const partesReinc = [];
+    if (l.reincidenteInfo) partesReinc.push('já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''));
+    if (l.produtividade === 'IMPRODUTIVO' && l.contagemAno) partesReinc.push(`×${l.contagemAno} este ano`);
+    const reinc = partesReinc.length ? '\n🔁 ' + partesReinc.join(' · ') : '';
     return (i + 1) + '. *' + l.ns + '* ' + regLabel
       + '\n👤 ' + l.cliente
       + '\n📋 ' + l.tipo
