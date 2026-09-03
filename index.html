@@ -1869,9 +1869,14 @@ function showToast(msg, duration=2000) {
 // ══ EXECUÇÃO ══
 let execDados = [];
 let execPlanejadoDados = [];
-// Código Cliente -> {data, motivo, codigo_resultado, streak} do último
-// Improdutivo ainda sem Produtivo depois (ver eorder_execucao_bot.py).
+// Código Cliente -> {data, motivo} do Improdutivo ANTERIOR a hoje, ainda sem
+// solução -- só entra aqui quem já tinha isso ANTES de hoje (ver
+// _eh_reincidente_hoje no bot); um Improdutivo que aconteceu pela primeira
+// vez hoje não conta ainda.
 let execReincidentes = {};
+// Código Cliente -> quantas vezes já deu Improdutivo desde o início do
+// histórico (nunca zera, nem quando resolve com Produtivo).
+let execContagens = {};
 let execAtualizado = '';
 let execTiposSelecionados = [];
 let execDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
@@ -2053,11 +2058,20 @@ async function execCarregar() {
     document.getElementById('exec-content').style.display = 'block';
     execDados = rows[0].dados;
     execReincidentes = {};
+    execContagens = {};
     if (resReinc) {
       try {
         const rowsReinc = await resReinc.json();
         const listaReinc = (Array.isArray(rowsReinc) && rowsReinc[0] && rowsReinc[0].dados) || [];
-        listaReinc.forEach(l => { if (l.codigo_cliente) execReincidentes[l.codigo_cliente] = l; });
+        listaReinc.forEach(l => {
+          if (!l.codigo_cliente) return;
+          // "data" só vem preenchida quando o cliente já era reincidente
+          // ANTES de hoje (ver _eh_reincidente_hoje no bot) -- uma entrada
+          // só com total_ano (sem "data") é alguém no primeiro Improdutivo
+          // de hoje, ainda não conta como reincidente.
+          if (l.data) execReincidentes[l.codigo_cliente] = l;
+          if (l.total_ano) execContagens[l.codigo_cliente] = l.total_ano;
+        });
       } catch (e) { /* índice de reincidentes não é essencial -- falha silenciosa */ }
     }
     const dt = new Date(isHist ? rows[0].salvo_em : rows[0].atualizado_em);
@@ -2390,6 +2404,7 @@ function execNormalizarLinha(r, origem) {
     produtividade: executado ? execGetProdutividade(r) : null,
     resultado: executado ? (r['Resultado'] || '') : '',
     reincidenteInfo: execReincidentes[r['Código Cliente']] || null,
+    contagemAno: execContagens[r['Código Cliente']] || 0,
   };
 }
 
@@ -2454,7 +2469,8 @@ function execModalStatusLabel(l) {
   if (l.produtividade === 'PRODUTIVO') return '<span style="color:#1a7a40;font-weight:700;">✓ Produtivo</span>';
   if (l.produtividade === 'IMPRODUTIVO') {
     const motivo = (l.resultado || '').trim();
-    return '<span style="color:#c0392b;font-weight:700;">✗ Improdutivo</span>' +
+    const contagem = l.contagemAno ? ` <span style="color:#b8860b;">×${l.contagemAno} este ano</span>` : '';
+    return '<span style="color:#c0392b;font-weight:700;">✗ Improdutivo</span>' + contagem +
       (motivo ? `<br><span style="font-size:9px;color:#8097b8;">${motivo}</span>` : '');
   }
   if (l.produtividade === 'DEVOLVIDO') return '<span style="color:var(--gray-700);font-weight:700;">↩ Devolvido</span>';
@@ -2510,7 +2526,7 @@ function execCopiarModal() {
   const statusLinha = l => {
     if (l.produtividade === null) return '⏰ Prazo: ' + (l.dataRef || '—').replace(' 23:59', '');
     if (l.produtividade === 'PRODUTIVO') return '✅ Produtivo em ' + (l.dataRef || '—');
-    if (l.produtividade === 'IMPRODUTIVO') return '❌ Improdutivo em ' + (l.dataRef || '—') + (l.resultado ? ' — ' + l.resultado : '');
+    if (l.produtividade === 'IMPRODUTIVO') return '❌ Improdutivo em ' + (l.dataRef || '—') + (l.contagemAno ? ` (×${l.contagemAno} este ano)` : '') + (l.resultado ? ' — ' + l.resultado : '');
     if (l.produtividade === 'DEVOLVIDO') return '↩ Devolvido em ' + (l.dataRef || '—');
     return '';
   };
