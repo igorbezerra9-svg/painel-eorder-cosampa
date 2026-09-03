@@ -401,6 +401,11 @@
         <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="exec-planejado">0</div>
         <div style="font-size:10px;color:#7a8aaa;margin-top:4px;">pendente no TdC + já executado</div>
       </div>
+      <div onclick="execAbrirModalKpi('reincidente')" style="flex:1;min-width:150px;background:#fdf3e0;border-radius:12px;padding:14px 16px;cursor:pointer;" title="Ver serviços">
+        <div style="font-size:10px;color:#b8860b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">🔁 Reincidentes</div>
+        <div style="font-size:30px;font-weight:700;color:#b8860b;line-height:1;" id="exec-reincidente-total">0</div>
+        <div style="font-size:10px;color:#7a8aaa;margin-top:4px;" id="exec-reincidente-pct">—</div>
+      </div>
       <div onclick="execAbrirModalKpi('total')" style="flex:1;min-width:200px;background:#eef3fb;border-radius:12px;padding:14px 16px;cursor:pointer;" title="Ver serviços">
         <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📈 Executados hoje</div>
         <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="exec-total">0</div>
@@ -2140,9 +2145,17 @@ function execRender() {
   // o TdC pendente: assim que a equipe conclui um serviço ele some do TdC
   // (Finalizado é excluído da busca), então uma equipe muito produtiva podia
   // "esvaziar" o próprio planejado e aparecer com Executado > Planejado.
-  const planejadoTotal = execFiltrarPlanejadoBase(execCS).length + dados.length;
+  const planejadoBacklog = execFiltrarPlanejadoBase(execCS);
+  const planejadoTotal = planejadoBacklog.length + dados.length;
   document.getElementById('exec-planejado').textContent = planejadoTotal;
   document.getElementById('exec-atualizado').textContent = execAtualizado;
+
+  // Reincidente conta por linha/serviço (não por cliente único) dentro do
+  // mesmo universo do Planejado -- mesma convenção da coluna na tabela por
+  // equipe (ver execRenderPorEquipe).
+  const reincidenteTotal = [...planejadoBacklog, ...dados].filter(r => execReincidentes[r['Código Cliente']]).length;
+  document.getElementById('exec-reincidente-total').textContent = reincidenteTotal;
+  document.getElementById('exec-reincidente-pct').textContent = planejadoTotal ? ((reincidenteTotal / planejadoTotal) * 100).toFixed(2) + '% do planejado' : '—';
   const eqs = new Set(dados.map(r => r['Recurso/Equipe']).filter(Boolean));
   document.getElementById('exec-equipes').textContent = eqs.size;
 
