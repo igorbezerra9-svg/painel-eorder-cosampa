@@ -2376,9 +2376,15 @@ function execNormalizarLinha(r, origem) {
   return {
     ns: r['Numero de Serviço'] || '—',
     tipo: execGetTipo(r),
+    tipoOrdem: getTipoOrdem(r),
     equipe: (executado ? r['Recurso/Equipe'] : r['Código Equipe']) || '—',
     cliente: (executado ? r['Cliente'] : r['Nome e Sobrenome Cliente']) || '—',
     municipio: r['Município'] || '—',
+    // Endereço/GPS só existem na forma "planejado" (TdC) -- a Execução não
+    // publica essas colunas na tela ao vivo (payload curado, ver COLS_EXECUCAO).
+    endereco: (executado ? r['Endereço'] : r['Endereço Completo']) || '',
+    lat: executado ? '' : (r['Latitude'] || ''),
+    lng: executado ? '' : (r['Longitude'] || ''),
     codigoCliente: r['Código Cliente'] || '',
     dataRef: executado ? (r['Data fim Execução'] || '') : (r['Data Prevista Finalização Trabalhos'] || ''),
     produtividade: executado ? execGetProdutividade(r) : null,
@@ -2498,13 +2504,33 @@ function execCopiarModal() {
   const titulo = document.getElementById('exec-modal-title').textContent;
   const sub = document.getElementById('exec-modal-sub').textContent;
   const dataHoje = new Date().toLocaleDateString('pt-BR');
-  const statusTexto = l => {
-    if (l.produtividade === null) return 'AGUARDANDO EXECUÇÃO';
-    if (l.produtividade === 'IMPRODUTIVO' && l.resultado) return `IMPRODUTIVO (${l.resultado})`;
-    return l.produtividade || '—';
+
+  // Mesmo formato do "Copiar" do Painel Gerencial (ver pgCopiarModal) --
+  // pronto pra colar no WhatsApp.
+  const statusLinha = l => {
+    if (l.produtividade === null) return '⏰ Prazo: ' + (l.dataRef || '—').replace(' 23:59', '');
+    if (l.produtividade === 'PRODUTIVO') return '✅ Produtivo em ' + (l.dataRef || '—');
+    if (l.produtividade === 'IMPRODUTIVO') return '❌ Improdutivo em ' + (l.dataRef || '—') + (l.resultado ? ' — ' + l.resultado : '');
+    if (l.produtividade === 'DEVOLVIDO') return '↩ Devolvido em ' + (l.dataRef || '—');
+    return '';
   };
-  const linhas = filtrado.map(l => `${l.ns} · ${l.tipo} · ${l.equipe} · ${l.cliente} · ${statusTexto(l)} · ${l.dataRef || '—'} · ${l.municipio}`);
-  const texto = '📊 *' + titulo + '*\n' + sub + '\n🗓 ' + dataHoje + '\n' + '─'.repeat(30) + '\n\n' + linhas.join('\n');
+
+  const linhas = filtrado.map((l, i) => {
+    const regLabel = l.tipoOrdem === 'REG' ? '[REG]' : l.tipoOrdem === 'NREG' ? '[NÃO REG]' : '';
+    const gps = l.lat && l.lng ? '\nhttps://www.google.com/maps?q=' + l.lat + ',' + l.lng : '';
+    const reinc = l.reincidenteInfo
+      ? '\n🔁 já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : '')
+      : '';
+    return (i + 1) + '. *' + l.ns + '* ' + regLabel
+      + '\n👤 ' + l.cliente
+      + '\n📋 ' + l.tipo
+      + '\n📍 ' + (l.endereco ? l.endereco + ' — ' + l.municipio : l.municipio)
+      + '\n' + statusLinha(l)
+      + reinc
+      + gps;
+  });
+
+  const texto = '📊 *' + titulo + '*\n' + sub + '\n🗓 ' + dataHoje + '\n' + '─'.repeat(30) + '\n\n' + linhas.join('\n\n');
   navigator.clipboard.writeText(texto).then(() => {
     const btn = document.getElementById('btn-copiar-exec-modal');
     btn.textContent = '✔ Copiado!';
