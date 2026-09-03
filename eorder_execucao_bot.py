@@ -963,22 +963,39 @@ class EOrderExecucaoBot:
         except Exception as e:
             self._plog(f"⚠️  Falha ao salvar histórico ({regiao}): {e}")
 
-    def executar(self, usuario, senha, data_str, data_str_ontem=None, data_alvo_ontem=None):
+    def executar(self, usuario, senha, data_str, data_str_ontem=None, data_alvo_ontem=None, tentativas=3):
         """`data_str_ontem`/`data_alvo_ontem`: quando passados, depois de
         publicar hoje normalmente, reconsulta esse dia anterior só pra
         completar o histórico (sem mexer na tela ao vivo) -- cobre serviços
         fechados depois da última rodada de ontem, que senão nunca seriam
-        capturados (o robô só busca "hoje" em cada rodada)."""
-        try:
-            self._start_driver()
-            self._login(usuario, senha)
-            self.fazer_busca_execucao(data_str)
-            if data_str_ontem:
-                self._reconsultar_ontem(usuario, senha, data_str_ontem, data_alvo_ontem)
-        except Exception as e:
-            self._plog(f"❌ Erro: {e}")
-        finally:
-            self._plog("🏁 Finalizado.")
+        capturados (o robô só busca "hoje" em cada rodada).
+
+        `tentativas`: o portal da Enel de vez em quando engasga no login ou
+        na navegação (menu não termina de renderizar a tempo, sessão cai) --
+        já apareceu várias vezes no log como "Elemento não encontrado" ou
+        "session not created". Antes, uma falha dessas perdia o ciclo
+        inteiro (só tentava de novo 30min depois); agora fecha o navegador e
+        tenta de novo do zero (mesmo padrão já usado em _reconsultar_ontem),
+        até `tentativas` vezes, antes de desistir de verdade."""
+        for tentativa in range(1, tentativas + 1):
+            try:
+                self._start_driver()
+                self._login(usuario, senha)
+                self.fazer_busca_execucao(data_str)
+                if data_str_ontem:
+                    self._reconsultar_ontem(usuario, senha, data_str_ontem, data_alvo_ontem)
+                break
+            except Exception as e:
+                self._plog(f"❌ Erro (tentativa {tentativa}/{tentativas}): {e}")
+                try:
+                    if self.driver:
+                        self.driver.quit()
+                except Exception:
+                    pass
+                self.driver = None
+                if tentativa < tentativas:
+                    time.sleep(5)
+        self._plog("🏁 Finalizado.")
 
     def _reconsultar_ontem(self, usuario, senha, data_str_ontem, data_alvo_ontem):
         """Reaproveitar a mesma sessão do navegador que acabou de buscar hoje
@@ -1114,16 +1131,38 @@ class EOrderExecucaoBot:
         self._plog("   ...abriu menu de exportação")
         self._exportar_generico(NOME_EXPORT_TDC, XP_BTN_OK_EXP_TDC, XP_FECHAR_MSG_TDC)
 
-    def executar_tdc(self, usuario=None, senha=None):
-        try:
-            if usuario is not None:
+    def executar_tdc(self, usuario=None, senha=None, tentativas=3):
+        """`tentativas` só se aplica quando `usuario` é passado (dono do
+        próprio navegador -- ver executar) -- se o portal engasgar no login
+        ou na navegação, fecha e tenta de novo do zero em vez de perder o
+        ciclo inteiro. Quando chamado com `usuario=None` (reaproveitando um
+        navegador já aberto por fora), não tenta de novo -- não é dono do
+        navegador pra poder fechá-lo e recomeçar."""
+        if usuario is None:
+            try:
+                self.fazer_tdc()
+            except Exception as e:
+                self._plog(f"❌ Erro: {e}")
+            finally:
+                self._plog("🏁 Finalizado.")
+            return
+        for tentativa in range(1, tentativas + 1):
+            try:
                 self._start_driver()
                 self._login(usuario, senha)
-            self.fazer_tdc()
-        except Exception as e:
-            self._plog(f"❌ Erro: {e}")
-        finally:
-            self._plog("🏁 Finalizado.")
+                self.fazer_tdc()
+                break
+            except Exception as e:
+                self._plog(f"❌ Erro (tentativa {tentativa}/{tentativas}): {e}")
+                try:
+                    if self.driver:
+                        self.driver.quit()
+                except Exception:
+                    pass
+                self.driver = None
+                if tentativa < tentativas:
+                    time.sleep(5)
+        self._plog("🏁 Finalizado.")
 
     def fazer_tdc(self):
         self._navegar_busca_tdcs()
