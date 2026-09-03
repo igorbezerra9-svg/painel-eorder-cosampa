@@ -8,3 +8,4 @@ credenciais_eorder.json
 automatico.log
 .claude/scheduled_tasks.lock
 reincidentes_execucao_idx.json
+contagem_improdutivos_ano_idx.json

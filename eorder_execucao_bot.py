@@ -145,22 +145,35 @@ def _classificar_resultado(r):
 # remove em Produtivo), adaptada pra um arquivo único mantido em disco em
 # vez de reler N arquivos por dia a cada chamada.
 REINCIDENTES_IDX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reincidentes_execucao_idx.json")
+# Contagem à parte, nunca zera nem quando o cliente resolve com um Produtivo
+# (ao contrário do índice acima, que esquece o cliente assim que ele
+# resolve) -- é o "desde o início do ano até hoje já deu improdutivo Nx"
+# mostrado ao lado do texto Improdutivo no painel.
+CONTAGEM_IMPRODUTIVOS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contagem_improdutivos_ano_idx.json")
 
 
-def _carregar_indice_reincidentes():
+def _carregar_json_idx(caminho):
     try:
-        with open(REINCIDENTES_IDX_PATH, encoding='utf-8') as f:
+        with open(caminho, encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return {}
 
 
-def _salvar_indice_reincidentes(indice):
+def _salvar_json_idx(caminho, dados):
     try:
-        with open(REINCIDENTES_IDX_PATH, 'w', encoding='utf-8') as f:
-            json.dump(indice, f, ensure_ascii=False)
+        with open(caminho, 'w', encoding='utf-8') as f:
+            json.dump(dados, f, ensure_ascii=False)
     except Exception:
         pass
+
+
+def _carregar_indice_reincidentes():
+    return _carregar_json_idx(REINCIDENTES_IDX_PATH)
+
+
+def _salvar_indice_reincidentes(indice):
+    _salvar_json_idx(REINCIDENTES_IDX_PATH, indice)
 
 
 def _parse_data_fim(s):
@@ -176,26 +189,75 @@ def _atualizar_indice_reincidentes(linhas):
     de aplicar, pra garantir que o resultado mais recente do lote prevaleça
     mesmo que o export não venha em ordem cronológica. Devolvido ou código
     não mapeado não mexe no índice (mesmo comportamento do gpm_bot.py, sem
-    "else")."""
+    "else").
+
+    Cada rodada do robô relê TODO o "hoje" (não só o que mudou desde a
+    última rodada -- ver fazer_busca_execucao), então a mesma conclusão de
+    serviço aparece de novo em toda rodada seguinte do mesmo dia. Sem
+    tratar isso, cada reprocessamento inflava o "streak" e a contagem do
+    ano à toa (contava a mesma visita várias vezes). A trava é comparar a
+    'Data fim Execução' exata já registrada -- se for igual, é a mesma
+    conclusão sendo relida, pula sem mexer em nada.
+
+    `data_anterior`/`motivo_anterior` guardam a penúltima ocorrência (a de
+    ANTES da mais recente) -- só são atualizados quando o dia muda de
+    verdade (não a cada rodada do mesmo dia), pra servir de base pro que é
+    mostrado como "já teve Improdutivo antes": se o cliente acabou de ser
+    marcado Improdutivo HOJE, mostrar de novo a data de hoje ali é
+    redundante com o status que a própria linha já mostra -- o que importa
+    é a ocorrência anterior a essa."""
     indice = _carregar_indice_reincidentes()
+    contagem = _carregar_json_idx(CONTAGEM_IMPRODUTIVOS_PATH)
     ordenadas = sorted(linhas, key=lambda r: _parse_data_fim(r.get('Data fim Execução')) or datetime.min)
     for r in ordenadas:
         cliente = (r.get('Código Cliente') or '').strip()
         if not cliente:
             continue
         p = _classificar_resultado(r)
+        nova_data = r.get('Data fim Execução') or ''
         if p == 'IMPRODUTIVO':
             anterior = indice.get(cliente, {})
+            if nova_data and anterior.get('data') == nova_data:
+                continue  # mesma conclusão já processada numa rodada anterior
+            dia_novo = nova_data.split(' ')[0] if nova_data else ''
+            dia_ja_registrado = (anterior.get('data') or '').split(' ')[0]
+            if anterior and dia_ja_registrado and dia_ja_registrado != dia_novo:
+                data_anterior = anterior.get('data')
+                motivo_anterior = anterior.get('motivo')
+            else:
+                data_anterior = anterior.get('data_anterior')
+                motivo_anterior = anterior.get('motivo_anterior')
             indice[cliente] = {
-                'data': r.get('Data fim Execução') or '',
+                'data': nova_data,
                 'motivo': r.get('Resultado') or '',
                 'codigo_resultado': r.get('Código Resultado') or '',
                 'streak': (anterior.get('streak') or 0) + 1,
+                'data_anterior': data_anterior,
+                'motivo_anterior': motivo_anterior,
             }
+            contagem[cliente] = (contagem.get(cliente) or 0) + 1
         elif p == 'PRODUTIVO':
             indice.pop(cliente, None)
     _salvar_indice_reincidentes(indice)
-    return indice
+    _salvar_json_idx(CONTAGEM_IMPRODUTIVOS_PATH, contagem)
+    return indice, contagem
+
+
+def _eh_reincidente_hoje(entry):
+    """Um cliente só conta como "reincidente" se já tinha um Improdutivo
+    ANTES de hoje sem solução -- um Improdutivo que aconteceu pela
+    primeira vez hoje ainda não é reincidência de nada, só vira reincidente
+    se continuar sem solução amanhã. Devolve (data, motivo) da ocorrência
+    anterior a mostrar, ou None se não conta."""
+    if not entry:
+        return None
+    if entry.get('data_anterior'):
+        return entry['data_anterior'], entry.get('motivo_anterior') or ''
+    dia_atual = (entry.get('data') or '').split(' ')[0]
+    hoje = datetime.now().strftime('%d/%m/%Y')
+    if dia_atual and dia_atual != hoje:
+        return entry.get('data'), entry.get('motivo') or ''
+    return None
 
 # ── XPaths ───────────────────────────────────────────────────────────
 XP_USER          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[1]/td[2]/input"
@@ -713,10 +775,10 @@ class EOrderExecucaoBot:
         # roda mesmo quando publicar_ao_vivo=False (reconsulta de ontem
         # também traz resultado válido pra incorporar), antes do POST ao
         # vivo pra não depender dele.
-        reincidentes = None
+        reincidentes = contagem = None
         if regiao == "Execucao":
             try:
-                reincidentes = _atualizar_indice_reincidentes(linhas)
+                reincidentes, contagem = _atualizar_indice_reincidentes(linhas)
                 self._plog(f"🔁 Índice de reincidentes: {len(reincidentes)} cliente(s) com improdutivo em aberto")
             except Exception as e:
                 self._plog(f"⚠️  Falha ao atualizar índice de reincidentes: {e}")
@@ -743,7 +805,7 @@ class EOrderExecucaoBot:
                 clientes_hoje = {(r.get("Código Cliente") or "").strip() for r in linhas if r.get("Código Cliente")}
                 clientes_hoje |= self._buscar_clientes_sul_hoje()
                 clientes_hoje.discard("")
-                self._publicar_reincidentes(regiao, reincidentes, clientes_hoje)
+                self._publicar_reincidentes(regiao, reincidentes, contagem or {}, clientes_hoje)
         self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
 
@@ -763,29 +825,37 @@ class EOrderExecucaoBot:
         except Exception:
             return set()
 
-    def _publicar_reincidentes(self, regiao, reincidentes, clientes_relevantes):
-        """Publica o índice de reincidentes como uma linha separada
-        (regiao + "_reincidentes"), reaproveitando a coluna "dados" (array)
-        que a tabela snapshots já tem -- a tabela tem colunas fixas
-        (regiao/dados/atualizado_em), então não dá pra simplesmente
-        acrescentar uma chave nova no corpo do snapshot normal (o Supabase
-        rejeita coluna que não existe). Mesmo padrão já usado pra
-        "<regiao>_completo" (ver _publicar_nuvem_completo). Só publica os
-        clientes relevantes pra hoje (ver chamador) -- o índice completo
-        continua intacto em disco, só a publicação é que é recortada."""
+    def _publicar_reincidentes(self, regiao, reincidentes, contagem, clientes_relevantes):
+        """Publica, como uma linha separada (regiao + "_reincidentes",
+        reaproveitando a coluna "dados" que a tabela snapshots já tem --
+        colunas fixas, não dá pra acrescentar chave nova no snapshot normal),
+        pra cada cliente relevante hoje (ver chamador):
+        - se ele conta como reincidente (ver _eh_reincidente_hoje: só entra
+          se já tinha Improdutivo ANTES de hoje sem solução -- um Improdutivo
+          que aconteceu pela primeira vez hoje não conta ainda), a data e o
+          motivo da ocorrência ANTERIOR (não a de hoje, que a própria linha
+          do serviço já mostra);
+        - `total_ano`: quantas vezes esse cliente já deu Improdutivo desde o
+          início do histórico (não zera nem quando ele resolve)."""
         try:
-            linhas = [
-                {"codigo_cliente": cod, **info}
-                for cod, info in reincidentes.items()
-                if cod in clientes_relevantes
-            ]
+            linhas = []
+            for cod in clientes_relevantes:
+                anterior = _eh_reincidente_hoje(reincidentes.get(cod))
+                total_ano = contagem.get(cod) or 0
+                if not anterior and not total_ano:
+                    continue
+                linha = {"codigo_cliente": cod, "total_ano": total_ano}
+                if anterior:
+                    linha["data"] = anterior[0]
+                    linha["motivo"] = anterior[1]
+                linhas.append(linha)
             corpo = json.dumps({
                 "regiao": regiao + "_reincidentes",
                 "dados": linhas,
                 "atualizado_em": datetime.now(timezone.utc).isoformat(),
             }, default=str).encode("utf-8")
             status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
-            self._plog(f"☁ Reincidentes publicados ({regiao}): {len(linhas)}/{len(reincidentes)} cliente(s) relevantes hoje — status {status}")
+            self._plog(f"☁ Reincidentes publicados ({regiao}): {len(linhas)} cliente(s) relevantes hoje — status {status}")
         except urllib.error.HTTPError as e:
             self._plog(f"⚠️  Falha ao publicar reincidentes ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
