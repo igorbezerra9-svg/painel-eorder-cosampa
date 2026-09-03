@@ -734,22 +734,50 @@ class EOrderExecucaoBot:
             except Exception as e:
                 self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e}")
             if reincidentes is not None:
-                self._publicar_reincidentes(regiao, reincidentes)
+                # O índice inteiro (todo cliente com Improdutivo em aberto desde
+                # sempre) já passa de 800KB e só cresce -- mandar ele inteiro em
+                # toda atualização da tela ao vivo é o mesmo tipo de desperdício
+                # que já causou incidente de egress no monitor-desul (ver
+                # CLAUDE.md). A tela só usa a parte de clientes que aparecem no
+                # Planejado de hoje, então filtra pra só isso antes de publicar.
+                clientes_hoje = {(r.get("Código Cliente") or "").strip() for r in linhas if r.get("Código Cliente")}
+                clientes_hoje |= self._buscar_clientes_sul_hoje()
+                clientes_hoje.discard("")
+                self._publicar_reincidentes(regiao, reincidentes, clientes_hoje)
         self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
 
-    def _publicar_reincidentes(self, regiao, reincidentes):
+    def _buscar_clientes_sul_hoje(self):
+        """GET leve só pra saber quais Código Cliente estão no TdC de hoje
+        (regiao='Sul' ao vivo) -- usado só pra filtrar o índice de
+        reincidentes antes de publicar (ver _publicar_nuvem)."""
+        try:
+            req = urllib.request.Request(
+                f"{SB_URL}/rest/v1/snapshots?regiao=eq.Sul&select=dados",
+                headers={"apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY},
+            )
+            with urllib.request.urlopen(req) as resp:
+                rows = json.loads(resp.read())
+            dados = (rows[0].get("dados") if rows else None) or []
+            return {(r.get("Código Cliente") or "").strip() for r in dados if r.get("Código Cliente")}
+        except Exception:
+            return set()
+
+    def _publicar_reincidentes(self, regiao, reincidentes, clientes_relevantes):
         """Publica o índice de reincidentes como uma linha separada
         (regiao + "_reincidentes"), reaproveitando a coluna "dados" (array)
         que a tabela snapshots já tem -- a tabela tem colunas fixas
         (regiao/dados/atualizado_em), então não dá pra simplesmente
         acrescentar uma chave nova no corpo do snapshot normal (o Supabase
         rejeita coluna que não existe). Mesmo padrão já usado pra
-        "<regiao>_completo" (ver _publicar_nuvem_completo)."""
+        "<regiao>_completo" (ver _publicar_nuvem_completo). Só publica os
+        clientes relevantes pra hoje (ver chamador) -- o índice completo
+        continua intacto em disco, só a publicação é que é recortada."""
         try:
             linhas = [
                 {"codigo_cliente": cod, **info}
                 for cod, info in reincidentes.items()
+                if cod in clientes_relevantes
             ]
             corpo = json.dumps({
                 "regiao": regiao + "_reincidentes",
@@ -757,7 +785,7 @@ class EOrderExecucaoBot:
                 "atualizado_em": datetime.now(timezone.utc).isoformat(),
             }, default=str).encode("utf-8")
             status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
-            self._plog(f"☁ Reincidentes publicados ({regiao}): {len(linhas)} cliente(s) — status {status}")
+            self._plog(f"☁ Reincidentes publicados ({regiao}): {len(linhas)}/{len(reincidentes)} cliente(s) relevantes hoje — status {status}")
         except urllib.error.HTTPError as e:
             self._plog(f"⚠️  Falha ao publicar reincidentes ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
