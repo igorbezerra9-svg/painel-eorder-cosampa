@@ -7,6 +7,7 @@ import sys
 import re
 import glob
 import json
+import unicodedata
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -48,6 +49,153 @@ COLS_EXECUCAO = [
     "Número da Incidencia", "Código Cliente", "Cliente", "Endereço", "Resultado",
     "Nota Codificada",
 ]
+
+# ── Reincidente: cliente cujo último resultado conhecido foi Improdutivo ──
+# Port de RESULTADO_PRODUTIVIDADE/RESULTADO_REGRAS_NOTA/RESULTADO_REGRAS_TEXTO_RUIM/
+# _classificarResultado do index.html (~linha 894) -- tem que ficar sincronizado
+# com a versão JS se algum código novo for adicionado lá.
+RESULTADO_PRODUTIVIDADE = {
+    'CJLAE': 'DEVOLVIDO', 'FJL': 'DEVOLVIDO', '0065': 'DEVOLVIDO',
+    'RAE11': 'IMPRODUTIVO', 'NRE': 'IMPRODUTIVO', '0032': 'IMPRODUTIVO', 'RAE05': 'IMPRODUTIVO',
+    '0096': 'IMPRODUTIVO', 'RAE03': 'IMPRODUTIVO', 'LREC': 'IMPRODUTIVO', 'RAE02': 'IMPRODUTIVO',
+    '0097': 'IMPRODUTIVO', '0011': 'PRODUTIVO', '0098': 'IMPRODUTIVO', 'VIUV06': 'IMPRODUTIVO',
+    '0040': 'IMPRODUTIVO', '0017': 'IMPRODUTIVO', '0004': 'IMPRODUTIVO', '0015': 'IMPRODUTIVO',
+    '0003': 'IMPRODUTIVO', 'RAE01': 'IMPRODUTIVO', '0005': 'IMPRODUTIVO', '0000': 'IMPRODUTIVO',
+    '0010': 'IMPRODUTIVO', '0018': 'IMPRODUTIVO', 'RAE06': 'IMPRODUTIVO',
+    'VIRV06': 'IMPRODUTIVO', '0007': 'IMPRODUTIVO', '0030': 'IMPRODUTIVO', '0048': 'IMPRODUTIVO',
+    'RAE10': 'IMPRODUTIVO', '0033': 'IMPRODUTIVO', 'SDJV06': 'IMPRODUTIVO', 'MGDV5': 'IMPRODUTIVO',
+    'SDJE02': 'IMPRODUTIVO', 'EXUE02': 'IMPRODUTIVO', 'MMLE03': 'IMPRODUTIVO', 'MGDV3': 'IMPRODUTIVO',
+    'IRME04': 'IMPRODUTIVO', 'SRLV05': 'IMPRODUTIVO', 'DCME02': 'IMPRODUTIVO', 'AMCE03': 'IMPRODUTIVO',
+    'STBE03': 'IMPRODUTIVO', 'REA': 'PRODUTIVO', 'SDJV02': 'PRODUTIVO', 'AMCE02': 'PRODUTIVO',
+    '0074': 'PRODUTIVO', '0046': 'PRODUTIVO', 'VIRV02': 'PRODUTIVO', 'EXUE01': 'PRODUTIVO',
+    'MGDV2': 'PRODUTIVO', 'SEM01': 'PRODUTIVO', 'VIUV02': 'PRODUTIVO', 'VIUV04': 'PRODUTIVO',
+    '0020': 'PRODUTIVO', 'MMIE01': 'PRODUTIVO', '0021': 'PRODUTIVO',
+    'VIUV05': 'PRODUTIVO', '0001': 'PRODUTIVO',
+    'VIRV01': 'PRODUTIVO', 'SRLV02': 'PRODUTIVO', 'VIUV01': 'PRODUTIVO', 'VIRV05': 'PRODUTIVO',
+    '0026': 'PRODUTIVO', 'EXRE01': 'PRODUTIVO', '0002': 'PRODUTIVO',
+    'SDJE01': 'PRODUTIVO', 'VIRV04': 'PRODUTIVO', 'IRME00': 'PRODUTIVO', '0009': 'PRODUTIVO',
+    '0012': 'PRODUTIVO', 'STBE01': 'PRODUTIVO', 'IRME01': 'PRODUTIVO', 'BDTE01': 'PRODUTIVO',
+    'ACTV03': 'IMPRODUTIVO', 'MMLE02': 'PRODUTIVO', '0024': 'PRODUTIVO', 'ACTV02': 'PRODUTIVO',
+    '0025': 'PRODUTIVO', 'AQME01': 'PRODUTIVO', '0035': 'PRODUTIVO', 'MGDV1': 'PRODUTIVO',
+    'SDJV05': 'IMPRODUTIVO', 'CAPE01': 'PRODUTIVO', 'SDJV04': 'PRODUTIVO', 'SDJV03': 'IMPRODUTIVO',
+    'PROV01': 'PRODUTIVO', '0052': 'PRODUTIVO', 'SDJV01': 'PRODUTIVO', 'DCME01': 'PRODUTIVO',
+    '0068': 'PRODUTIVO', 'IMRE01': 'PRODUTIVO', 'AQME03': 'IMPRODUTIVO', 'SEM03': 'IMPRODUTIVO',
+    'IMRE03': 'IMPRODUTIVO', '0019': 'IMPRODUTIVO', 'IMBE02': 'IMPRODUTIVO', 'SEM02': 'IMPRODUTIVO',
+    'IRME03': 'IMPRODUTIVO', 'RIME04': 'IMPRODUTIVO', 'ACTV06': 'IMPRODUTIVO', 'SMIE03': 'IMPRODUTIVO',
+    '0041': 'IMPRODUTIVO', 'VPCE03': 'IMPRODUTIVO', 'EXRE02': 'IMPRODUTIVO', '0090': 'IMPRODUTIVO',
+    '0008': 'IMPRODUTIVO', 'IMBE03': 'IMPRODUTIVO', 'DCME03': 'IMPRODUTIVO', '0043': 'IMPRODUTIVO',
+    'IRME02': 'IMPRODUTIVO', 'EXUE03': 'IMPRODUTIVO', 'SRLV04': 'IMPRODUTIVO', 'RNLE01': 'PRODUTIVO',
+    'MLDE01': 'PRODUTIVO', '0054': 'PRODUTIVO', '0028': 'PRODUTIVO', 'ACTV01': 'PRODUTIVO',
+    '0016': 'PRODUTIVO', 'MMIE02': 'PRODUTIVO', 'IMBE01': 'PRODUTIVO', 'SMIE01': 'PRODUTIVO',
+    'ACTE01': 'PRODUTIVO', 'MLDE02': 'IMPRODUTIVO', '0034': 'PRODUTIVO', 'RAE04': 'IMPRODUTIVO',
+    '0027': 'IMPRODUTIVO', '0045': 'IMPRODUTIVO', 'LBTVI4': 'IMPRODUTIVO',
+    'LBTVI2': 'PRODUTIVO', 'LBTVI5': 'PRODUTIVO', 'LBTVI7': 'IMPRODUTIVO', 'LBTEX4': 'IMPRODUTIVO',
+    'LBTEX1': 'PRODUTIVO', '0022': 'PRODUTIVO', 'LBTVI1': 'PRODUTIVO', 'PROV03': 'IMPRODUTIVO',
+    'LBTEX2': 'IMPRODUTIVO', 'MGD01': 'PRODUTIVO', 'DBR02': 'PRODUTIVO', 'CMIE01': 'PRODUTIVO',
+    'SDJE03': 'IMPRODUTIVO', 'LBTVI3': 'PRODUTIVO', 'MMIE04': 'IMPRODUTIVO', 'LBTEX3': 'IMPRODUTIVO',
+    '0029': 'PRODUTIVO', 'DBR03': 'IMPRODUTIVO', 'SRLE01': 'PRODUTIVO', 'SRLV01': 'PRODUTIVO',
+    'RNLE02': 'IMPRODUTIVO', 'MGD02': 'IMPRODUTIVO', 'MGD04': 'IMPRODUTIVO', 'VPCE02': 'PRODUTIVO',
+    'ACTE02': 'IMPRODUTIVO', 'LNGVI6': 'IMPRODUTIVO', 'TCPE02': 'IMPRODUTIVO', 'TCPE01': 'PRODUTIVO',
+    'SRLV03': 'PRODUTIVO', 'ACTV04': 'PRODUTIVO', 'SMIE04': 'IMPRODUTIVO', 'SMA01': 'PRODUTIVO',
+    'SMIE02': 'IMPRODUTIVO', 'LNGVI7': 'IMPRODUTIVO', 'BDTE02': 'IMPRODUTIVO', 'ACMV05': 'IMPRODUTIVO',
+    'DGD02': 'PRODUTIVO', 'MMIE03': 'IMPRODUTIVO', 'LNGVI2': 'PRODUTIVO', 'RIME02': 'IMPRODUTIVO',
+    'TRAN': 'IMPRODUTIVO', '0050': 'PRODUTIVO', '0051': 'PRODUTIVO', '0053': 'PRODUTIVO',
+    'MLDE03': 'IMPRODUTIVO', 'RAE07': 'PRODUTIVO', 'ACTE03': 'IMPRODUTIVO', 'ACBV02': 'PRODUTIVO',
+    'DGD01': 'PRODUTIVO', 'SEE01': 'PRODUTIVO', 'TMEE01': 'PRODUTIVO', 'IRDE01': 'PRODUTIVO',
+    'SML01': 'PRODUTIVO', 'IRCE01': 'PRODUTIVO',
+    'APOE01': 'PRODUTIVO', 'VMT01': 'PRODUTIVO', 'VMT02': 'IMPRODUTIVO', 'TMEE02': 'IMPRODUTIVO',
+    'TMEE03': 'IMPRODUTIVO', 'DIR02': 'PRODUTIVO', 'TCPE03': 'IMPRODUTIVO', 'SMA03': 'IMPRODUTIVO',
+    'CMIE02': 'IMPRODUTIVO', 'MGD05': 'PRODUTIVO', 'ITE01': 'PRODUTIVO', 'DBR01': 'PRODUTIVO',
+    'AQME02': 'IMPRODUTIVO', 'IMRE02': 'IMPRODUTIVO', '0070': 'PRODUTIVO', 'ACMV02': 'PRODUTIVO',
+    'OUTACM': 'IMPRODUTIVO',
+}
+RESULTADO_REGRAS_NOTA = {
+    'LBTVI6': ['EXTR-NECESSITA EXTENSAO DE REDE'],
+    'MMLE04': ['NECESSITA EXTENSAO DE REDE'],
+    'ACTV05': ['NECESSITA EXTENSAO DE REDE'],
+    'VPCE01': ['VIS EXE- UC NORMAL S/LEVANT CARGA', 'VIST. EXEC.- NECESSITA AFERIÇÃO MEDIDOR'],
+    'MMLE01': ['SERVIÇO EXECUTADO'],
+}
+RESULTADO_REGRAS_TEXTO_RUIM = {'0044': ['IMOVEL FECHADO']}
+
+
+def _sem_acento(s):
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').upper()
+
+
+def _classificar_resultado(r):
+    cod = (r.get('Código Resultado') or '').strip().upper()
+    regras_nota = RESULTADO_REGRAS_NOTA.get(cod)
+    if regras_nota:
+        nota = _sem_acento((r.get('Nota Codificada') or '').strip())
+        return 'PRODUTIVO' if any(_sem_acento(n) == nota for n in regras_nota) else 'IMPRODUTIVO'
+    textos_ruins = RESULTADO_REGRAS_TEXTO_RUIM.get(cod)
+    if textos_ruins:
+        texto = _sem_acento((r.get('Resultado') or ''))
+        return 'IMPRODUTIVO' if any(t in texto for t in textos_ruins) else 'PRODUTIVO'
+    return RESULTADO_PRODUTIVIDADE.get(cod)
+
+
+# Índice local: Código Cliente -> último Improdutivo ainda sem Produtivo
+# depois (sem janela de corte -- decisão do Igor: conta desde o início do
+# histórico). Mantido incrementalmente pra sempre -- cada rodada só dobra
+# em cima do índice já salvo os resultados que acabou de ler, nunca
+# recalcula do zero (senão o custo cresceria sem limite com o tempo). Mesma
+# lógica do _calcular_os_problematicas do gpm_bot.py (seta em Improdutivo,
+# remove em Produtivo), adaptada pra um arquivo único mantido em disco em
+# vez de reler N arquivos por dia a cada chamada.
+REINCIDENTES_IDX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reincidentes_execucao_idx.json")
+
+
+def _carregar_indice_reincidentes():
+    try:
+        with open(REINCIDENTES_IDX_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _salvar_indice_reincidentes(indice):
+    try:
+        with open(REINCIDENTES_IDX_PATH, 'w', encoding='utf-8') as f:
+            json.dump(indice, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _parse_data_fim(s):
+    try:
+        return datetime.strptime((s or '').strip(), "%d/%m/%Y %H:%M")
+    except Exception:
+        return None
+
+
+def _atualizar_indice_reincidentes(linhas):
+    """Dobra as `linhas` (já lidas pelo robô -- hoje, ou o dia da reconsulta)
+    em cima do índice salvo em disco. Ordena por 'Data fim Execução' antes
+    de aplicar, pra garantir que o resultado mais recente do lote prevaleça
+    mesmo que o export não venha em ordem cronológica. Devolvido ou código
+    não mapeado não mexe no índice (mesmo comportamento do gpm_bot.py, sem
+    "else")."""
+    indice = _carregar_indice_reincidentes()
+    ordenadas = sorted(linhas, key=lambda r: _parse_data_fim(r.get('Data fim Execução')) or datetime.min)
+    for r in ordenadas:
+        cliente = (r.get('Código Cliente') or '').strip()
+        if not cliente:
+            continue
+        p = _classificar_resultado(r)
+        if p == 'IMPRODUTIVO':
+            anterior = indice.get(cliente, {})
+            indice[cliente] = {
+                'data': r.get('Data fim Execução') or '',
+                'motivo': r.get('Resultado') or '',
+                'codigo_resultado': r.get('Código Resultado') or '',
+                'streak': (anterior.get('streak') or 0) + 1,
+            }
+        elif p == 'PRODUTIVO':
+            indice.pop(cliente, None)
+    _salvar_indice_reincidentes(indice)
+    return indice
 
 # ── XPaths ───────────────────────────────────────────────────────────
 XP_USER          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[1]/td[2]/input"
@@ -561,6 +709,17 @@ class EOrderExecucaoBot:
             self._plog(f"⚠️  Não encontrei o arquivo {prefixo_arquivo}*.xlsx pra publicar.")
             return None
         linhas = self._xlsx_para_linhas(caminho, colunas)
+        # Atualiza o índice de reincidentes com o que acabou de ser lido --
+        # roda mesmo quando publicar_ao_vivo=False (reconsulta de ontem
+        # também traz resultado válido pra incorporar), antes do POST ao
+        # vivo pra não depender dele.
+        reincidentes = None
+        if regiao == "Execucao":
+            try:
+                reincidentes = _atualizar_indice_reincidentes(linhas)
+                self._plog(f"🔁 Índice de reincidentes: {len(reincidentes)} cliente(s) com improdutivo em aberto")
+            except Exception as e:
+                self._plog(f"⚠️  Falha ao atualizar índice de reincidentes: {e}")
         if publicar_ao_vivo:
             try:
                 corpo = json.dumps({
@@ -574,8 +733,35 @@ class EOrderExecucaoBot:
                 self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
             except Exception as e:
                 self._plog(f"⚠️  Falha ao publicar no painel ({regiao}): {e}")
+            if reincidentes is not None:
+                self._publicar_reincidentes(regiao, reincidentes)
         self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
+
+    def _publicar_reincidentes(self, regiao, reincidentes):
+        """Publica o índice de reincidentes como uma linha separada
+        (regiao + "_reincidentes"), reaproveitando a coluna "dados" (array)
+        que a tabela snapshots já tem -- a tabela tem colunas fixas
+        (regiao/dados/atualizado_em), então não dá pra simplesmente
+        acrescentar uma chave nova no corpo do snapshot normal (o Supabase
+        rejeita coluna que não existe). Mesmo padrão já usado pra
+        "<regiao>_completo" (ver _publicar_nuvem_completo)."""
+        try:
+            linhas = [
+                {"codigo_cliente": cod, **info}
+                for cod, info in reincidentes.items()
+            ]
+            corpo = json.dumps({
+                "regiao": regiao + "_reincidentes",
+                "dados": linhas,
+                "atualizado_em": datetime.now(timezone.utc).isoformat(),
+            }, default=str).encode("utf-8")
+            status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
+            self._plog(f"☁ Reincidentes publicados ({regiao}): {len(linhas)} cliente(s) — status {status}")
+        except urllib.error.HTTPError as e:
+            self._plog(f"⚠️  Falha ao publicar reincidentes ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            self._plog(f"⚠️  Falha ao publicar reincidentes ({regiao}): {e}")
 
     def _publicar_nuvem_completo(self, regiao, caminho):
         """Publica TODAS as colunas do arquivo original numa região

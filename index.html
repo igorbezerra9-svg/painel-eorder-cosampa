@@ -456,6 +456,7 @@
               <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#50d080;">Produtivos</th>
               <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#f06060;">Improdutivos</th>
               <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#c0c8d4;">Devolvidos</th>
+              <th style="padding:10px 16px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#e0b030;" title="Cliente cujo último resultado conhecido foi Improdutivo, ainda sem Produtivo depois">Reincidentes</th>
             </tr>
           </thead>
           <tbody id="exec-equipe-body"></tbody>
@@ -1863,6 +1864,9 @@ function showToast(msg, duration=2000) {
 // ══ EXECUÇÃO ══
 let execDados = [];
 let execPlanejadoDados = [];
+// Código Cliente -> {data, motivo, codigo_resultado, streak} do último
+// Improdutivo ainda sem Produtivo depois (ver eorder_execucao_bot.py).
+let execReincidentes = {};
 let execAtualizado = '';
 let execTiposSelecionados = [];
 let execDataView = ''; // '' = hoje (ao vivo); senão 'YYYY-MM-DD' de um fechamento salvo
@@ -2019,9 +2023,15 @@ async function execCarregar() {
     const urlPlanejado = isHist
       ? SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Sul&data=eq.' + execDataView + '&select=dados'
       : SB_URL + '/rest/v1/snapshots?regiao=eq.Sul&select=dados,atualizado_em';
-    const [res, resPlan] = await Promise.all([
+    // Índice de reincidentes vem numa linha à parte (regiao='Execucao_reincidentes')
+    // -- a tabela snapshots tem colunas fixas, não dá pra encaixar como campo
+    // extra dentro da linha "Execucao" normal (ver _publicar_reincidentes no bot).
+    // Só existe pra tela ao vivo, nunca pra um fechamento histórico.
+    const urlReincidentes = SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao_reincidentes&select=dados';
+    const [res, resPlan, resReinc] = await Promise.all([
       fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }),
-      fetch(urlPlanejado, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
+      fetch(urlPlanejado, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }),
+      isHist ? Promise.resolve(null) : fetch(urlReincidentes, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
     ]);
     const rows = await res.json();
     const rowsPlan = await resPlan.json();
@@ -2037,6 +2047,14 @@ async function execCarregar() {
     document.getElementById('exec-sem-dados').style.display = 'none';
     document.getElementById('exec-content').style.display = 'block';
     execDados = rows[0].dados;
+    execReincidentes = {};
+    if (resReinc) {
+      try {
+        const rowsReinc = await resReinc.json();
+        const listaReinc = (Array.isArray(rowsReinc) && rowsReinc[0] && rowsReinc[0].dados) || [];
+        listaReinc.forEach(l => { if (l.codigo_cliente) execReincidentes[l.codigo_cliente] = l; });
+      } catch (e) { /* índice de reincidentes não é essencial -- falha silenciosa */ }
+    }
     const dt = new Date(isHist ? rows[0].salvo_em : rows[0].atualizado_em);
     execAtualizado = (isHist ? '📅 Fechamento de ' + execDataView.split('-').reverse().join('/') + ' · salvo ' : 'Atualizado ') +
       dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -2218,38 +2236,41 @@ function execRenderPorEquipe() {
   execFiltrarPlanejadoBase(execCS).forEach(r => {
     const cod = r['Código Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, backlog: 0 };
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, backlog: 0, reincidente: 0 };
     eqMap[cod].backlog++;
     const m = r['Município'] || '—';
     eqMap[cod].muniPlan[m] = (eqMap[cod].muniPlan[m] || 0) + 1;
+    if (execReincidentes[r['Código Cliente']]) eqMap[cod].reincidente++;
   });
   dados.forEach(r => {
     const cod = r['Recurso/Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, backlog: 0 };
+    if (!eqMap[cod]) eqMap[cod] = { n: 0, muniPlan: {}, muniExec: {}, produtivo: 0, improdutivo: 0, devolvido: 0, backlog: 0, reincidente: 0 };
     eqMap[cod].n++;
     const m = r['Município'] || '—';
     eqMap[cod].muniExec[m] = (eqMap[cod].muniExec[m] || 0) + 1;
+    if (execReincidentes[r['Código Cliente']]) eqMap[cod].reincidente++;
     const p = execGetProdutividade(r);
     if (p === 'PRODUTIVO') eqMap[cod].produtivo++;
     else if (p === 'IMPRODUTIVO') eqMap[cod].improdutivo++;
     else if (p === 'DEVOLVIDO') eqMap[cod].devolvido++;
   });
   // Planejado = backlog ainda pendente no TdC + já executado (ver execFarol) —
-  // nunca fica menor que Executados.
+  // nunca fica menor que Executados. Reincidente conta por linha/serviço
+  // (não por cliente único), igual o próprio Planejado.
   execEquipesRows = Object.entries(eqMap)
     .filter(([cod]) => !search || cod.toLowerCase().includes(search))
     .sort((a, b) => (b[1].backlog + b[1].n) - (a[1].backlog + a[1].n))
     .map(([cod, d]) => {
       const muniSrc = Object.keys(d.muniExec).length ? d.muniExec : d.muniPlan;
       const muni = Object.entries(muniSrc).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
-      return { cod, muni, planejado: d.backlog + d.n, n: d.produtivo + d.improdutivo, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido };
+      return { cod, muni, planejado: d.backlog + d.n, n: d.produtivo + d.improdutivo, produtivo: d.produtivo, improdutivo: d.improdutivo, devolvido: d.devolvido, reincidente: d.reincidente };
     });
 
   let html = '';
   execEquipesRows.forEach((row, i) => {
     const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
-    const clk = coluna => row[{planejado:'planejado',total:'n',produtivo:'produtivo',improdutivo:'improdutivo',devolvido:'devolvido'}[coluna]]
+    const clk = coluna => row[{planejado:'planejado',total:'n',produtivo:'produtivo',improdutivo:'improdutivo',devolvido:'devolvido',reincidente:'reincidente'}[coluna]]
       ? `onclick="execAbrirModalEquipe('${row.cod}','${coluna}')" style="cursor:pointer;text-decoration:underline dotted;"` : '';
     html += `<tr style="background:${bg};border-bottom:1px solid #e8edf5;">
       <td style="padding:8px 16px;font-family:monospace;font-size:15px;font-weight:700;color:#1565c0;">${row.cod}</td>
@@ -2259,15 +2280,16 @@ function execRenderPorEquipe() {
       <td style="padding:8px 16px;text-align:center;font-size:16px;color:#1a7a40;font-weight:700;" ${clk('produtivo')}>${row.produtivo || '—'}</td>
       <td style="padding:8px 16px;text-align:center;font-size:16px;color:#c0392b;font-weight:700;" ${clk('improdutivo')}>${row.improdutivo || '—'}</td>
       <td style="padding:8px 16px;text-align:center;font-size:16px;color:var(--gray-700);" ${clk('devolvido')}>${row.devolvido || '—'}</td>
+      <td style="padding:8px 16px;text-align:center;font-size:16px;color:#b8860b;font-weight:700;" ${clk('reincidente')}>${row.reincidente || '—'}</td>
     </tr>`;
   });
-  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="7" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
+  document.getElementById('exec-equipe-body').innerHTML = html || '<tr><td colspan="8" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
 }
 
 function execCopiarEquipes() {
-  const linhas = ['Equipe\tMunicípio\tPlanejado\tExecutados\tProdutivos\tImprodutivos\tDevolvidos'];
+  const linhas = ['Equipe\tMunicípio\tPlanejado\tExecutados\tProdutivos\tImprodutivos\tDevolvidos\tReincidentes'];
   execEquipesRows.forEach(row => {
-    linhas.push(`${row.cod}\t${row.muni}\t${row.planejado}\t${row.n}\t${row.produtivo}\t${row.improdutivo}\t${row.devolvido}`);
+    linhas.push(`${row.cod}\t${row.muni}\t${row.planejado}\t${row.n}\t${row.produtivo}\t${row.improdutivo}\t${row.devolvido}\t${row.reincidente}`);
   });
   const texto = linhas.join('\n');
   navigator.clipboard.writeText(texto).then(() => {
@@ -2348,18 +2370,20 @@ function execNormalizarLinha(r, origem) {
     dataRef: executado ? (r['Data fim Execução'] || '') : (r['Data Prevista Finalização Trabalhos'] || ''),
     produtividade: executado ? execGetProdutividade(r) : null,
     resultado: executado ? (r['Resultado'] || '') : '',
+    reincidenteInfo: execReincidentes[r['Código Cliente']] || null,
   };
 }
 
 function execAbrirModalKpi(tipo) {
-  const labels = { planejado: '📋 Planejado', total: '📈 Executados hoje', produtivo: '✓ Produtivo', improdutivo: '✗ Improdutivo', devolvido: '↩ Devolvido' };
+  const labels = { planejado: '📋 Planejado', total: '📈 Executados hoje', produtivo: '✓ Produtivo', improdutivo: '✗ Improdutivo', devolvido: '↩ Devolvido', reincidente: '🔁 Reincidentes' };
   const dados = execGetFiltrado();
   let linhas;
-  if (tipo === 'planejado') {
+  if (tipo === 'planejado' || tipo === 'reincidente') {
     linhas = [
       ...execFiltrarPlanejadoBase(execCS).map(r => execNormalizarLinha(r, 'planejado')),
       ...dados.map(r => execNormalizarLinha(r, 'executado')),
     ];
+    if (tipo === 'reincidente') linhas = linhas.filter(l => l.reincidenteInfo);
   } else if (tipo === 'total') {
     // Devolvido não conta como executado -- mesma regra do card (ver execRender).
     linhas = dados.filter(r => ['PRODUTIVO', 'IMPRODUTIVO'].includes(execGetProdutividade(r))).map(r => execNormalizarLinha(r, 'executado'));
@@ -2377,13 +2401,14 @@ function execAbrirModalKpi(tipo) {
 function execAbrirModalEquipe(codEquipe, coluna) {
   const backlog = execFiltrarPlanejadoBase(execCS).filter(r => (r['Código Equipe'] || '') === codEquipe);
   const executadas = execGetFiltrado().filter(r => (r['Recurso/Equipe'] || '') === codEquipe);
-  const labels = { planejado: '📋 Planejado', total: '📈 Executados', produtivo: '✓ Produtivo', improdutivo: '✗ Improdutivo', devolvido: '↩ Devolvido' };
+  const labels = { planejado: '📋 Planejado', total: '📈 Executados', produtivo: '✓ Produtivo', improdutivo: '✗ Improdutivo', devolvido: '↩ Devolvido', reincidente: '🔁 Reincidentes' };
   let linhas;
-  if (coluna === 'planejado') {
+  if (coluna === 'planejado' || coluna === 'reincidente') {
     linhas = [
       ...backlog.map(r => execNormalizarLinha(r, 'planejado')),
       ...executadas.map(r => execNormalizarLinha(r, 'executado')),
     ];
+    if (coluna === 'reincidente') linhas = linhas.filter(l => l.reincidenteInfo);
   } else if (coluna === 'total') {
     linhas = executadas.filter(r => ['PRODUTIVO', 'IMPRODUTIVO'].includes(execGetProdutividade(r))).map(r => execNormalizarLinha(r, 'executado'));
   } else {
@@ -2444,7 +2469,7 @@ function execFiltrarModal() {
       <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${l.ns}</td>
       <td style="padding:7px 10px;font-size:11px;color:#8097b8;">${(l.tipo || '').split(' - ')[0]}</td>
       <td style="padding:7px 10px;font-family:monospace;font-size:11px;">${l.equipe}</td>
-      <td style="padding:7px 10px;font-size:12px;font-weight:600;">${l.cliente}</td>
+      <td style="padding:7px 10px;font-size:12px;font-weight:600;">${l.cliente}${l.reincidenteInfo ? `<br><span style="font-size:9px;font-weight:700;color:#b8860b;">🔁 já teve Improdutivo em ${(l.reincidenteInfo.data||'').split(' ')[0]}${l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''}</span>` : ''}</td>
       <td style="padding:7px 10px;font-size:11px;">${execModalStatusLabel(l)}</td>
       <td style="padding:7px 10px;font-size:11px;white-space:nowrap;">${l.dataRef || '—'}</td>
       <td style="padding:7px 10px;font-size:11px;color:#8097b8;">${l.municipio}</td>
