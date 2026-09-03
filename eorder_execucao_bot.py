@@ -224,16 +224,20 @@ def _atualizar_indice_reincidentes(linhas):
             if anterior and dia_ja_registrado and dia_ja_registrado != dia_novo:
                 data_anterior = anterior.get('data')
                 motivo_anterior = anterior.get('motivo')
+                tipo_anterior = anterior.get('tipo')
             else:
                 data_anterior = anterior.get('data_anterior')
                 motivo_anterior = anterior.get('motivo_anterior')
+                tipo_anterior = anterior.get('tipo_anterior')
             indice[cliente] = {
                 'data': nova_data,
                 'motivo': r.get('Resultado') or '',
                 'codigo_resultado': r.get('Código Resultado') or '',
+                'tipo': r.get('Tipo Remessa WIN') or r.get(' Tipo de Serviço') or '',
                 'streak': (anterior.get('streak') or 0) + 1,
                 'data_anterior': data_anterior,
                 'motivo_anterior': motivo_anterior,
+                'tipo_anterior': tipo_anterior,
             }
             contagem[cliente] = (contagem.get(cliente) or 0) + 1
         elif p == 'PRODUTIVO':
@@ -247,16 +251,20 @@ def _eh_reincidente_hoje(entry):
     """Um cliente só conta como "reincidente" se já tinha um Improdutivo
     ANTES de hoje sem solução -- um Improdutivo que aconteceu pela
     primeira vez hoje ainda não é reincidência de nada, só vira reincidente
-    se continuar sem solução amanhã. Devolve (data, motivo) da ocorrência
-    anterior a mostrar, ou None se não conta."""
+    se continuar sem solução amanhã. Devolve (data, motivo, tipo) da
+    ocorrência anterior a mostrar, ou None se não conta -- o `tipo` (Tipo
+    Remessa WIN daquela ocorrência) deixa o painel avisar quando o
+    Improdutivo anterior foi de um tipo de serviço bem diferente do atual
+    (ex.: cliente já teve problema numa Mudança, mas o alerta apareceu
+    filtrando só Corte)."""
     if not entry:
         return None
     if entry.get('data_anterior'):
-        return entry['data_anterior'], entry.get('motivo_anterior') or ''
+        return entry['data_anterior'], entry.get('motivo_anterior') or '', entry.get('tipo_anterior') or ''
     dia_atual = (entry.get('data') or '').split(' ')[0]
     hoje = datetime.now().strftime('%d/%m/%Y')
     if dia_atual and dia_atual != hoje:
-        return entry.get('data'), entry.get('motivo') or ''
+        return entry.get('data'), entry.get('motivo') or '', entry.get('tipo') or ''
     return None
 
 
@@ -860,6 +868,7 @@ class EOrderExecucaoBot:
                 if anterior:
                     linha["data"] = anterior[0]
                     linha["motivo"] = anterior[1]
+                    linha["tipo"] = anterior[2]
                 linhas.append(linha)
             corpo = json.dumps({
                 "regiao": regiao + "_reincidentes",

@@ -2483,7 +2483,17 @@ function execModalStatusLabel(l) {
 function execClienteSubinfo(l) {
   const partes = [];
   if (l.reincidenteInfo) {
-    partes.push('🔁 já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''));
+    let texto = '🔁 já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : '');
+    // O Improdutivo anterior pode ter sido de um tipo de serviço bem
+    // diferente do atual (ex.: cliente já deu improdutivo numa Mudança, mas
+    // esse alerta apareceu olhando só Corte) -- avisa quando as categorias
+    // não batem, pra não parecer reincidência do MESMO tipo de serviço.
+    if (l.reincidenteInfo.tipo && l.tipo) {
+      const catAnterior = opCategoriaServico({ 'Tipo Remessa WIN': l.reincidenteInfo.tipo });
+      const catAtual = opCategoriaServico({ 'Tipo Remessa WIN': l.tipo });
+      if (catAnterior !== catAtual) texto += ` (⚠ era ${catAnterior})`;
+    }
+    partes.push(texto);
   }
   if (l.produtividade === 'IMPRODUTIVO' && l.contagemAno) {
     partes.push(`×${l.contagemAno} este ano`);
@@ -2549,7 +2559,15 @@ function execCopiarModal() {
     const regLabel = l.tipoOrdem === 'REG' ? '[REG]' : l.tipoOrdem === 'NREG' ? '[NÃO REG]' : '';
     const gps = l.lat && l.lng ? '\nhttps://www.google.com/maps?q=' + l.lat + ',' + l.lng : '';
     const partesReinc = [];
-    if (l.reincidenteInfo) partesReinc.push('já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''));
+    if (l.reincidenteInfo) {
+      let texto = 'já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : '');
+      if (l.reincidenteInfo.tipo && l.tipo) {
+        const catAnterior = opCategoriaServico({ 'Tipo Remessa WIN': l.reincidenteInfo.tipo });
+        const catAtual = opCategoriaServico({ 'Tipo Remessa WIN': l.tipo });
+        if (catAnterior !== catAtual) texto += ` (era ${catAnterior})`;
+      }
+      partesReinc.push(texto);
+    }
     if (l.produtividade === 'IMPRODUTIVO' && l.contagemAno) partesReinc.push(`×${l.contagemAno} este ano`);
     const reinc = partesReinc.length ? '\n🔁 ' + partesReinc.join(' · ') : '';
     return (i + 1) + '. *' + l.ns + '* ' + regLabel
