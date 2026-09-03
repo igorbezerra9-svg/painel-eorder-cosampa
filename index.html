@@ -2166,10 +2166,23 @@ function execRender() {
 
   // Reincidente conta por linha/serviço (não por cliente único) dentro do
   // mesmo universo do Planejado -- mesma convenção da coluna na tabela por
-  // equipe (ver execRenderPorEquipe).
-  const reincidenteTotal = [...planejadoBacklog, ...dados].filter(r => execReincidenteRelevante(r['Código Cliente'], execGetTipo(r))).length;
+  // equipe (ver execRenderPorEquipe). Quebra em pendente/já visitado hoje
+  // (e, dos já visitados, quantos resolveram x quantos deram improdutivo
+  // de novo) -- pra dar uma ideia de quanto do "risco" do dia já foi
+  // atendido, sem precisar abrir a lista.
+  const reincidentesBacklog = planejadoBacklog.filter(r => execReincidenteRelevante(r['Código Cliente'], execGetTipo(r)));
+  const reincidentesExecutados = dados.filter(r => execReincidenteRelevante(r['Código Cliente'], execGetTipo(r)));
+  const reincidenteTotal = reincidentesBacklog.length + reincidentesExecutados.length;
   document.getElementById('exec-reincidente-total').textContent = reincidenteTotal;
-  document.getElementById('exec-reincidente-pct').textContent = planejadoTotal ? ((reincidenteTotal / planejadoTotal) * 100).toFixed(2) + '% do planejado' : '—';
+  let reincProdutivo = 0, reincImprodutivo = 0;
+  reincidentesExecutados.forEach(r => {
+    const p = execGetProdutividade(r);
+    if (p === 'PRODUTIVO') reincProdutivo++;
+    else if (p === 'IMPRODUTIVO') reincImprodutivo++;
+  });
+  document.getElementById('exec-reincidente-pct').innerHTML = reincidenteTotal
+    ? `${reincidentesBacklog.length} pendentes · <span style="color:#1a7a40;">${reincProdutivo} resolvidos</span> · <span style="color:#c0392b;">${reincImprodutivo} de novo improd.</span>`
+    : '—';
   const eqs = new Set(dados.map(r => r['Recurso/Equipe']).filter(Boolean));
   document.getElementById('exec-equipes').textContent = eqs.size;
 
