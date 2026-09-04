@@ -268,6 +268,7 @@
       <button class="pg-tipo-btn active" id="pg-tipo-all" onclick="pgSetTipo('')">Todas</button>
       <button class="pg-tipo-btn" id="pg-tipo-reg" onclick="pgSetTipo('REG')" style="background:#e8f4fd;color:#1565c0;border-color:#90caf9;">Reguladas</button>
       <button class="pg-tipo-btn" id="pg-tipo-nreg" onclick="pgSetTipo('NREG')" style="background:#fff3e8;color:#bf360c;border-color:#ffb74d;">Não reguladas</button>
+      <button class="pg-tipo-btn" id="pg-sem-perdas" onclick="pgToggleExcluirPerdas()" style="margin-left:4px;" title="Combina com o filtro Reguladas/Não reguladas acima -- tira as OS de categoria Perdas do que está sendo mostrado">Sem Perdas</button>
     </div>
   </div>
 
@@ -1112,6 +1113,7 @@ function setTab(tab) {
 // ══ PAINEL GERENCIAL ══
 let pgRegiao = 'Sul';
 let pgTipo = '';
+let pgExcluirPerdas = false;
 let pgCS = '';
 let pgSupervisores = [];
 let pgDados = [];
@@ -1220,6 +1222,16 @@ function pgSetTipo(t) {
   pgRender();
 }
 
+function pgToggleExcluirPerdas() {
+  pgExcluirPerdas = !pgExcluirPerdas;
+  const btn = document.getElementById('pg-sem-perdas');
+  btn.classList.toggle('active');
+  btn.style.background = pgExcluirPerdas ? '#fdecea' : '';
+  btn.style.color = pgExcluirPerdas ? '#c0392b' : '';
+  btn.style.borderColor = pgExcluirPerdas ? '#e6a9a2' : '';
+  pgRender();
+}
+
 async function pgCarregar() {
   showToast('⏳ Carregando painel...');
   try {
@@ -1269,6 +1281,7 @@ function pgFiltrarBase(csFiltro, incluirTodosEstados) {
       if (EXCLUIR.includes(estado)) return false;
     }
     if (pgTipo && getTipoOrdem(r) !== pgTipo) return false;
+    if (pgExcluirPerdas && opCategoriaServico(r) === 'Perdas') return false;
     if (csFiltro && pgGetCS(r) !== csFiltro) return false;
     if (pgSupervisores.length && !pgSupervisores.includes(getSupervisor(r['Código Equipe']||''))) return false;
     return true;
