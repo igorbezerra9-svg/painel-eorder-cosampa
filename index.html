@@ -745,8 +745,8 @@
       <div class="op-panel">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
           <div>
-            <h3>Produtivos por supervisor e mês</h3>
-            <div class="op-sub">Serviços com resultado Produtivo, um mês por coluna (só os meses selecionados acima) · respeita os filtros ativos (Tipo, Centro etc.)</div>
+            <h3>Produtivo, equipes e executados por supervisor e mês</h3>
+            <div class="op-sub">Por supervisor, um grupo de 3 colunas por mês selecionado (Produtivo · Equipes ativas · Executados = Produtivo+Improdutivo) · respeita os filtros ativos (Tipo, Centro etc.)</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <div style="display:flex;gap:6px;" id="op-chips-veiculo"></div>
@@ -755,15 +755,11 @@
         </div>
         <div style="overflow-x:auto;">
           <table class="op-table" style="margin-top:12px;">
-            <thead><tr id="op-sup-mes-thead"></tr></thead>
+            <thead>
+              <tr id="op-sup-mes-thead-top"></tr>
+              <tr id="op-sup-mes-thead-sub"></tr>
+            </thead>
             <tbody id="op-tabela-sup-mes"></tbody>
-          </table>
-        </div>
-        <div style="overflow-x:auto;margin-top:18px;border-top:0.5px solid var(--gray-200);padding-top:14px;">
-          <div class="op-sub" style="margin-bottom:8px;" id="op-equipe-exec-mes-sub">Quantidade de equipes ativas e de serviços executados (Produtivo + Improdutivo) por mês</div>
-          <table class="op-table">
-            <thead><tr id="op-equipe-exec-mes-thead"></tr></thead>
-            <tbody id="op-tabela-equipe-exec-mes"></tbody>
           </table>
         </div>
       </div>
@@ -3617,12 +3613,16 @@ function opRenderEquipes(dados) {
   opRenderSupervisorMes(dados);
 }
 
-// ── Tabela pivô: Produtivos por supervisor (linha) x mês (coluna) ──
+// ── Tabela pivô: Supervisor (linha) x mês (grupo de 3 colunas: Produtivo,
+// Equipes ativas, Executados=Produtivo+Improdutivo) ──
 // Reaproveita `dados` (já filtrado/dedupado por opRegistrosFiltrados, ver
 // opRenderAll) -- como o dedup por OS já escolhe o registro mais recente de
 // cada serviço, uma OS que deu Improdutivo em julho e Produtivo em agosto
 // só sobrevive como a linha de agosto, contando certinho no mês em que foi
-// realmente concluída (sem duplicar entre meses).
+// realmente concluída (sem duplicar entre meses). "Equipes" conta código de
+// equipe distinto do supervisor com pelo menos 1 serviço classificado no
+// mês; no Total, é a contagem de equipes distintas juntando todos os meses
+// (não a soma dos meses, que contaria a mesma equipe repetida).
 function opMesLabelCurto(mesKey) {
   const [ano, mes] = mesKey.split('-');
   return OP_MESES_LABEL[parseInt(mes, 10) - 1] + '/' + ano.slice(2);
@@ -3635,96 +3635,85 @@ function opRenderSupervisorMes(dados) {
   dados = dados || opDadosParaTaxas;
   if (op.veiculo) dados = dados.filter(r => getTipoEquipe(r['Recurso/Equipe']) === op.veiculo);
   const meses = Array.from(op.mesesSelecionados).sort();
+  const vazio = () => ({ produtivo: 0, equipes: new Set(), executados: 0 });
   const porSupervisor = {};
-  dados.forEach(r => {
-    if (opClassificar(r) !== 'PRODUTIVO') return;
-    const mesKey = (r.__data || '').slice(0, 7);
-    if (!meses.includes(mesKey)) return;
-    const sup = getSupervisor(r['Recurso/Equipe']) || 'Sem supervisor';
-    if (!porSupervisor[sup]) porSupervisor[sup] = {};
-    porSupervisor[sup][mesKey] = (porSupervisor[sup][mesKey] || 0) + 1;
-  });
-
-  const totalDoSupervisor = sup => meses.reduce((s, m) => s + (porSupervisor[sup][m] || 0), 0);
-  const supervisores = Object.keys(porSupervisor).sort((a, b) => totalDoSupervisor(b) - totalDoSupervisor(a));
-
-  opSupervisorMesColunas = meses;
-  opSupervisorMesLinhas = supervisores.map(sup => ({
-    supervisor: sup,
-    porMes: meses.map(m => porSupervisor[sup][m] || 0),
-    total: totalDoSupervisor(sup),
-  }));
-
-  const thead = document.getElementById('op-sup-mes-thead');
-  thead.innerHTML = '<th>Supervisor</th>' + meses.map(m => `<th class="op-num">${opMesLabelCurto(m)}</th>`).join('') + '<th class="op-num">Total</th>';
-
-  const totalPorMes = meses.map((_, i) => opSupervisorMesLinhas.reduce((s, l) => s + l.porMes[i], 0));
-  const totalGeral = totalPorMes.reduce((a, b) => a + b, 0);
-
-  let html = '';
-  opSupervisorMesLinhas.forEach(l => {
-    html += `<tr><td>${l.supervisor}</td>`
-      + l.porMes.map(n => `<td class="op-num">${n ? n.toLocaleString('pt-BR') : '—'}</td>`).join('')
-      + `<td class="op-num"><b>${l.total.toLocaleString('pt-BR')}</b></td></tr>`;
-  });
-  if (opSupervisorMesLinhas.length) {
-    html += `<tr style="background:var(--gray-50,#f4f6f9);font-weight:700;"><td>Total</td>`
-      + totalPorMes.map(n => `<td class="op-num">${n.toLocaleString('pt-BR')}</td>`).join('')
-      + `<td class="op-num">${totalGeral.toLocaleString('pt-BR')}</td></tr>`;
-  }
-  document.getElementById('op-tabela-sup-mes').innerHTML = html
-    || `<tr><td colspan="${meses.length + 2}" style="padding:20px;text-align:center;color:var(--gray-400);">Sem Produtivos no período/filtro atual</td></tr>`;
-
-  opRenderEquipeExecMes(dados, meses);
-}
-
-// ── Quantidade de equipes ativas e de executados (Produtivo+Improdutivo)
-// por mês -- mesmo `dados` já filtrado por veículo (Motos/Carros) usado na
-// tabela de supervisor acima. "Equipes" conta código de equipe distinto
-// que teve pelo menos 1 serviço classificado no mês; "Executados" conta
-// toda OS classificada (Produtivo ou Improdutivo -- Devolvido não conta
-// como executado, mesma convenção da aba Execução).
-function opRenderEquipeExecMes(dados, meses) {
-  const equipesPorMes = {};
-  const executadosPorMes = {};
-  meses.forEach(m => { equipesPorMes[m] = new Set(); executadosPorMes[m] = 0; });
   dados.forEach(r => {
     const classif = opClassificar(r);
     if (classif !== 'PRODUTIVO' && classif !== 'IMPRODUTIVO') return;
     const mesKey = (r.__data || '').slice(0, 7);
     if (!meses.includes(mesKey)) return;
-    const eq = r['Recurso/Equipe'];
-    if (eq) equipesPorMes[mesKey].add(eq);
-    executadosPorMes[mesKey]++;
+    const sup = getSupervisor(r['Recurso/Equipe']) || 'Sem supervisor';
+    if (!porSupervisor[sup]) porSupervisor[sup] = {};
+    if (!porSupervisor[sup][mesKey]) porSupervisor[sup][mesKey] = vazio();
+    const b = porSupervisor[sup][mesKey];
+    b.executados++;
+    if (classif === 'PRODUTIVO') b.produtivo++;
+    if (r['Recurso/Equipe']) b.equipes.add(r['Recurso/Equipe']);
   });
 
-  const thead = document.getElementById('op-equipe-exec-mes-thead');
-  thead.innerHTML = '<th>Métrica</th>' + meses.map(m => `<th class="op-num">${opMesLabelCurto(m)}</th>`).join('') + '<th class="op-num">Total</th>';
+  const bucket = (sup, m) => (porSupervisor[sup] && porSupervisor[sup][m]) || vazio();
+  const totalProdutivoDoSupervisor = sup => meses.reduce((s, m) => s + bucket(sup, m).produtivo, 0);
+  const supervisores = Object.keys(porSupervisor).sort((a, b) => totalProdutivoDoSupervisor(b) - totalProdutivoDoSupervisor(a));
 
-  const totalEquipesUnicas = new Set();
-  meses.forEach(m => equipesPorMes[m].forEach(eq => totalEquipesUnicas.add(eq)));
-  const totalExecutados = meses.reduce((s, m) => s + executadosPorMes[m], 0);
+  const theadTop = document.getElementById('op-sup-mes-thead-top');
+  const theadSub = document.getElementById('op-sup-mes-thead-sub');
+  theadTop.innerHTML = '<th rowspan="2">Supervisor</th>'
+    + meses.map(m => `<th colspan="3" class="op-num" style="text-align:center;">${opMesLabelCurto(m)}</th>`).join('')
+    + '<th colspan="3" class="op-num" style="text-align:center;">Total</th>';
+  const subLabels = '<th class="op-num">Prod.</th><th class="op-num">Equipes</th><th class="op-num">Exec.</th>';
+  theadSub.innerHTML = meses.map(() => subLabels).join('') + subLabels;
 
-  const linhaEquipes = '<tr><td>Equipes</td>'
-    + meses.map(m => `<td class="op-num">${equipesPorMes[m].size || '—'}</td>`).join('')
-    + `<td class="op-num"><b>${totalEquipesUnicas.size}</b></td></tr>`;
-  const linhaExecutados = '<tr><td>Executados</td>'
-    + meses.map(m => `<td class="op-num">${executadosPorMes[m] ? executadosPorMes[m].toLocaleString('pt-BR') : '—'}</td>`).join('')
-    + `<td class="op-num"><b>${totalExecutados.toLocaleString('pt-BR')}</b></td></tr>`;
+  opSupervisorMesColunas = meses;
+  opSupervisorMesLinhas = [];
+  const totalPorMes = {};
+  meses.forEach(m => { totalPorMes[m] = { produtivo: 0, equipes: new Set(), executados: 0 }; });
 
-  document.getElementById('op-tabela-equipe-exec-mes').innerHTML = meses.length
-    ? linhaEquipes + linhaExecutados
-    : `<tr><td colspan="2" style="padding:20px;text-align:center;color:var(--gray-400);">Selecione um mês no período</td></tr>`;
+  let html = '';
+  supervisores.forEach(sup => {
+    let totalProdutivo = 0, totalExecutados = 0;
+    const equipesTotal = new Set();
+    let celulas = '';
+    meses.forEach(m => {
+      const b = bucket(sup, m);
+      totalProdutivo += b.produtivo;
+      totalExecutados += b.executados;
+      b.equipes.forEach(e => { equipesTotal.add(e); totalPorMes[m].equipes.add(e); });
+      totalPorMes[m].produtivo += b.produtivo;
+      totalPorMes[m].executados += b.executados;
+      celulas += `<td class="op-num">${b.produtivo || '—'}</td><td class="op-num">${b.equipes.size || '—'}</td><td class="op-num">${b.executados || '—'}</td>`;
+    });
+    celulas += `<td class="op-num"><b>${totalProdutivo.toLocaleString('pt-BR')}</b></td><td class="op-num"><b>${equipesTotal.size}</b></td><td class="op-num"><b>${totalExecutados.toLocaleString('pt-BR')}</b></td>`;
+    html += `<tr><td>${sup}</td>${celulas}</tr>`;
+    opSupervisorMesLinhas.push({ supervisor: sup, porMes: meses.map(m => bucket(sup, m)), totalProdutivo, totalEquipes: equipesTotal.size, totalExecutados });
+  });
 
-  document.getElementById('op-equipe-exec-mes-sub').textContent =
-    `Quantidade de equipes ativas e de serviços executados (Produtivo + Improdutivo) por mês`
-    + (op.veiculo ? ` · ${op.veiculo === 'MM' ? 'Motos' : 'Carros'}` : '');
+  if (supervisores.length) {
+    const totalEquipesGeral = new Set();
+    meses.forEach(m => totalPorMes[m].equipes.forEach(e => totalEquipesGeral.add(e)));
+    const totalProdutivoGeral = meses.reduce((s, m) => s + totalPorMes[m].produtivo, 0);
+    const totalExecutadosGeral = meses.reduce((s, m) => s + totalPorMes[m].executados, 0);
+    let celulasTotal = meses.map(m => `<td class="op-num">${totalPorMes[m].produtivo.toLocaleString('pt-BR')}</td><td class="op-num">${totalPorMes[m].equipes.size}</td><td class="op-num">${totalPorMes[m].executados.toLocaleString('pt-BR')}</td>`).join('');
+    celulasTotal += `<td class="op-num">${totalProdutivoGeral.toLocaleString('pt-BR')}</td><td class="op-num">${totalEquipesGeral.size}</td><td class="op-num">${totalExecutadosGeral.toLocaleString('pt-BR')}</td>`;
+    html += `<tr style="background:var(--gray-50,#f4f6f9);font-weight:700;"><td>Total</td>${celulasTotal}</tr>`;
+  }
+
+  document.getElementById('op-tabela-sup-mes').innerHTML = html
+    || `<tr><td colspan="${meses.length * 3 + 4}" style="padding:20px;text-align:center;color:var(--gray-400);">Sem dados no período/filtro atual</td></tr>`;
 }
 
 function opCopiarSupervisorMes() {
-  const cabecalho = ['Supervisor', ...opSupervisorMesColunas.map(opMesLabelCurto), 'Total'];
-  const linhas = [cabecalho.join('\t')];
-  opSupervisorMesLinhas.forEach(l => linhas.push([l.supervisor, ...l.porMes, l.total].join('\t')));
+  const cabecalhoTop = ['Supervisor'];
+  const cabecalhoSub = [''];
+  opSupervisorMesColunas.forEach(m => { cabecalhoTop.push(opMesLabelCurto(m), '', ''); cabecalhoSub.push('Produtivo', 'Equipes', 'Executados'); });
+  cabecalhoTop.push('Total', '', '');
+  cabecalhoSub.push('Produtivo', 'Equipes', 'Executados');
+  const linhas = [cabecalhoTop.join('\t'), cabecalhoSub.join('\t')];
+  opSupervisorMesLinhas.forEach(l => {
+    const celulas = [l.supervisor];
+    l.porMes.forEach(b => celulas.push(b.produtivo, b.equipes.size, b.executados));
+    celulas.push(l.totalProdutivo, l.totalEquipes, l.totalExecutados);
+    linhas.push(celulas.join('\t'));
+  });
   navigator.clipboard.writeText(linhas.join('\n')).then(() => {
     const btn = document.getElementById('btn-copiar-sup-mes');
     const original = btn.textContent;
