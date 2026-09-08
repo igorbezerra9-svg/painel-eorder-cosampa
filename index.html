@@ -742,6 +742,21 @@
           <tbody id="op-tabela-equipes"></tbody>
         </table>
       </div>
+      <div class="op-panel">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div>
+            <h3>Produtivos por supervisor e mês</h3>
+            <div class="op-sub">Serviços com resultado Produtivo, um mês por coluna (só os meses selecionados acima) · respeita os filtros ativos (Tipo, Centro etc.)</div>
+          </div>
+          <button onclick="opCopiarSupervisorMes()" id="btn-copiar-sup-mes" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="op-table" style="margin-top:12px;">
+            <thead><tr id="op-sup-mes-thead"></tr></thead>
+            <tbody id="op-tabela-sup-mes"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <div id="op-tab-clientes" style="display:none;">
@@ -3577,6 +3592,78 @@ function opRenderEquipes(dados) {
     </tr>`;
   });
   document.getElementById('op-tabela-equipes').innerHTML = html || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma equipe com o volume mínimo no filtro atual</td></tr>';
+
+  opRenderSupervisorMes(dados);
+}
+
+// ── Tabela pivô: Produtivos por supervisor (linha) x mês (coluna) ──
+// Reaproveita `dados` (já filtrado/dedupado por opRegistrosFiltrados, ver
+// opRenderAll) -- como o dedup por OS já escolhe o registro mais recente de
+// cada serviço, uma OS que deu Improdutivo em julho e Produtivo em agosto
+// só sobrevive como a linha de agosto, contando certinho no mês em que foi
+// realmente concluída (sem duplicar entre meses).
+function opMesLabelCurto(mesKey) {
+  const [ano, mes] = mesKey.split('-');
+  return OP_MESES_LABEL[parseInt(mes, 10) - 1] + '/' + ano.slice(2);
+}
+
+let opSupervisorMesLinhas = [];
+let opSupervisorMesColunas = [];
+
+function opRenderSupervisorMes(dados) {
+  dados = dados || opDadosParaTaxas;
+  const meses = Array.from(op.mesesSelecionados).sort();
+  const porSupervisor = {};
+  dados.forEach(r => {
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    const mesKey = (r.__data || '').slice(0, 7);
+    if (!meses.includes(mesKey)) return;
+    const sup = getSupervisor(r['Recurso/Equipe']) || 'Sem supervisor';
+    if (!porSupervisor[sup]) porSupervisor[sup] = {};
+    porSupervisor[sup][mesKey] = (porSupervisor[sup][mesKey] || 0) + 1;
+  });
+
+  const totalDoSupervisor = sup => meses.reduce((s, m) => s + (porSupervisor[sup][m] || 0), 0);
+  const supervisores = Object.keys(porSupervisor).sort((a, b) => totalDoSupervisor(b) - totalDoSupervisor(a));
+
+  opSupervisorMesColunas = meses;
+  opSupervisorMesLinhas = supervisores.map(sup => ({
+    supervisor: sup,
+    porMes: meses.map(m => porSupervisor[sup][m] || 0),
+    total: totalDoSupervisor(sup),
+  }));
+
+  const thead = document.getElementById('op-sup-mes-thead');
+  thead.innerHTML = '<th>Supervisor</th>' + meses.map(m => `<th class="op-num">${opMesLabelCurto(m)}</th>`).join('') + '<th class="op-num">Total</th>';
+
+  const totalPorMes = meses.map((_, i) => opSupervisorMesLinhas.reduce((s, l) => s + l.porMes[i], 0));
+  const totalGeral = totalPorMes.reduce((a, b) => a + b, 0);
+
+  let html = '';
+  opSupervisorMesLinhas.forEach(l => {
+    html += `<tr><td>${l.supervisor}</td>`
+      + l.porMes.map(n => `<td class="op-num">${n ? n.toLocaleString('pt-BR') : '—'}</td>`).join('')
+      + `<td class="op-num"><b>${l.total.toLocaleString('pt-BR')}</b></td></tr>`;
+  });
+  if (opSupervisorMesLinhas.length) {
+    html += `<tr style="background:var(--gray-50,#f4f6f9);font-weight:700;"><td>Total</td>`
+      + totalPorMes.map(n => `<td class="op-num">${n.toLocaleString('pt-BR')}</td>`).join('')
+      + `<td class="op-num">${totalGeral.toLocaleString('pt-BR')}</td></tr>`;
+  }
+  document.getElementById('op-tabela-sup-mes').innerHTML = html
+    || `<tr><td colspan="${meses.length + 2}" style="padding:20px;text-align:center;color:var(--gray-400);">Sem Produtivos no período/filtro atual</td></tr>`;
+}
+
+function opCopiarSupervisorMes() {
+  const cabecalho = ['Supervisor', ...opSupervisorMesColunas.map(opMesLabelCurto), 'Total'];
+  const linhas = [cabecalho.join('\t')];
+  opSupervisorMesLinhas.forEach(l => linhas.push([l.supervisor, ...l.porMes, l.total].join('\t')));
+  navigator.clipboard.writeText(linhas.join('\n')).then(() => {
+    const btn = document.getElementById('btn-copiar-sup-mes');
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
 function opRenderClientes(dados) {
