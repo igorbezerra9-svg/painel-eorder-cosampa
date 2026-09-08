@@ -743,17 +743,27 @@
         </table>
       </div>
       <div class="op-panel">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
           <div>
             <h3>Produtivos por supervisor e mês</h3>
             <div class="op-sub">Serviços com resultado Produtivo, um mês por coluna (só os meses selecionados acima) · respeita os filtros ativos (Tipo, Centro etc.)</div>
           </div>
-          <button onclick="opCopiarSupervisorMes()" id="btn-copiar-sup-mes" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="display:flex;gap:6px;" id="op-chips-veiculo"></div>
+            <button onclick="opCopiarSupervisorMes()" id="btn-copiar-sup-mes" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+          </div>
         </div>
         <div style="overflow-x:auto;">
           <table class="op-table" style="margin-top:12px;">
             <thead><tr id="op-sup-mes-thead"></tr></thead>
             <tbody id="op-tabela-sup-mes"></tbody>
+          </table>
+        </div>
+        <div style="overflow-x:auto;margin-top:18px;border-top:0.5px solid var(--gray-200);padding-top:14px;">
+          <div class="op-sub" style="margin-bottom:8px;" id="op-equipe-exec-mes-sub">Quantidade de equipes ativas e de serviços executados (Produtivo + Improdutivo) por mês</div>
+          <table class="op-table">
+            <thead><tr id="op-equipe-exec-mes-thead"></tr></thead>
+            <tbody id="op-tabela-equipe-exec-mes"></tbody>
           </table>
         </div>
       </div>
@@ -2657,6 +2667,7 @@ const op = {
   motivoFiltro: '',
   evolucaoModo: 'mensal',
   hojeAoVivo: false,
+  veiculo: '', // '' = todos, 'MM' = motos, 'LB' = carros -- só afeta o painel "Produtivos por supervisor e mês"
 };
 let opDadosParaTaxas = [];
 let opUltimoPorBucket = {};
@@ -2836,7 +2847,17 @@ function opRenderChipsEstaticos() {
     const active = op.tipo === v;
     return `<div class="pg-tipo-btn ${active ? 'active' : ''}" onclick="opSetTipo('${v}')">${t}</div>`;
   }).join('');
+
+  const elVeiculo = document.getElementById('op-chips-veiculo');
+  if (elVeiculo) {
+    elVeiculo.innerHTML = [['Todos', ''], ['🏍 Motos', 'MM'], ['🚗 Carros', 'LB']].map(([label, v]) => {
+      const active = op.veiculo === v;
+      return `<div class="pg-tipo-btn ${active ? 'active' : ''}" onclick="opSetVeiculo('${v}')">${label}</div>`;
+    }).join('');
+  }
 }
+
+function opSetVeiculo(v) { op.veiculo = (op.veiculo === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
 
 function opSetCentro(v) { op.centro = (op.centro === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
 function opSetClassificacao(v) { op.classificacao = (op.classificacao === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
@@ -3612,6 +3633,7 @@ let opSupervisorMesColunas = [];
 
 function opRenderSupervisorMes(dados) {
   dados = dados || opDadosParaTaxas;
+  if (op.veiculo) dados = dados.filter(r => getTipoEquipe(r['Recurso/Equipe']) === op.veiculo);
   const meses = Array.from(op.mesesSelecionados).sort();
   const porSupervisor = {};
   dados.forEach(r => {
@@ -3652,6 +3674,51 @@ function opRenderSupervisorMes(dados) {
   }
   document.getElementById('op-tabela-sup-mes').innerHTML = html
     || `<tr><td colspan="${meses.length + 2}" style="padding:20px;text-align:center;color:var(--gray-400);">Sem Produtivos no período/filtro atual</td></tr>`;
+
+  opRenderEquipeExecMes(dados, meses);
+}
+
+// ── Quantidade de equipes ativas e de executados (Produtivo+Improdutivo)
+// por mês -- mesmo `dados` já filtrado por veículo (Motos/Carros) usado na
+// tabela de supervisor acima. "Equipes" conta código de equipe distinto
+// que teve pelo menos 1 serviço classificado no mês; "Executados" conta
+// toda OS classificada (Produtivo ou Improdutivo -- Devolvido não conta
+// como executado, mesma convenção da aba Execução).
+function opRenderEquipeExecMes(dados, meses) {
+  const equipesPorMes = {};
+  const executadosPorMes = {};
+  meses.forEach(m => { equipesPorMes[m] = new Set(); executadosPorMes[m] = 0; });
+  dados.forEach(r => {
+    const classif = opClassificar(r);
+    if (classif !== 'PRODUTIVO' && classif !== 'IMPRODUTIVO') return;
+    const mesKey = (r.__data || '').slice(0, 7);
+    if (!meses.includes(mesKey)) return;
+    const eq = r['Recurso/Equipe'];
+    if (eq) equipesPorMes[mesKey].add(eq);
+    executadosPorMes[mesKey]++;
+  });
+
+  const thead = document.getElementById('op-equipe-exec-mes-thead');
+  thead.innerHTML = '<th>Métrica</th>' + meses.map(m => `<th class="op-num">${opMesLabelCurto(m)}</th>`).join('') + '<th class="op-num">Total</th>';
+
+  const totalEquipesUnicas = new Set();
+  meses.forEach(m => equipesPorMes[m].forEach(eq => totalEquipesUnicas.add(eq)));
+  const totalExecutados = meses.reduce((s, m) => s + executadosPorMes[m], 0);
+
+  const linhaEquipes = '<tr><td>Equipes</td>'
+    + meses.map(m => `<td class="op-num">${equipesPorMes[m].size || '—'}</td>`).join('')
+    + `<td class="op-num"><b>${totalEquipesUnicas.size}</b></td></tr>`;
+  const linhaExecutados = '<tr><td>Executados</td>'
+    + meses.map(m => `<td class="op-num">${executadosPorMes[m] ? executadosPorMes[m].toLocaleString('pt-BR') : '—'}</td>`).join('')
+    + `<td class="op-num"><b>${totalExecutados.toLocaleString('pt-BR')}</b></td></tr>`;
+
+  document.getElementById('op-tabela-equipe-exec-mes').innerHTML = meses.length
+    ? linhaEquipes + linhaExecutados
+    : `<tr><td colspan="2" style="padding:20px;text-align:center;color:var(--gray-400);">Selecione um mês no período</td></tr>`;
+
+  document.getElementById('op-equipe-exec-mes-sub').textContent =
+    `Quantidade de equipes ativas e de serviços executados (Produtivo + Improdutivo) por mês`
+    + (op.veiculo ? ` · ${op.veiculo === 'MM' ? 'Motos' : 'Carros'}` : '');
 }
 
 function opCopiarSupervisorMes() {
