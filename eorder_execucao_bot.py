@@ -291,8 +291,12 @@ def _carregar_clientes_sul_local():
 XP_USER          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[1]/td[2]/input"
 XP_PASS          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[2]/td[2]/input"
 
-XP_PLANEJAMENTO  = '//*[@id="TBB_tbm2"]/div[6]'
-XP_BUSCA_EXEC    = '//*[@id="TBB_tbm2"]/div[2]'
+# Antes eram por posição fixa (div[6]/div[2]) -- quebrou em 07/09/2026
+# quando a Enel adicionou um item novo ("Monitoramento") no Menu Principal,
+# e o robô passou a falhar 100% das vezes em "Abrindo Planejamento...".
+# Por texto é resistente a qualquer reordenação/adição de item futura.
+XP_PLANEJAMENTO  = '//*[@id="TBB_tbm2"]/div[normalize-space(.)="Planejamento"]'
+XP_BUSCA_EXEC    = '//*[@id="TBB_tbm2"]/div[normalize-space(.)="Busca Execução"]'
 XP_CENTRO_OP     = '/html/body/div[2]/div/div[2]/div/div[2]/div/div[2]/div/div/div[1]/table/tbody/tr/td/div/div[2]/div/form/table[1]/tbody[1]/tr[2]/td[1]/table/tbody/tr[2]/td[2]/select'
 CENTRO_OP_VALOR  = "Cosampa - Sul"
 XP_TRES_PONTOS   = '/html/body/div[2]/div/div[2]/div/div[2]/div/div[2]/div/div/div[1]/table/tbody/tr/td/div/div[2]/div/form/table[1]/tbody[1]/tr[2]/td[1]/table/tbody/tr[4]/td[2]/table/tbody/tr/td/div/div[1]/div/div[1]'
