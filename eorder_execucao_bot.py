@@ -329,6 +329,11 @@ XP_ESTADO_FINALIZADO = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/di
 XP_ESTADO_ANULADO    = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/div/form/table/tbody[3]/tr[6]/td[1]/table/tbody/tr[5]/td/table/tbody/tr[1]/td/table/tbody/tr/td[1]/div/div[2]/div/div/div/div[2]/div/table/tbody/tr[3]'
 XP_ESTADO_ENCERRADO  = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/div/form/table/tbody[3]/tr[6]/td[1]/table/tbody/tr[5]/td/table/tbody/tr[1]/td/table/tbody/tr/td[1]/div/div[2]/div/div/div/div[2]/div/table/tbody/tr[4]'
 XP_ESTADO_SUSPENSO   = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/div/form/table/tbody[3]/tr[6]/td[1]/table/tbody/tr[5]/td/table/tbody/tr[1]/td/table/tbody/tr/td[1]/div/div[2]/div/div/div/div[2]/div/table/tbody/tr[6]'
+# usado só pra CONFERIR (não clicamos aqui) que o "Selecionar Todos" pegou de verdade --
+# tem que continuar marcado depois do _estado_tdc() rodar, senão a busca sai invertida
+# (só os 4 estados de cima marcados, o resto de fora -- foi o que causou o Anulado
+# tomando conta do painel em 10/09/2026, ver CLAUDE.md/histórico).
+XP_ESTADO_ABERTO     = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/div/form/table/tbody[3]/tr[6]/td[1]/table/tbody/tr[5]/td/table/tbody/tr[1]/td/table/tbody/tr/td[1]/div/div[2]/div/div/div/div[2]/div/table/tbody/tr[7]'
 
 XP_DATAS_REF_SPAN = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/div/form/table/tbody[9]/tr[1]/td/span'
 XP_DATA_LANC_INI  = '/html/body/div[2]/div/div[2]/div/div[1]/div[2]/div[1]/div/form/table/tbody[9]/tr[2]/td/table/tbody/tr/td[1]/table/tbody/tr/td/fieldset/table/tbody/tr[1]/td/table/tbody/tr/td[1]//input'
@@ -1072,14 +1077,37 @@ class EOrderExecucaoBot:
         self._click(XP_CHK_EMERG_TDC, timeout=20)
 
     def _estado_tdc(self):
-        self._plog("⚙️  Abrindo Estado de TdC (marcando todos)...")
-        self._click(XP_TRES_PONTOS_ESTADO, timeout=20)
-        for nome, xp in [("Finalizado", XP_ESTADO_FINALIZADO),
-                          ("Anulado", XP_ESTADO_ANULADO),
-                          ("Encerrado", XP_ESTADO_ENCERRADO),
-                          ("Suspenso", XP_ESTADO_SUSPENSO)]:
-            self._plog(f"🚫 Desmarcando '{nome}'...")
-            self._click(xp, timeout=20)
+        estados_excluir = [("Finalizado", XP_ESTADO_FINALIZADO),
+                            ("Anulado", XP_ESTADO_ANULADO),
+                            ("Encerrado", XP_ESTADO_ENCERRADO),
+                            ("Suspenso", XP_ESTADO_SUSPENSO)]
+        for tentativa in range(1, 4):
+            self._plog(f"⚙️  Abrindo Estado de TdC (marcando todos) [tentativa {tentativa}/3]...")
+            self._click(XP_TRES_PONTOS_ESTADO, timeout=20)
+            for nome, xp in estados_excluir:
+                self._plog(f"🚫 Desmarcando '{nome}'...")
+                self._click(xp, timeout=20)
+            time.sleep(1)
+            if self._estado_tdc_conferir(estados_excluir):
+                self._plog("✅ Estado TdC conferido: excluídos fora, resto dentro.")
+                return
+            self._plog("⚠️  Estado TdC saiu como o inverso do esperado -- tentando de novo...")
+        raise RuntimeError("Estado TdC não aplicou corretamente após 3 tentativas (excluídos continuam marcados ou o resto ficou fora)")
+
+    def _estado_tdc_conferir(self, estados_excluir):
+        """Confere se os 4 estados (Finalizado/Anulado/Encerrado/Suspenso) ficaram
+        SEM marcação e se um estado que devia continuar marcado ('aberto')
+        realmente continua -- sem isso, uma falha silenciosa no clique de
+        'Selecionar Todos' inverte a busca inteira (só os 4 excluídos aparecem)."""
+        try:
+            for _, xp in estados_excluir:
+                classe = self._find(xp, EC.presence_of_element_located, timeout=10).get_attribute("class") or ""
+                if "tvRowSelected" in classe:
+                    return False
+            classe_aberto = self._find(XP_ESTADO_ABERTO, EC.presence_of_element_located, timeout=10).get_attribute("class") or ""
+            return "tvRowSelected" in classe_aberto
+        except Exception:
+            return False
 
     def _datas_referencia_tdc(self):
         self._plog("📅 Abrindo Datas Referência...")
