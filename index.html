@@ -2121,7 +2121,15 @@ async function execCarregar() {
 }
 
 function execPopularFiltroTipos() {
-  const tipos = [...new Set(execDados.map(execGetTipo).filter(Boolean))].sort();
+  // Junta tipo do que já foi executado hoje COM o que ainda tá só planejado --
+  // senão, de madrugada (Executados = 0), o filtro fica vazio mesmo já tendo
+  // Planejado com tipo definido (ver EXCLUIR igual execFiltrarPlanejadoBase,
+  // pra não listar tipo que só existe em TdC cancelado/reprogramável).
+  const EXCLUIR = ['programáveis','a reprogramar'];
+  const tiposPlanejado = execPlanejadoDados
+    .filter(r => !EXCLUIR.includes((r['Estado TdC'] || '').trim().toLowerCase()))
+    .map(execGetTipo);
+  const tipos = [...new Set([...tiposPlanejado, ...execDados.map(execGetTipo)].filter(Boolean))].sort();
   // Mantém seleção atual só com tipos que ainda existem nos dados carregados
   execTiposSelecionados = execTiposSelecionados.filter(t => tipos.includes(t));
   const wrap = document.getElementById('exec-tipo-opcoes');
