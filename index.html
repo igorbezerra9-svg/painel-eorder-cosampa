@@ -545,7 +545,8 @@
         <div style="color:#8097b8;font-size:11px;margin-top:2px;" id="exec-modal-sub"></div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button onclick="execCopiarModal()" id="btn-copiar-exec-modal" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;" title="Copiar lista">📋 Copiar</button>
+        <button onclick="execCopiarModalWhatsApp()" id="btn-copiar-exec-modal-wpp" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;" title="Copiar como cartão, pronto pra colar no WhatsApp">💬 Copiar p/ WhatsApp</button>
+        <button onclick="execCopiarModal()" id="btn-copiar-exec-modal" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;" title="Copiar em colunas, pronto pra colar no Excel">📋 Copiar p/ Excel</button>
         <button onclick="execFecharModal()" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;">✕ Fechar</button>
       </div>
     </div>
@@ -2602,13 +2603,65 @@ function execFiltrarModal() {
     '<tr><td colspan="7" style="padding:20px;text-align:center;color:#8097b8;">Nenhum serviço encontrado</td></tr>';
 }
 
+// Formato "cartão" (várias linhas por serviço, com emoji) -- igual o
+// pgCopiarModal do Painel Gerencial, pronto pra colar direto no WhatsApp
+// pra equipe. É o formato que tinha antes do execCopiarModal virar colunas
+// (ver commit d26b625) -- o Igor pediu os dois de volta: esse pro WhatsApp,
+// o de colunas pro Excel.
+function execCopiarModalWhatsApp() {
+  const q = (document.getElementById('exec-modal-search').value || '').toLowerCase();
+  const filtrado = execModalFiltrarDados(execModalDados, q);
+  const titulo = document.getElementById('exec-modal-title').textContent;
+  const sub = document.getElementById('exec-modal-sub').textContent;
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
+
+  const statusLinha = l => {
+    if (l.produtividade === null) return '⏰ Prazo: ' + (l.dataRef || '—').replace(' 23:59', '');
+    if (l.produtividade === 'PRODUTIVO') return '✅ Produtivo em ' + (l.dataRef || '—');
+    if (l.produtividade === 'IMPRODUTIVO') return '❌ Improdutivo em ' + (l.dataRef || '—') + (l.resultado ? ' — ' + l.resultado : '');
+    if (l.produtividade === 'DEVOLVIDO') return '↩ Devolvido em ' + (l.dataRef || '—');
+    return '';
+  };
+
+  const linhas = filtrado.map((l, i) => {
+    const regLabel = l.tipoOrdem === 'REG' ? '[REG]' : l.tipoOrdem === 'NREG' ? '[NÃO REG]' : '';
+    const gps = l.lat && l.lng ? '\nhttps://www.google.com/maps?q=' + l.lat + ',' + l.lng : '';
+    const partesReinc = [];
+    if (l.reincidenteInfo) {
+      partesReinc.push('já teve Improdutivo em ' + (l.reincidenteInfo.data || '').split(' ')[0] + (l.reincidenteInfo.motivo ? ' · ' + l.reincidenteInfo.motivo : ''));
+    }
+    if (l.produtividade === 'IMPRODUTIVO' && l.contagemAno) partesReinc.push(`×${l.contagemAno} este ano`);
+    const reinc = partesReinc.length ? '\n🔁 ' + partesReinc.join(' · ') : '';
+    return (i + 1) + '. *' + l.ns + '* ' + regLabel
+      + '\n👤 ' + l.cliente
+      + '\n📋 ' + l.tipo
+      + '\n📍 ' + (l.endereco ? l.endereco + ' — ' + l.municipio : l.municipio)
+      + '\n' + statusLinha(l)
+      + reinc
+      + gps;
+  });
+
+  const texto = '📊 *' + titulo + '*\n' + sub + '\n🗓 ' + dataHoje + '\n' + '─'.repeat(30) + '\n\n' + linhas.join('\n\n');
+  navigator.clipboard.writeText(texto).then(() => {
+    const btn = document.getElementById('btn-copiar-exec-modal-wpp');
+    btn.textContent = '✔ Copiado!';
+    btn.style.color = '#50d080';
+    btn.style.borderColor = '#50d080';
+    setTimeout(() => {
+      btn.textContent = '💬 Copiar p/ WhatsApp';
+      btn.style.color = '#8097b8';
+      btn.style.borderColor = '#8097b8';
+    }, 2000);
+  }).catch(() => showToast('Erro ao copiar', 2000));
+}
+
 function execCopiarModal() {
   const q = (document.getElementById('exec-modal-search').value || '').toLowerCase();
   const filtrado = execModalFiltrarDados(execModalDados, q);
 
   // Separado por tab (\t) -- cola em colunas certinho no Excel/Planilhas,
-  // uma linha por serviço (diferente do pgCopiarModal, que é o formato
-  // "cartão" pronto pro WhatsApp).
+  // uma linha por serviço (diferente do execCopiarModalWhatsApp, que é o
+  // formato "cartão" pronto pro WhatsApp).
   const statusTexto = l => {
     if (l.produtividade === null) return 'Aguardando execução';
     if (l.produtividade === 'PRODUTIVO') return 'Produtivo';
@@ -2641,7 +2694,7 @@ function execCopiarModal() {
     btn.style.color = '#50d080';
     btn.style.borderColor = '#50d080';
     setTimeout(() => {
-      btn.textContent = '📋 Copiar';
+      btn.textContent = '📋 Copiar p/ Excel';
       btn.style.color = '#8097b8';
       btn.style.borderColor = '#8097b8';
     }, 2000);
