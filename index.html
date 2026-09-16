@@ -804,7 +804,7 @@
         <div class="op-sub">Digite a meta do mês e salve — fica guardada, só muda quando você mudar.</div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
           <input type="number" id="com-meta-input" placeholder="Meta do mês" style="font-size:16px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;width:160px;">
-          <button onclick="comercialSalvarMeta()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
+          <button onclick="comercialSalvarMeta()" id="com-meta-salvar-btn" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
           <span id="com-meta-status" style="font-size:12px;color:var(--gray-400);"></span>
         </div>
       </div>
@@ -819,6 +819,12 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ver como estava em:</span>
+    <select id="com-dia-referencia" onchange="comercialSetDiaReferencia(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);"></select>
+    <span id="com-dia-referencia-aviso" style="font-size:12px;color:#b8860b;font-weight:600;"></span>
   </div>
 
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
@@ -4045,6 +4051,7 @@ const com = {
   diasRestantes: 0,
   filtroSupervisor: '',
   carregando: false,
+  diaReferencia: null,  // null = hoje (ao vivo); senão Date -- "volta no tempo" pra ver como estava naquele dia
 };
 
 function comercialMesAtualKey() {
@@ -4241,11 +4248,11 @@ async function comercialCarregar() {
 //    parecia baixo mesmo quando ela já tinha passado da meta.
 // Em ambos, o último da lista absorve a sobra do arredondamento, pra soma
 // bater exatamente com o total (mesmo truque da planilha do Igor).
-function comercialCalcularRateio(metaMesTotal, saldo, diasRestantes, metaDefinida) {
-  const ativas = comercialEquipesAtivas(com.dadosMesAtual);
+function comercialCalcularRateio(dados, metaMesTotal, saldo, diasRestantes, metaDefinida) {
+  const ativas = comercialEquipesAtivas(dados);
   const equipesPorSupervisor = {};
   const executadoPorSupervisor = {};
-  com.dadosMesAtual.forEach(r => {
+  dados.forEach(r => {
     if (opClassificar(r) !== 'PRODUTIVO') return;
     const sup = getSupervisor(r['Recurso/Equipe']);
     if (!sup) return;
@@ -4297,9 +4304,12 @@ function comercialCalcularRateio(metaMesTotal, saldo, diasRestantes, metaDefinid
   return linhas;
 }
 
-function comercialRenderGrafico(ano, mesIdx, metaDia) {
+function comercialRenderGrafico(ano, mesIdx, metaDia, diaRef) {
   const feriados = comercialFeriados(ano);
   const ultimoDia = new Date(ano, mesIdx + 1, 0).getDate();
+  // Usa TODO o mês (não só até diaRef) -- os dias depois de diaRef só
+  // ficam sem barra por causa do "futuro" abaixo, mas continuam existindo
+  // no eixo (o mês inteiro sempre aparece, só o que já rolou é mostrado).
   const porDia = {};
   com.dadosMesAtual.forEach(r => {
     if (opClassificar(r) !== 'PRODUTIVO') return;
@@ -4318,7 +4328,7 @@ function comercialRenderGrafico(ano, mesIdx, metaDia) {
     const chave = comercialChaveData(dataObj);
     const ehUtil = comercialEhDiaUtilCorte(dataObj, feriados);
     const realizado = porDia[chave] || 0;
-    const futuro = dataObj > hoje;
+    const futuro = dataObj > diaRef;
     const alturaRealizado = futuro ? 0 : Math.round((realizado / maxBarra) * 100);
     const alturaMeta = ehUtil ? Math.round((metaDia / maxBarra) * 100) : 0;
     const corBarra = !ehUtil ? '#8e9fb8' : (realizado >= metaDia ? '#1a7a40' : '#c0392b');
@@ -4392,9 +4402,10 @@ function comercialCopiarSupervisor() {
   }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
-function comercialRenderTabelaEquipe() {
+function comercialRenderTabelaEquipe(dados) {
+  dados = dados || com.dadosAteRef || com.dadosMesAtual;
   const porEquipe = {};
-  com.dadosMesAtual.forEach(r => {
+  dados.forEach(r => {
     if (opClassificar(r) !== 'PRODUTIVO') return;
     const cod = r['Recurso/Equipe'];
     if (!cod) return;
@@ -4452,25 +4463,60 @@ function comercialCopiarEquipe() {
 
 function comercialFiltrarSupervisor(nome) {
   com.filtroSupervisor = nome;
-  comercialRenderTabelaEquipe();
+  comercialRenderTabelaEquipe(com.dadosAteRef);
+}
+
+// Popula o seletor "Ver como estava em" com os dias já decorridos do mês
+// (dia de hoje incluso, mas ele já é o padrão "Hoje (ao vivo)").
+function comercialPopularDiaReferencia() {
+  const sel = document.getElementById('com-dia-referencia');
+  const hojeNum = hoje.getDate();
+  const valorAtual = com.diaReferencia ? String(com.diaReferencia.getDate()) : '';
+  let html = '<option value="">Hoje (ao vivo)</option>';
+  for (let d = hojeNum; d >= 1; d--) html += `<option value="${d}">Dia ${d}</option>`;
+  sel.innerHTML = html;
+  sel.value = valorAtual;
+}
+
+function comercialSetDiaReferencia(valor) {
+  const ano = hoje.getFullYear(), mesIdx = hoje.getMonth();
+  com.diaReferencia = valor ? new Date(ano, mesIdx, Number(valor)) : null;
+  comercialRender();
 }
 
 function comercialRender() {
   const ano = hoje.getFullYear(), mesIdx = hoje.getMonth();
   const mesKey = comercialMesAtualKey();
   const meta = com.metasPorMes[mesKey] || 0;
+  // "Volta no tempo": com diaReferencia setado, tudo (KPIs, gráfico,
+  // rateio) é recalculado considerando só o que aconteceu até aquele dia
+  // -- como se ele fosse "hoje". Sem isso, só dá pra ver o estado atual.
+  const diaRef = com.diaReferencia || hoje;
+  const vendoPassado = !!com.diaReferencia;
+
+  comercialPopularDiaReferencia();
 
   document.getElementById('com-meta-input').value = meta || '';
+  document.getElementById('com-meta-input').disabled = vendoPassado;
+  document.getElementById('com-meta-salvar-btn').disabled = vendoPassado;
+  document.getElementById('com-meta-salvar-btn').style.opacity = vendoPassado ? '0.5' : '1';
   document.getElementById('com-meta-titulo').textContent = 'Meta de ' + OP_MESES_LABEL[mesIdx] + '/' + String(ano).slice(2);
+  document.getElementById('com-dia-referencia-aviso').textContent = vendoPassado
+    ? '⏳ Vendo como estava em ' + diaRef.toLocaleDateString('pt-BR') + ' — não é o estado de agora'
+    : '';
 
   const diasUteis = comercialDiasUteisNoMes(ano, mesIdx);
-  const diasDecorridos = comercialDiasUteisDecorridosNoMes(ano, mesIdx, hoje);
+  const diasDecorridos = comercialDiasUteisDecorridosNoMes(ano, mesIdx, diaRef);
   const diasRestantes = Math.max(diasUteis - diasDecorridos, 0);
   const metaDia = diasUteis ? meta / diasUteis : 0;
   com.diasRestantes = diasRestantes;
 
+  const chaveRef = comercialChaveData(diaRef);
+  const dadosAteRef = com.dadosMesAtual.filter(r => !r.__data || r.__data <= chaveRef);
+  com.dadosAteRef = dadosAteRef;
+
   const metaDefinida = meta > 0;
-  const executado = com.dadosMesAtual.filter(r => opClassificar(r) === 'PRODUTIVO').length;
+  const executado = dadosAteRef.filter(r => opClassificar(r) === 'PRODUTIVO').length;
   const falta = metaDefinida ? Math.max(meta - executado, 0) : 0;
   const pctAtingimento = metaDefinida ? Math.min(100, Math.round((executado / meta) * 100)) : null;
   const metaDiaNecessaria = metaDefinida && diasRestantes ? falta / diasRestantes : null;
@@ -4482,10 +4528,10 @@ function comercialRender() {
   document.getElementById('com-pct-atingimento').textContent = pctAtingimento === null ? '—' : pctAtingimento + '%';
   document.getElementById('com-meta-dia-necessaria').textContent = metaDiaNecessaria ? metaDiaNecessaria.toFixed(1) : '—';
 
-  com.rateio = comercialCalcularRateio(meta, falta, diasRestantes, metaDefinida);
-  comercialRenderGrafico(ano, mesIdx, metaDia);
+  com.rateio = comercialCalcularRateio(dadosAteRef, meta, falta, diasRestantes, metaDefinida);
+  comercialRenderGrafico(ano, mesIdx, metaDia, diaRef);
   comercialRenderTabelaSupervisor(com.rateio);
-  comercialRenderTabelaEquipe();
+  comercialRenderTabelaEquipe(dadosAteRef);
 }
 
 async function buscarCarimbo(regiao) {
