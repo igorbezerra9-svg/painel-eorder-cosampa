@@ -4102,6 +4102,7 @@ const com = {
   diaReferencia: null,  // null = "até hoje" (ao vivo, só faz sentido quando mesReferencia é o mês atual); senão Date
   modalDados: [],
   modalOrdemAsc: true,
+  metaValorAnterior: {}, // { 'YYYY-MM': valor antes do último Salvar } -- pro "Desfazer"
 };
 
 function comercialMesAtualKey() {
@@ -4123,6 +4124,7 @@ function comercialPopularMesReferencia() {
 async function comercialSetMesReferencia(valor) {
   com.mesReferencia = valor;
   com.diaReferencia = null; // trocar de mês reseta o "até o dia" (só se aplica ao mês atual)
+  document.getElementById('com-meta-status').textContent = ''; // mensagem de Salvar/Desfazer era de outro mês
   await comercialCarregarDadosDoMesReferencia();
   comercialRender();
 }
@@ -4178,17 +4180,54 @@ function comercialDiasUteisDecorridosNoMes(ano, mesIdx, hojeData) {
   return n;
 }
 
+// O Supabase às vezes responde erro passageiro (500/timeout -- já vimos
+// isso o dia inteiro nos outros testes desta aba). Sem tentar de novo, uma
+// falha dessas fazia a Meta "sumir" da tela num F5 mesmo estando salva
+// certinho no banco -- porque o código antigo tratava "erro" igual a
+// "nenhuma meta salva ainda" (com.metasPorMes = {} nos dois casos). Agora
+// tenta 3 vezes antes de desistir, e só zera o que já tinha carregado se
+// mesmo assim não conseguir (nunca troca um dado bom por um vazio).
 async function comercialCarregarMetas() {
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.Cortes_Metas&select=dados', {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const rows = await res.json();
+      if (!Array.isArray(rows)) throw new Error('resposta inesperada');
+      const lista = (rows[0] && rows[0].dados) || [];
+      com.metasPorMes = {};
+      lista.forEach(item => { if (item && item.mes) com.metasPorMes[item.mes] = Number(item.meta) || 0; });
+      return;
+    } catch (e) {
+      if (tentativa < 3) await new Promise(r => setTimeout(r, 800));
+    }
+  }
+  showToast('⚠️ Não deu pra confirmar a Meta salva (falha no Supabase) -- tenta recarregar', 5000);
+}
+
+// Manda o com.metasPorMes inteiro pro Supabase (sempre substitui o array
+// todo -- é assim que Salvar E Desfazer funcionam, os dois só mudam o que
+// tá em memória antes de chamar isso).
+async function comercialGravarMetas(status, mensagemSucesso) {
+  const lista = Object.keys(com.metasPorMes).sort().map(mes => ({ mes, meta: com.metasPorMes[mes] }));
   try {
-    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.Cortes_Metas&select=dados', {
-      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
+    const corpo = JSON.stringify({ regiao: 'Cortes_Metas', dados: lista, atualizado_em: new Date().toISOString() });
+    const res = await fetch(SB_URL + '/rest/v1/snapshots', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: corpo,
     });
-    const rows = await res.json();
-    const lista = (Array.isArray(rows) && rows[0] && rows[0].dados) || [];
-    com.metasPorMes = {};
-    lista.forEach(item => { if (item && item.mes) com.metasPorMes[item.mes] = Number(item.meta) || 0; });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    status.innerHTML = mensagemSucesso;
+    status.style.color = '#1a7a40';
+    comercialRender();
+    return true;
   } catch (e) {
-    com.metasPorMes = {};
+    status.textContent = 'Erro ao salvar -- tenta de novo';
+    status.style.color = '#c0392b';
+    return false;
   }
 }
 
@@ -4201,25 +4240,26 @@ async function comercialSalvarMeta() {
     status.style.color = '#c0392b';
     return;
   }
-  com.metasPorMes[com.mesReferencia] = valor;
-  const lista = Object.keys(com.metasPorMes).sort().map(mes => ({ mes, meta: com.metasPorMes[mes] }));
+  const mesKey = com.mesReferencia;
+  // Guarda o valor de antes (ou null se não tinha nenhum) pra dar pra
+  // desfazer esse salvamento específico.
+  com.metaValorAnterior[mesKey] = com.metasPorMes[mesKey] ?? null;
+  com.metasPorMes[mesKey] = valor;
   status.textContent = 'Salvando...';
   status.style.color = 'var(--gray-400)';
-  try {
-    const corpo = JSON.stringify({ regiao: 'Cortes_Metas', dados: lista, atualizado_em: new Date().toISOString() });
-    const res = await fetch(SB_URL + '/rest/v1/snapshots', {
-      method: 'POST',
-      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-      body: corpo,
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    status.textContent = '✔ Salvo';
-    status.style.color = '#1a7a40';
-    comercialRender();
-  } catch (e) {
-    status.textContent = 'Erro ao salvar';
-    status.style.color = '#c0392b';
-  }
+  await comercialGravarMetas(status, '✔ Salvo <a onclick="comercialDesfazerMeta()" style="cursor:pointer;text-decoration:underline;color:#5aa8f0;margin-left:8px;">↩ Desfazer</a>');
+}
+
+async function comercialDesfazerMeta() {
+  const mesKey = com.mesReferencia;
+  const status = document.getElementById('com-meta-status');
+  const anterior = com.metaValorAnterior[mesKey];
+  if (anterior === undefined) return;
+  if (!anterior) delete com.metasPorMes[mesKey]; else com.metasPorMes[mesKey] = anterior;
+  delete com.metaValorAnterior[mesKey];
+  status.textContent = 'Desfazendo...';
+  status.style.color = 'var(--gray-400)';
+  await comercialGravarMetas(status, '↩ Desfeito');
 }
 
 async function comercialDadosDoMes(mesKey) {
