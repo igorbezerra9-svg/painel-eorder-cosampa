@@ -853,8 +853,8 @@
       <table class="op-table">
         <thead><tr>
           <th>Supervisor</th><th class="op-num">Média hist. (cortes/equipe/dia)</th><th class="op-num">Equipes (mês)</th>
-          <th class="op-num">% Participação</th><th class="op-num">Meta restante</th><th class="op-num">Meta/dia</th>
-          <th class="op-num">Meta/equipe/dia</th><th class="op-num">Executado (mês)</th><th class="op-num">% Atingimento</th><th class="op-num">Falta</th>
+          <th class="op-num">% Participação</th><th class="op-num" title="Quanto ainda falta produzir daqui até o fim do mês">Meta restante</th><th class="op-num">Meta/dia</th>
+          <th class="op-num">Meta/equipe/dia</th><th class="op-num" title="Fatia do supervisor pro mês inteiro -- usada só pra medir % Atingimento/Falta">Meta (mês)</th><th class="op-num">Executado (mês)</th><th class="op-num">% Atingimento</th><th class="op-num">Falta</th>
         </tr></thead>
         <tbody id="com-tabela-supervisor"></tbody>
       </table>
@@ -865,7 +865,7 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;">
       <div>
         <h3>Ranking por Equipe</h3>
-        <div class="op-sub">Meta da equipe = fatia do supervisor dividida entre as equipes dele.</div>
+        <div class="op-sub">Meta (mês) = fatia do supervisor pro mês inteiro, dividida em partes iguais entre as equipes dele.</div>
       </div>
       <select id="com-filtro-supervisor" onchange="comercialFiltrarSupervisor(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;">
         <option value="">Todos os supervisores</option>
@@ -874,7 +874,7 @@
     <div style="overflow-x:auto;">
       <table class="op-table">
         <thead><tr>
-          <th>Equipe</th><th>Supervisor</th><th class="op-num">Executado (mês)</th><th class="op-num">Meta</th>
+          <th>Equipe</th><th>Supervisor</th><th class="op-num">Executado (mês)</th><th class="op-num">Meta (mês)</th>
           <th class="op-num">% Atingimento</th><th class="op-num">Falta</th>
         </tr></thead>
         <tbody id="com-tabela-equipe"></tbody>
@@ -4195,12 +4195,21 @@ async function comercialCarregar() {
   }
 }
 
-// Rateia o SALDO que falta (não o mês inteiro) proporcionalmente à
-// "capacidade" de cada supervisor (média histórica × equipes que ele tem
-// rodando agora) -- quem já produziu mais não carrega a mesma cota de quem
-// produziu menos. O último da lista absorve a sobra do arredondamento, pra
-// soma bater exatamente com o saldo (mesmo truque da planilha do Igor).
-function comercialCalcularRateio(saldo, diasRestantes, metaDefinida) {
+// Rateia proporcionalmente à "capacidade" de cada supervisor (média
+// histórica × equipes que ele tem rodando agora) -- quem tem mais/melhores
+// equipes carrega uma fatia maior. Isso é feito 2 vezes com a MESMA %:
+// 1) sobre o SALDO que falta (Meta restante/dia/equipe-dia) -- é a conta
+//    operacional da planilha do Igor, pra saber quanto cada um ainda
+//    precisa produzir por dia até o fim do mês.
+// 2) sobre a META DO MÊS INTEIRA (metaMensal) -- usada só pra medir
+//    % Atingimento/Falta de forma estável. Se fosse medido contra o
+//    "restante" (que só olha daqui pra frente), uma equipe que já produziu
+//    bem mais que a fatia do dia ainda apareceria "devendo" o mesmo tanto,
+//    porque o restante não desconta o que ela já fez -- ai o Atingimento
+//    parecia baixo mesmo quando ela já tinha passado da meta.
+// Em ambos, o último da lista absorve a sobra do arredondamento, pra soma
+// bater exatamente com o total (mesmo truque da planilha do Igor).
+function comercialCalcularRateio(metaMesTotal, saldo, diasRestantes, metaDefinida) {
   const equipesPorSupervisor = {};
   const executadoPorSupervisor = {};
   com.dadosMesAtual.forEach(r => {
@@ -4222,27 +4231,31 @@ function comercialCalcularRateio(saldo, diasRestantes, metaDefinida) {
   }).filter(l => l.capacidade > 0);
 
   const totalCapacidade = linhas.reduce((s, l) => s + l.capacidade, 0);
-  let somaRateada = 0;
+  let somaRateadaRestante = 0, somaRateadaMensal = 0;
   linhas.forEach((l, i) => {
     l.pctParticipacao = totalCapacidade ? l.capacidade / totalCapacidade : 0;
     l.executado = executadoPorSupervisor[l.sup] || 0;
     if (!metaDefinida) {
       // Sem meta salva ainda pro mês -- não dá pra ratear nem calcular
       // atingimento contra um alvo que não existe (mostra "—" na tabela).
-      l.metaRestante = null; l.metaDia = null; l.metaEquipeDia = null; l.pctAtingimento = null; l.falta = null;
+      l.metaRestante = null; l.metaDia = null; l.metaEquipeDia = null;
+      l.metaMensal = null; l.pctAtingimento = null; l.falta = null;
       return;
     }
-    if (i < linhas.length - 1) {
+    const ultimo = i === linhas.length - 1;
+    if (!ultimo) {
       l.metaRestante = Math.round(l.pctParticipacao * saldo);
-      somaRateada += l.metaRestante;
+      somaRateadaRestante += l.metaRestante;
+      l.metaMensal = Math.round(l.pctParticipacao * metaMesTotal);
+      somaRateadaMensal += l.metaMensal;
     } else {
-      l.metaRestante = Math.max(saldo - somaRateada, 0);
+      l.metaRestante = Math.max(saldo - somaRateadaRestante, 0);
+      l.metaMensal = Math.max(metaMesTotal - somaRateadaMensal, 0);
     }
     l.metaDia = diasRestantes ? l.metaRestante / diasRestantes : 0;
     l.metaEquipeDia = l.equipes ? l.metaDia / l.equipes : 0;
-    const metaImplicitaTotal = l.executado + l.metaRestante;
-    l.pctAtingimento = metaImplicitaTotal ? Math.round((l.executado / metaImplicitaTotal) * 100) : 0;
-    l.falta = l.metaRestante;
+    l.pctAtingimento = l.metaMensal ? Math.round((l.executado / l.metaMensal) * 100) : 0;
+    l.falta = Math.max(l.metaMensal - l.executado, 0);
   });
   return linhas;
 }
@@ -4291,10 +4304,11 @@ function comercialRenderTabelaSupervisor(rateio) {
     <td class="op-num">${n(l.metaRestante)}</td>
     <td class="op-num">${l.metaDia === null ? '—' : l.metaDia.toFixed(1)}</td>
     <td class="op-num">${l.metaEquipeDia === null ? '—' : l.metaEquipeDia.toFixed(1)}</td>
+    <td class="op-num">${n(l.metaMensal)}</td>
     <td class="op-num">${l.executado}</td>
     <td class="op-num">${l.pctAtingimento === null ? '—' : l.pctAtingimento + '%'}</td>
     <td class="op-num">${n(l.falta)}</td>
-  </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--gray-400);">Sem histórico suficiente ainda pra montar o rateio (precisa de pelo menos 1 mês passado completo)</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray-400);">Sem histórico suficiente ainda pra montar o rateio (precisa de pelo menos 1 mês passado completo)</td></tr>';
 }
 
 function comercialRenderTabelaEquipe() {
@@ -4312,11 +4326,16 @@ function comercialRenderTabelaEquipe() {
   let linhas = Object.keys(porEquipe).map(cod => {
     const e = porEquipe[cod];
     const r = rateioPorSup[e.sup];
-    const temMeta = r && r.metaEquipeDia !== null;
-    const meta = temMeta ? Math.round(r.metaEquipeDia * com.diasRestantes) : null;
-    const metaImplicitaTotal = e.executado + (meta || 0);
-    const pct = temMeta && metaImplicitaTotal ? Math.round((e.executado / metaImplicitaTotal) * 100) : null;
-    return { cod, sup: e.sup, executado: e.executado, meta, pct, falta: meta };
+    const temMeta = r && r.metaMensal !== null;
+    // Meta (mês) = fatia estável do supervisor pro mês INTEIRO, dividida
+    // igual entre as equipes dele -- não é o "quanto falta a partir de
+    // hoje" (esse já varia com equipe que produziu mais/menos); é fixo o
+    // mês inteiro, senão uma equipe que já passou da meta continuava
+    // aparecendo "devendo" o mesmo tanto de antes.
+    const meta = temMeta ? Math.round(r.metaMensal / r.equipes) : null;
+    const pct = temMeta && meta ? Math.round((e.executado / meta) * 100) : null;
+    const falta = temMeta ? Math.max(meta - e.executado, 0) : null;
+    return { cod, sup: e.sup, executado: e.executado, meta, pct, falta };
   });
 
   const sel = document.getElementById('com-filtro-supervisor');
@@ -4367,7 +4386,7 @@ function comercialRender() {
   document.getElementById('com-pct-atingimento').textContent = pctAtingimento === null ? '—' : pctAtingimento + '%';
   document.getElementById('com-meta-dia-necessaria').textContent = metaDiaNecessaria ? metaDiaNecessaria.toFixed(1) : '—';
 
-  com.rateio = comercialCalcularRateio(falta, diasRestantes, metaDefinida);
+  com.rateio = comercialCalcularRateio(meta, falta, diasRestantes, metaDefinida);
   comercialRenderGrafico(ano, mesIdx, metaDia);
   comercialRenderTabelaSupervisor(com.rateio);
   comercialRenderTabelaEquipe();
