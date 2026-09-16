@@ -4151,7 +4151,13 @@ async function comercialSalvarMeta() {
 
 async function comercialDadosDoMes(mesKey) {
   const registros = await opFetchMes(mesKey);
-  return registros.filter(r => opCategoriaServico(r) === 'Corte');
+  // Corte é trabalho de equipe de moto (MM) -- equipe de carro (LB) faz
+  // outro tipo de serviço e só de vez em quando pega um corte de apoio
+  // (1-2 isolados). Filtra aqui na fonte, pra ficar consistente em toda a
+  // aba (histórico, mês atual, gráfico, rateio, ranking) -- senão essas
+  // equipes de apoio entravam no rateio com a mesma meta de quem realmente
+  // trabalha Corte.
+  return registros.filter(r => opCategoriaServico(r) === 'Corte' && getTipoEquipe(r['Recurso/Equipe']) === 'MM');
 }
 
 // Equipe "ativa" em Corte no mês = fez mais de 10 produtivos -- abaixo
