@@ -827,8 +827,12 @@
   </div>
 
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-    <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ver como estava em:</span>
-    <select id="com-dia-referencia" onchange="comercialSetDiaReferencia(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);"></select>
+    <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Mês:</span>
+    <select id="com-mes-referencia" onchange="comercialSetMesReferencia(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);"></select>
+    <span id="com-dia-referencia-wrap" style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Até o dia:</span>
+      <select id="com-dia-referencia" onchange="comercialSetDiaReferencia(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);"></select>
+    </span>
     <span id="com-dia-referencia-aviso" style="font-size:12px;color:#b8860b;font-weight:600;"></span>
   </div>
 
@@ -909,6 +913,40 @@
     </div>
   </div>
 
+</div>
+
+<!-- MODAL DETALHE SERVIÇOS (Indicador Comercial) -->
+<div id="com-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:820px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25);">
+    <div style="background:#0d1b2a;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #e8a020;">
+      <div>
+        <div style="color:#fff;font-size:15px;font-weight:700;" id="com-modal-title">Cortes produtivos</div>
+        <div style="color:#8097b8;font-size:11px;margin-top:2px;" id="com-modal-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="comercialCopiarModal()" id="btn-copiar-com-modal" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;">📋 Copiar</button>
+        <button onclick="comercialFecharModal()" style="background:transparent;border:1px solid #8097b8;color:#8097b8;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;">✕ Fechar</button>
+      </div>
+    </div>
+    <div style="padding:16px;max-height:70vh;overflow-y:auto;">
+      <input type="text" id="com-modal-search" placeholder="Buscar por OS, cliente, equipe, data..." oninput="comercialFiltrarModal()"
+        style="width:100%;padding:8px 12px;border:1px solid #e4e8ef;border-radius:8px;font-size:13px;margin-bottom:12px;">
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:#0d1b2a;color:#fff;">
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;cursor:pointer;" onclick="comercialOrdenarModal()">N. Serviço</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Cliente</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;cursor:pointer;" onclick="comercialOrdenarModal()" title="Clique pra ordenar por data">Data ↕</th>
+              <th style="padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Município</th>
+            </tr>
+          </thead>
+          <tbody id="com-modal-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="op-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
@@ -4033,6 +4071,7 @@ function opAbrirDiagnosticoBucket(bucketKey) {
 }
 document.addEventListener('click', (e) => {
   if (e.target.id === 'op-modal') opFecharModal();
+  if (e.target.id === 'com-modal') comercialFecharModal();
 });
 
 // ══ AUTO-REFRESH (TV de sala) — cobre também o recálculo da intensidade do pulsar ══
@@ -4053,17 +4092,43 @@ document.addEventListener('click', (e) => {
 // Supabase (mesma chave pública já usada em todo o painel).
 const com = {
   metasPorMes: {},      // { 'YYYY-MM': numero } -- vem do Supabase
-  mediaHistPorSupervisor: {}, // { supervisor: média cortes/equipe/dia, meses passados completos }
-  dadosMesAtual: [],     // linhas de Execução do mês corrente, já filtradas pra categoria Corte
+  mediaHistPorSupervisor: {}, // { supervisor: média cortes/equipe/dia, meses passados completos } -- sempre relativa a HOJE de verdade, não muda ao navegar mês
+  mesReferencia: '',     // 'YYYY-MM' do mês sendo visto -- pode ser qualquer mês, não só o atual
+  dadosMesAtual: [],     // linhas de Corte (categoria + equipe MM) do mês sendo visto (com.mesReferencia)
   rateio: [],
   diasRestantes: 0,
   filtroSupervisor: '',
   carregando: false,
-  diaReferencia: null,  // null = hoje (ao vivo); senão Date -- "volta no tempo" pra ver como estava naquele dia
+  diaReferencia: null,  // null = "até hoje" (ao vivo, só faz sentido quando mesReferencia é o mês atual); senão Date
+  modalDados: [],
+  modalOrdemAsc: true,
 };
 
 function comercialMesAtualKey() {
   return hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+}
+
+// Meses que dá pra escolher no seletor -- reaproveita a mesma lista que o
+// Painel Operacional já usa (Jan até o mês atual, do ano corrente).
+function comercialPopularMesReferencia() {
+  const sel = document.getElementById('com-mes-referencia');
+  const disponiveis = opMesesDisponiveis();
+  const valorAtual = com.mesReferencia;
+  sel.innerHTML = disponiveis.slice().reverse().map(m =>
+    `<option value="${m.key}">${m.key === comercialMesAtualKey() ? m.label + ' (atual)' : m.label}</option>`
+  ).join('');
+  sel.value = valorAtual;
+}
+
+async function comercialSetMesReferencia(valor) {
+  com.mesReferencia = valor;
+  com.diaReferencia = null; // trocar de mês reseta o "até o dia" (só se aplica ao mês atual)
+  await comercialCarregarDadosDoMesReferencia();
+  comercialRender();
+}
+
+async function comercialCarregarDadosDoMesReferencia() {
+  com.dadosMesAtual = await comercialDadosDoMes(com.mesReferencia);
 }
 
 // Algoritmo de Páscoa (Meeus/Jones/Butcher) -- só usado pra achar a
@@ -4136,7 +4201,7 @@ async function comercialSalvarMeta() {
     status.style.color = '#c0392b';
     return;
   }
-  com.metasPorMes[comercialMesAtualKey()] = valor;
+  com.metasPorMes[com.mesReferencia] = valor;
   const lista = Object.keys(com.metasPorMes).sort().map(mes => ({ mes, meta: com.metasPorMes[mes] }));
   status.textContent = 'Salvando...';
   status.style.color = 'var(--gray-400)';
@@ -4236,8 +4301,10 @@ async function comercialCarregar() {
   com.carregando = true;
   showToast('⏳ Carregando Indicador Comercial...');
   try {
+    if (!com.mesReferencia) com.mesReferencia = comercialMesAtualKey();
+    comercialPopularMesReferencia();
     await comercialCarregarMetas();
-    com.dadosMesAtual = await comercialDadosDoMes(comercialMesAtualKey());
+    await comercialCarregarDadosDoMesReferencia();
     com.mediaHistPorSupervisor = await comercialCalcularMediaHistorica();
     comercialRender();
     showToast('✔ Indicador Comercial carregado', 1500);
@@ -4428,7 +4495,7 @@ function comercialRenderTabelaSupervisor(rateio) {
     <td class="op-num">${l.metaDia === null ? '—' : l.metaDia.toFixed(1)}</td>
     <td class="op-num">${l.metaEquipeDia === null ? '—' : l.metaEquipeDia.toFixed(1)}</td>
     <td class="op-num">${n(l.metaMensal)}</td>
-    <td class="op-num">${l.executado}</td>
+    <td class="op-num" style="cursor:pointer;text-decoration:underline dotted;" onclick="comercialAbrirModal('supervisor','${opEscJs(l.sup)}')" title="Ver os serviços">${l.executado}</td>
     <td class="op-num">${l.pctAtingimento === null ? '—' : l.pctAtingimento + '%'}</td>
     <td class="op-num">${n(l.falta)}</td>
   </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray-400);">Sem histórico suficiente ainda pra montar o rateio (precisa de pelo menos 1 mês passado completo)</td></tr>';
@@ -4491,7 +4558,7 @@ function comercialRenderTabelaEquipe(dados) {
 
   document.getElementById('com-tabela-equipe').innerHTML = linhas.map(l => `<tr>
     <td class="op-eqcode">${l.cod}</td><td>${l.sup || '—'}</td>
-    <td class="op-num">${l.executado}</td><td class="op-num">${l.meta === null ? '—' : l.meta}</td>
+    <td class="op-num" style="cursor:pointer;text-decoration:underline dotted;" onclick="comercialAbrirModal('equipe','${opEscJs(l.cod)}')" title="Ver os serviços">${l.executado}</td><td class="op-num">${l.meta === null ? '—' : l.meta}</td>
     <td class="op-num">${l.pct === null ? '—' : l.pct + '%'}</td><td class="op-num">${l.falta === null ? '—' : l.falta}</td>
   </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--gray-400);">Nenhuma equipe com Corte produtivo este mês (ainda)</td></tr>';
   com.equipeLinhas = linhas;
@@ -4516,47 +4583,125 @@ function comercialFiltrarSupervisor(nome) {
   comercialRenderTabelaEquipe(com.dadosAteRef);
 }
 
-// Popula o seletor "Ver como estava em" com os dias já decorridos do mês
-// (dia de hoje incluso, mas ele já é o padrão "Hoje (ao vivo)").
+// Drill-down: clicar no "Executado" de um supervisor ou equipe mostra a
+// lista de serviços por trás daquele número (mesmo padrão de pg-modal/
+// exec-modal já usado no resto do painel) -- respeita o período que
+// estiver sendo visto (dia/mês de referência).
+function comercialAbrirModal(tipo, chave) {
+  const fonte = (com.dadosAteRef || com.dadosMesAtual).filter(r => opClassificar(r) === 'PRODUTIVO');
+  const linhas = (tipo === 'equipe' ? fonte.filter(r => r['Recurso/Equipe'] === chave) : fonte.filter(r => getSupervisor(r['Recurso/Equipe']) === chave))
+    .map(r => ({
+      ns: r['Numero de Serviço'] || '—',
+      equipe: r['Recurso/Equipe'] || '—',
+      cliente: r['Cliente'] || '—',
+      data: r['Data fim Execução'] || r.__data || '—',
+      municipio: r['Município'] || '—',
+    }));
+  linhas.sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  com.modalDados = linhas;
+  com.modalOrdemAsc = false;
+  document.getElementById('com-modal-title').textContent = (tipo === 'equipe' ? 'Equipe ' : 'Supervisor ') + chave + ' — Cortes produtivos';
+  document.getElementById('com-modal-sub').textContent = linhas.length + ' serviço(s)';
+  document.getElementById('com-modal-search').value = '';
+  comercialRenderModal(linhas);
+  document.getElementById('com-modal').style.display = 'flex';
+}
+
+function comercialFecharModal() {
+  document.getElementById('com-modal').style.display = 'none';
+}
+
+function comercialRenderModal(linhas) {
+  document.getElementById('com-modal-body').innerHTML = linhas.map(l => `<tr>
+    <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${l.ns}</td>
+    <td style="padding:7px 10px;font-size:11px;">${l.equipe}</td>
+    <td style="padding:7px 10px;font-size:11px;">${l.cliente}</td>
+    <td style="padding:7px 10px;font-size:11px;white-space:nowrap;">${l.data}</td>
+    <td style="padding:7px 10px;font-size:11px;">${l.municipio}</td>
+  </tr>`).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8097b8;">Nenhum serviço encontrado</td></tr>';
+}
+
+function comercialModalFiltrarDados() {
+  const q = (document.getElementById('com-modal-search').value || '').toLowerCase();
+  if (!q) return com.modalDados;
+  return com.modalDados.filter(l =>
+    String(l.ns).toLowerCase().includes(q) || String(l.equipe).toLowerCase().includes(q) ||
+    String(l.cliente).toLowerCase().includes(q) || String(l.data).toLowerCase().includes(q) ||
+    String(l.municipio).toLowerCase().includes(q));
+}
+
+function comercialFiltrarModal() {
+  comercialRenderModal(comercialModalFiltrarDados());
+}
+
+function comercialOrdenarModal() {
+  com.modalOrdemAsc = !com.modalOrdemAsc;
+  com.modalDados.sort((a, b) => com.modalOrdemAsc ? String(a.data).localeCompare(String(b.data)) : String(b.data).localeCompare(String(a.data)));
+  comercialFiltrarModal();
+}
+
+function comercialCopiarModal() {
+  const filtrado = comercialModalFiltrarDados();
+  const cabecalho = ['N. Serviço', 'Equipe', 'Cliente', 'Data', 'Município'];
+  const linhas = [cabecalho.join('\t')];
+  filtrado.forEach(l => linhas.push([l.ns, l.equipe, l.cliente, l.data, l.municipio].join('\t')));
+  navigator.clipboard.writeText(linhas.join('\n')).then(() => {
+    const btn = document.getElementById('btn-copiar-com-modal');
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
+}
+
+// Popula o seletor "Até o dia" com datas de verdade (DD/MM), não "Dia N" --
+// só é mostrado quando o mês sendo visto é o mês atual (num mês passado o
+// mês inteiro já aconteceu, não tem "até tal dia" pra escolher).
 function comercialPopularDiaReferencia() {
   const sel = document.getElementById('com-dia-referencia');
   const hojeNum = hoje.getDate();
   const valorAtual = com.diaReferencia ? String(com.diaReferencia.getDate()) : '';
   let html = '<option value="">Hoje (ao vivo)</option>';
-  for (let d = hojeNum; d >= 1; d--) html += `<option value="${d}">Dia ${d}</option>`;
+  for (let d = hojeNum; d >= 1; d--) {
+    const rotulo = String(d).padStart(2, '0') + '/' + String(hoje.getMonth() + 1).padStart(2, '0');
+    html += `<option value="${d}">${rotulo}</option>`;
+  }
   sel.innerHTML = html;
   sel.value = valorAtual;
 }
 
 function comercialSetDiaReferencia(valor) {
-  const ano = hoje.getFullYear(), mesIdx = hoje.getMonth();
-  com.diaReferencia = valor ? new Date(ano, mesIdx, Number(valor)) : null;
+  const [ano, mes] = com.mesReferencia.split('-').map(Number);
+  com.diaReferencia = valor ? new Date(ano, mes - 1, Number(valor)) : null;
   comercialRender();
 }
 
 function comercialRender() {
-  const ano = hoje.getFullYear(), mesIdx = hoje.getMonth();
-  const mesKey = comercialMesAtualKey();
-  const meta = com.metasPorMes[mesKey] || 0;
-  // "Volta no tempo": com diaReferencia setado, tudo (KPIs, gráfico,
-  // rateio) é recalculado considerando só o que aconteceu até aquele dia
-  // -- como se ele fosse "hoje". Sem isso, só dá pra ver o estado atual.
-  const diaRef = com.diaReferencia || hoje;
-  const vendoPassado = !!com.diaReferencia;
+  const [ano, mesNum] = com.mesReferencia.split('-').map(Number);
+  const mesIdx = mesNum - 1;
+  const meta = com.metasPorMes[com.mesReferencia] || 0;
+  const ehMesAtual = com.mesReferencia === comercialMesAtualKey();
 
-  comercialPopularDiaReferencia();
+  // "Volta no tempo": só faz sentido dentro do mês atual (escolher um dia
+  // já passado e ver como estava até ali). Num mês anterior o mês inteiro
+  // já aconteceu, então é sempre visto completo -- diaRef vira o último
+  // dia do mês e "decorridos" = todos os dias úteis dele.
+  const diaRef = ehMesAtual ? (com.diaReferencia || hoje) : new Date(ano, mesIdx + 1, 0);
+  const vendoDiaPassado = ehMesAtual && !!com.diaReferencia;
+
+  document.getElementById('com-dia-referencia-wrap').style.display = ehMesAtual ? 'flex' : 'none';
+  if (ehMesAtual) comercialPopularDiaReferencia();
 
   document.getElementById('com-meta-input').value = meta || '';
-  document.getElementById('com-meta-input').disabled = vendoPassado;
-  document.getElementById('com-meta-salvar-btn').disabled = vendoPassado;
-  document.getElementById('com-meta-salvar-btn').style.opacity = vendoPassado ? '0.5' : '1';
+  document.getElementById('com-meta-input').disabled = vendoDiaPassado;
+  document.getElementById('com-meta-salvar-btn').disabled = vendoDiaPassado;
+  document.getElementById('com-meta-salvar-btn').style.opacity = vendoDiaPassado ? '0.5' : '1';
   document.getElementById('com-meta-titulo').textContent = 'Meta de ' + OP_MESES_LABEL[mesIdx] + '/' + String(ano).slice(2);
-  document.getElementById('com-dia-referencia-aviso').textContent = vendoPassado
+  document.getElementById('com-dia-referencia-aviso').textContent = vendoDiaPassado
     ? '⏳ Vendo como estava em ' + diaRef.toLocaleDateString('pt-BR') + ' — não é o estado de agora'
-    : '';
+    : (!ehMesAtual ? '📅 Mês fechado — vendo o mês inteiro' : '');
 
   const diasUteis = comercialDiasUteisNoMes(ano, mesIdx);
-  const diasDecorridos = comercialDiasUteisDecorridosNoMes(ano, mesIdx, diaRef);
+  const diasDecorridos = ehMesAtual ? comercialDiasUteisDecorridosNoMes(ano, mesIdx, diaRef) : diasUteis;
   const diasRestantes = Math.max(diasUteis - diasDecorridos, 0);
   const metaDia = diasUteis ? meta / diasUteis : 0;
   com.diasRestantes = diasRestantes;
