@@ -2917,25 +2917,31 @@ async function opFetchMes(mesKey) {
   // guarda vazio aqui: sem isso, um mês que falhou uma vez ficava "0 registros"
   // pro resto da sessão, sem nunca tentar de novo, e o mês simplesmente
   // sumia dos gráficos mesmo tendo dado de verdade.
-  try {
-    const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const linhas = await res.json();
-    if (!Array.isArray(linhas)) throw new Error('resposta inesperada');
-    const registros = [];
-    linhas.forEach(l => {
-      (l.dados || []).forEach(r => {
-        r.__data = l.data;
-        registros.push(r);
+  // Tenta 3 vezes ANTES de desistir de vez (erro passageiro do Supabase é
+  // comum aqui, e um mês faltando distorce contas que dependem de vários
+  // meses -- ex.: a média histórica do Indicador Comercial -- sem avisar).
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const linhas = await res.json();
+      if (!Array.isArray(linhas)) throw new Error('resposta inesperada');
+      const registros = [];
+      linhas.forEach(l => {
+        (l.dados || []).forEach(r => {
+          r.__data = l.data;
+          registros.push(r);
+        });
       });
-    });
-    op.cache[mesKey] = registros;
-    op.mesesCarregados.add(mesKey);
-  } catch (e) {
-    showToast('Falha ao carregar ' + mesKey + ' -- tenta selecionar o mês de novo', 4000);
-    return [];
+      op.cache[mesKey] = registros;
+      op.mesesCarregados.add(mesKey);
+      return op.cache[mesKey];
+    } catch (e) {
+      if (tentativa < 3) await new Promise(r => setTimeout(r, 800));
+    }
   }
-  return op.cache[mesKey];
+  showToast('Falha ao carregar ' + mesKey + ' -- tenta selecionar o mês de novo', 4000);
+  return [];
 }
 
 // Clicar em vários meses rápido (um atrás do outro) disparava um opCarregar()
@@ -4336,6 +4342,26 @@ async function comercialCalcularMediaHistorica() {
   return out;
 }
 
+// A média histórica só usa meses PASSADOS E COMPLETOS -- então não muda
+// no meio do dia, só quando vira um mês novo. Guardar no localStorage
+// evita buscar 8 meses inteiros do Supabase toda vez que a aba é aberta
+// (mais rápido, e bem menos exposto a um erro passageiro do Supabase no
+// meio do caminho). A chave já inclui o mês atual, então quando o
+// calendário vira, o cache antigo fica sozinho sem uso e um novo é
+// calculado e guardado -- não precisa expirar por tempo.
+function comercialCacheHistoricoChave() {
+  return 'comercial_media_hist_' + comercialMesAtualKey();
+}
+function comercialCarregarMediaHistoricaCache() {
+  try {
+    const raw = localStorage.getItem(comercialCacheHistoricoChave());
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function comercialSalvarMediaHistoricaCache(media) {
+  try { localStorage.setItem(comercialCacheHistoricoChave(), JSON.stringify(media)); } catch (e) { /* localStorage indisponível -- sem problema, só recalcula sempre */ }
+}
+
 async function comercialCarregar() {
   if (com.carregando) return;
   com.carregando = true;
@@ -4345,7 +4371,13 @@ async function comercialCarregar() {
     comercialPopularMesReferencia();
     await comercialCarregarMetas();
     await comercialCarregarDadosDoMesReferencia();
-    com.mediaHistPorSupervisor = await comercialCalcularMediaHistorica();
+    const cache = comercialCarregarMediaHistoricaCache();
+    if (cache) {
+      com.mediaHistPorSupervisor = cache;
+    } else {
+      com.mediaHistPorSupervisor = await comercialCalcularMediaHistorica();
+      comercialSalvarMediaHistoricaCache(com.mediaHistPorSupervisor);
+    }
     comercialRender();
     showToast('✔ Indicador Comercial carregado', 1500);
   } catch (e) {
@@ -4354,6 +4386,36 @@ async function comercialCarregar() {
     com.carregando = false;
   }
 }
+
+// Mantém "hoje" atualizado ao longo do dia sem precisar de F5 -- busca só
+// o pedacinho de hoje (bem mais leve que buscar o mês inteiro de novo) e
+// substitui só esse dia dentro do cache do mês, mantendo os outros dias
+// intactos.
+async function comercialAtualizarHoje() {
+  if (document.hidden) return;
+  if (document.getElementById('comercial-section').style.display === 'none') return;
+  if (com.carregando) return;
+  const mesAtualKey = comercialMesAtualKey();
+  if (com.mesReferencia !== mesAtualKey) return; // só faz sentido vendo o mês corrente ao vivo
+  const hojeKey = comercialChaveData(hoje);
+  try {
+    const url = SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=eq.' + hojeKey + '&select=dados,data';
+    const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const linhas = await res.json();
+    if (!Array.isArray(linhas) || !linhas[0]) return;
+    const registrosHoje = (linhas[0].dados || []).map(r => { r.__data = hojeKey; return r; });
+    if (op.cache[mesAtualKey]) {
+      op.cache[mesAtualKey] = op.cache[mesAtualKey].filter(r => r.__data !== hojeKey).concat(registrosHoje);
+    }
+    com.dadosMesAtual = await comercialDadosDoMes(mesAtualKey);
+    comercialRender();
+  } catch (e) {
+    // falha aqui não é grave -- "hoje" só fica um pouco atrasado até a
+    // próxima tentativa, daqui a pouco.
+  }
+}
+setInterval(comercialAtualizarHoje, 120000);
 
 // Rateia proporcionalmente à "capacidade" de cada supervisor (média
 // histórica × equipes que ele tem rodando agora) -- quem tem mais/melhores
