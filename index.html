@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel Cosampa Sul</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Só usada pra "Copiar PNG" do gráfico Realizado x Meta (Indicador Comercial) --
+     tentei via SVG+foreignObject sem lib nenhuma primeiro, mas o navegador marca
+     o canvas como "tainted" nesse caso e recusa exportar (restrição de segurança,
+     não tem como contornar sem isso). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root {
     --navy: #0d1b2a;
@@ -852,7 +857,10 @@
         <h3>Realizado × Meta por dia <span id="com-grafico-meta-label" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></h3>
         <div class="op-sub">Segunda a quinta tem meta do dia (linha tracejada, com o valor da meta anotado). Sexta/sábado/domingo/feriado é só extra — soma no mês, mas não tem cobrança diária.</div>
       </div>
-      <button onclick="comercialCopiarGrafico()" id="btn-copiar-com-grafico" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+      <div style="display:flex;gap:8px;">
+        <button onclick="comercialCopiarGrafico()" id="btn-copiar-com-grafico" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+        <button onclick="comercialCopiarGraficoPng()" id="btn-copiar-com-grafico-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+      </div>
     </div>
     <div id="com-grafico-dias" style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-top:22px;"></div>
   </div>
@@ -4350,7 +4358,7 @@ function comercialRenderGrafico(ano, mesIdx, metaDia, diaRef) {
         ${numeroTopo}
         <div style="width:60%;height:${alturaRealizado}%;background:${corBarra};border-radius:3px 3px 0 0;"></div>
       </div>
-      <div style="font-size:9px;color:var(--gray-400);margin-top:4px;">${d}</div>
+      <div style="font-size:9px;color:#98a4b8;margin-top:4px;">${d}</div>
     </div>`;
   }
   com.graficoLinhas = linhas;
@@ -4369,6 +4377,42 @@ function comercialCopiarGrafico() {
     btn.textContent = '✔ Copiado!';
     setTimeout(() => { btn.textContent = original; }, 2000);
   }).catch(() => showToast('Não foi possível copiar', 3000));
+}
+
+// Rasteriza o gráfico (HTML puro, sem lib de gráfico) com html2canvas e
+// copia como PNG -- tentei antes via <svg><foreignObject> sem nenhuma lib,
+// mas o navegador marca esse canvas como "tainted" e recusa exportar
+// (restrição de segurança do próprio browser, sem contorno possível).
+// Copia direto pro clipboard (cola no WhatsApp/apresentação); se o
+// navegador não deixar copiar imagem, baixa o arquivo em vez disso.
+async function comercialCopiarGraficoPng() {
+  const btn = document.getElementById('btn-copiar-com-grafico-png');
+  const original = btn.textContent;
+  btn.textContent = 'Gerando...';
+  try {
+    const el = document.getElementById('com-grafico-dias');
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+    canvas.toBlob(async (blob) => {
+      if (!blob) { showToast('Não foi possível gerar a imagem', 3000); btn.textContent = original; return; }
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        btn.textContent = '✔ Copiado!';
+      } catch (e) {
+        // Navegador não deixa copiar imagem direto (ou sem permissão) --
+        // baixa o arquivo em vez disso.
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'realizado-x-meta-' + comercialMesAtualKey() + '.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        btn.textContent = '✔ Baixado!';
+      }
+      setTimeout(() => { btn.textContent = original; }, 2000);
+    }, 'image/png');
+  } catch (e) {
+    showToast('Não foi possível copiar o gráfico como imagem', 3000);
+    btn.textContent = original;
+  }
 }
 
 function comercialRenderTabelaSupervisor(rateio) {
