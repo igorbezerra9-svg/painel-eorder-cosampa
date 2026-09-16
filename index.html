@@ -224,6 +224,10 @@
     style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
     🛠️ Painel Operacional
   </button>
+  <button id="tab-comercial" onclick="setTab('comercial')"
+    style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
+    🎯 Indicador Comercial
+  </button>
 </div>
 
 <!-- ══ PAINEL GERENCIAL ══ -->
@@ -790,6 +794,96 @@
   </div>
 </div>
 
+<!-- ══ INDICADOR COMERCIAL - CORTES ══ -->
+<div id="comercial-section" style="display:none;width:100%;padding:24px 40px;box-sizing:border-box;">
+
+  <div class="op-panel">
+    <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;justify-content:space-between;">
+      <div>
+        <h3 id="com-meta-titulo">Meta de Cortes</h3>
+        <div class="op-sub">Digite a meta do mês e salve — fica guardada, só muda quando você mudar.</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+          <input type="number" id="com-meta-input" placeholder="Meta do mês" style="font-size:16px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;width:160px;">
+          <button onclick="comercialSalvarMeta()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
+          <span id="com-meta-status" style="font-size:12px;color:var(--gray-400);"></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:28px;">
+        <div>
+          <div style="font-size:10.5px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;">Dias úteis (seg-qui, s/feriado)</div>
+          <div style="font-size:26px;font-weight:800;" id="com-dias-uteis">—</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;">Meta/dia</div>
+          <div style="font-size:26px;font-weight:800;" id="com-meta-dia">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:160px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
+      <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✓ Executado (mês)</div>
+      <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="com-executado">0</div>
+    </div>
+    <div style="flex:1;min-width:160px;background:#fdece9;border-radius:12px;padding:14px 16px;">
+      <div style="font-size:10px;color:#c0392b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⚠ Falta pra meta</div>
+      <div style="font-size:30px;font-weight:700;color:#c0392b;line-height:1;" id="com-falta">0</div>
+    </div>
+    <div style="flex:1;min-width:160px;background:#e9f7ef;border-radius:12px;padding:14px 16px;">
+      <div style="font-size:10px;color:#1a7a40;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📊 % Atingimento</div>
+      <div style="font-size:30px;font-weight:700;color:#1a7a40;line-height:1;" id="com-pct-atingimento">0%</div>
+    </div>
+    <div style="flex:1;min-width:160px;background:#fdf3e0;border-radius:12px;padding:14px 16px;">
+      <div style="font-size:10px;color:#b8860b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">🎯 Meta/dia necessária (restante)</div>
+      <div style="font-size:30px;font-weight:700;color:#b8860b;line-height:1;" id="com-meta-dia-necessaria">0</div>
+    </div>
+  </div>
+
+  <div class="op-panel">
+    <h3>Realizado × Meta por dia</h3>
+    <div class="op-sub">Segunda a quinta tem meta do dia (linha tracejada). Sexta/sábado/domingo/feriado é só extra — soma no mês, mas não tem cobrança diária.</div>
+    <div id="com-grafico-dias" style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-top:8px;"></div>
+  </div>
+
+  <div class="op-panel">
+    <h3>Ranking por Supervisor</h3>
+    <div class="op-sub">Rateio proporcional do que falta pra bater a meta: quem tem mais equipes e melhor média histórica carrega uma fatia maior.</div>
+    <div style="overflow-x:auto;">
+      <table class="op-table">
+        <thead><tr>
+          <th>Supervisor</th><th class="op-num">Média hist. (cortes/equipe/dia)</th><th class="op-num">Equipes (mês)</th>
+          <th class="op-num">% Participação</th><th class="op-num">Meta restante</th><th class="op-num">Meta/dia</th>
+          <th class="op-num">Meta/equipe/dia</th><th class="op-num">Executado (mês)</th><th class="op-num">% Atingimento</th><th class="op-num">Falta</th>
+        </tr></thead>
+        <tbody id="com-tabela-supervisor"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="op-panel">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h3>Ranking por Equipe</h3>
+        <div class="op-sub">Meta da equipe = fatia do supervisor dividida entre as equipes dele.</div>
+      </div>
+      <select id="com-filtro-supervisor" onchange="comercialFiltrarSupervisor(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;">
+        <option value="">Todos os supervisores</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="op-table">
+        <thead><tr>
+          <th>Equipe</th><th>Supervisor</th><th class="op-num">Executado (mês)</th><th class="op-num">Meta</th>
+          <th class="op-num">% Atingimento</th><th class="op-num">Falta</th>
+        </tr></thead>
+        <tbody id="com-tabela-equipe"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
 <div id="op-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:860px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25);">
     <div style="background:#0d1b2a;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #e8a020;">
@@ -1119,7 +1213,8 @@ function setTab(tab) {
   document.getElementById('painel-section').style.display = tab === 'painel' ? 'block' : 'none';
   document.getElementById('execucao-section').style.display = tab === 'execucao' ? 'block' : 'none';
   document.getElementById('operacional-section').style.display = tab === 'operacional' ? 'block' : 'none';
-  ['painel','execucao','operacional'].forEach(t => {
+  document.getElementById('comercial-section').style.display = tab === 'comercial' ? 'block' : 'none';
+  ['painel','execucao','operacional','comercial'].forEach(t => {
     const on = t === tab;
     const btn = document.getElementById('tab-' + t);
     btn.style.color = on ? '#e8a020' : '#8097b8';
@@ -1129,6 +1224,7 @@ function setTab(tab) {
   if (tab === 'painel') pgCarregar();
   if (tab === 'execucao') execCarregar();
   if (tab === 'operacional') opCarregar();
+  if (tab === 'comercial') comercialCarregar();
   atualizarIndicadorTopo();
 }
 
@@ -3922,6 +4018,360 @@ document.addEventListener('click', (e) => {
 // Agora a checagem pergunta só o 'atualizado_em' (algumas dezenas de bytes) e
 // só chama o carregamento pesado quando o carimbo mudou de verdade. Pra quem
 // olha a tela o comportamento é o mesmo -- o que some é o tráfego repetido.
+
+// ══ INDICADOR COMERCIAL - CORTES ══
+// Meta mensal + rateio proporcional por supervisor, reaproveitando os
+// mesmos dados que o Painel Operacional já busca (opFetchMes/op.cache) --
+// nada de novo é gravado pelo robô, só uma leitura/escrita direta no
+// Supabase (mesma chave pública já usada em todo o painel).
+const com = {
+  metasPorMes: {},      // { 'YYYY-MM': numero } -- vem do Supabase
+  mediaHistPorSupervisor: {}, // { supervisor: média cortes/equipe/dia, meses passados completos }
+  dadosMesAtual: [],     // linhas de Execução do mês corrente, já filtradas pra categoria Corte
+  rateio: [],
+  diasRestantes: 0,
+  filtroSupervisor: '',
+  carregando: false,
+};
+
+function comercialMesAtualKey() {
+  return hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+}
+
+// Algoritmo de Páscoa (Meeus/Jones/Butcher) -- só usado pra achar a
+// Sexta-feira Santa. Carnaval e Corpo de Cristo ficam de fora de propósito:
+// não são feriado nacional oficial, são ponto facultativo.
+function comercialPascoa(ano) {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(ano, mes - 1, dia);
+}
+function comercialChaveData(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function comercialFeriados(ano) {
+  const set = new Set([
+    ano + '-01-01', ano + '-04-21', ano + '-05-01', ano + '-09-07', ano + '-10-12',
+    ano + '-11-02', ano + '-11-15', ano + '-11-20', ano + '-12-25',
+  ]);
+  const sextaSanta = comercialPascoa(ano);
+  sextaSanta.setDate(sextaSanta.getDate() - 2);
+  set.add(comercialChaveData(sextaSanta));
+  return set;
+}
+function comercialEhDiaUtilCorte(data, feriadosSet) {
+  const dia = data.getDay(); // 0=dom .. 6=sáb
+  if (dia < 1 || dia > 4) return false; // só segunda(1) a quinta(4) conta pra Corte
+  return !feriadosSet.has(comercialChaveData(data));
+}
+function comercialDiasUteisNoMes(ano, mesIdx) {
+  const feriados = comercialFeriados(ano);
+  const ultimoDia = new Date(ano, mesIdx + 1, 0).getDate();
+  let n = 0;
+  for (let d = 1; d <= ultimoDia; d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) n++;
+  return n;
+}
+// Dias úteis ANTES de hoje -- hoje ainda está em andamento, então entra em
+// "restantes", não em "decorridos" (ainda dá tempo de produzir hoje).
+function comercialDiasUteisDecorridosNoMes(ano, mesIdx, hojeData) {
+  const feriados = comercialFeriados(ano);
+  let n = 0;
+  for (let d = 1; d < hojeData.getDate(); d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) n++;
+  return n;
+}
+
+async function comercialCarregarMetas() {
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.Cortes_Metas&select=dados', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
+    });
+    const rows = await res.json();
+    const lista = (Array.isArray(rows) && rows[0] && rows[0].dados) || [];
+    com.metasPorMes = {};
+    lista.forEach(item => { if (item && item.mes) com.metasPorMes[item.mes] = Number(item.meta) || 0; });
+  } catch (e) {
+    com.metasPorMes = {};
+  }
+}
+
+async function comercialSalvarMeta() {
+  const input = document.getElementById('com-meta-input');
+  const status = document.getElementById('com-meta-status');
+  const valor = Number(input.value);
+  if (!valor || valor <= 0) {
+    status.textContent = 'Digite um número válido';
+    status.style.color = '#c0392b';
+    return;
+  }
+  com.metasPorMes[comercialMesAtualKey()] = valor;
+  const lista = Object.keys(com.metasPorMes).sort().map(mes => ({ mes, meta: com.metasPorMes[mes] }));
+  status.textContent = 'Salvando...';
+  status.style.color = 'var(--gray-400)';
+  try {
+    const corpo = JSON.stringify({ regiao: 'Cortes_Metas', dados: lista, atualizado_em: new Date().toISOString() });
+    const res = await fetch(SB_URL + '/rest/v1/snapshots', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: corpo,
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    status.textContent = '✔ Salvo';
+    status.style.color = '#1a7a40';
+    comercialRender();
+  } catch (e) {
+    status.textContent = 'Erro ao salvar';
+    status.style.color = '#c0392b';
+  }
+}
+
+async function comercialDadosDoMes(mesKey) {
+  const registros = await opFetchMes(mesKey);
+  return registros.filter(r => opCategoriaServico(r) === 'Corte');
+}
+
+// Média histórica por supervisor = média simples de Produtivo/(Equipes×Dias)
+// de cada mês PASSADO E COMPLETO do ano corrente -- nunca o mês em
+// andamento, que ainda está incompleto e distorceria a média pra baixo.
+async function comercialCalcularMediaHistorica() {
+  const ano = hoje.getFullYear(), mesAtualIdx = hoje.getMonth();
+  const mesesChave = [];
+  for (let m = 0; m < mesAtualIdx; m++) mesesChave.push(ano + '-' + String(m + 1).padStart(2, '0'));
+  // Busca em lotes de 2 (não tudo de uma vez) -- igual o Painel Operacional já
+  // faz em opFetchMes: disparar todo mundo junto sobrecarrega e derruba
+  // requisições (index.html:2900-2903).
+  const LOTE = 2;
+  for (let i = 0; i < mesesChave.length; i += LOTE) {
+    await Promise.all(mesesChave.slice(i, i + LOTE).map(opFetchMes));
+  }
+  const somaPorSupervisor = {};
+  for (let m = 0; m < mesAtualIdx; m++) {
+    const mesKey = mesesChave[m];
+    const dados = await comercialDadosDoMes(mesKey);
+    const diasUteis = comercialDiasUteisNoMes(ano, m);
+    const porSup = {};
+    dados.forEach(r => {
+      if (opClassificar(r) !== 'PRODUTIVO') return;
+      const sup = getSupervisor(r['Recurso/Equipe']);
+      if (!sup) return;
+      if (!porSup[sup]) porSup[sup] = { produtivo: 0, equipes: new Set() };
+      porSup[sup].produtivo++;
+      if (r['Recurso/Equipe']) porSup[sup].equipes.add(r['Recurso/Equipe']);
+    });
+    Object.keys(porSup).forEach(sup => {
+      const equipes = porSup[sup].equipes.size;
+      if (!equipes || !diasUteis) return;
+      const media = porSup[sup].produtivo / (equipes * diasUteis);
+      if (!somaPorSupervisor[sup]) somaPorSupervisor[sup] = { soma: 0, meses: 0 };
+      somaPorSupervisor[sup].soma += media;
+      somaPorSupervisor[sup].meses++;
+    });
+  }
+  const out = {};
+  Object.keys(somaPorSupervisor).forEach(sup => {
+    out[sup] = somaPorSupervisor[sup].soma / somaPorSupervisor[sup].meses;
+  });
+  return out;
+}
+
+async function comercialCarregar() {
+  if (com.carregando) return;
+  com.carregando = true;
+  showToast('⏳ Carregando Indicador Comercial...');
+  try {
+    await comercialCarregarMetas();
+    com.dadosMesAtual = await comercialDadosDoMes(comercialMesAtualKey());
+    com.mediaHistPorSupervisor = await comercialCalcularMediaHistorica();
+    comercialRender();
+    showToast('✔ Indicador Comercial carregado', 1500);
+  } catch (e) {
+    showToast('Erro ao carregar Indicador Comercial: ' + e.message, 4000);
+  } finally {
+    com.carregando = false;
+  }
+}
+
+// Rateia o SALDO que falta (não o mês inteiro) proporcionalmente à
+// "capacidade" de cada supervisor (média histórica × equipes que ele tem
+// rodando agora) -- quem já produziu mais não carrega a mesma cota de quem
+// produziu menos. O último da lista absorve a sobra do arredondamento, pra
+// soma bater exatamente com o saldo (mesmo truque da planilha do Igor).
+function comercialCalcularRateio(saldo, diasRestantes, metaDefinida) {
+  const equipesPorSupervisor = {};
+  const executadoPorSupervisor = {};
+  com.dadosMesAtual.forEach(r => {
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    const sup = getSupervisor(r['Recurso/Equipe']);
+    if (!sup) return;
+    executadoPorSupervisor[sup] = (executadoPorSupervisor[sup] || 0) + 1;
+    if (r['Recurso/Equipe']) {
+      if (!equipesPorSupervisor[sup]) equipesPorSupervisor[sup] = new Set();
+      equipesPorSupervisor[sup].add(r['Recurso/Equipe']);
+    }
+  });
+
+  const supervisores = Array.from(new Set([...Object.keys(com.mediaHistPorSupervisor), ...Object.keys(equipesPorSupervisor)])).sort();
+  let linhas = supervisores.map(sup => {
+    const mediaHist = com.mediaHistPorSupervisor[sup] || 0;
+    const equipes = (equipesPorSupervisor[sup] || new Set()).size;
+    return { sup, mediaHist, equipes, capacidade: mediaHist * equipes };
+  }).filter(l => l.capacidade > 0);
+
+  const totalCapacidade = linhas.reduce((s, l) => s + l.capacidade, 0);
+  let somaRateada = 0;
+  linhas.forEach((l, i) => {
+    l.pctParticipacao = totalCapacidade ? l.capacidade / totalCapacidade : 0;
+    l.executado = executadoPorSupervisor[l.sup] || 0;
+    if (!metaDefinida) {
+      // Sem meta salva ainda pro mês -- não dá pra ratear nem calcular
+      // atingimento contra um alvo que não existe (mostra "—" na tabela).
+      l.metaRestante = null; l.metaDia = null; l.metaEquipeDia = null; l.pctAtingimento = null; l.falta = null;
+      return;
+    }
+    if (i < linhas.length - 1) {
+      l.metaRestante = Math.round(l.pctParticipacao * saldo);
+      somaRateada += l.metaRestante;
+    } else {
+      l.metaRestante = Math.max(saldo - somaRateada, 0);
+    }
+    l.metaDia = diasRestantes ? l.metaRestante / diasRestantes : 0;
+    l.metaEquipeDia = l.equipes ? l.metaDia / l.equipes : 0;
+    const metaImplicitaTotal = l.executado + l.metaRestante;
+    l.pctAtingimento = metaImplicitaTotal ? Math.round((l.executado / metaImplicitaTotal) * 100) : 0;
+    l.falta = l.metaRestante;
+  });
+  return linhas;
+}
+
+function comercialRenderGrafico(ano, mesIdx, metaDia) {
+  const feriados = comercialFeriados(ano);
+  const ultimoDia = new Date(ano, mesIdx + 1, 0).getDate();
+  const porDia = {};
+  com.dadosMesAtual.forEach(r => {
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    if (!r.__data) return;
+    porDia[r.__data] = (porDia[r.__data] || 0) + 1;
+  });
+  const maxBarra = Math.max(metaDia, ...Object.values(porDia), 1);
+
+  let html = '';
+  for (let d = 1; d <= ultimoDia; d++) {
+    const dataObj = new Date(ano, mesIdx, d);
+    const chave = comercialChaveData(dataObj);
+    const ehUtil = comercialEhDiaUtilCorte(dataObj, feriados);
+    const realizado = porDia[chave] || 0;
+    const futuro = dataObj > hoje;
+    const alturaRealizado = futuro ? 0 : Math.round((realizado / maxBarra) * 100);
+    const alturaMeta = ehUtil ? Math.round((metaDia / maxBarra) * 100) : 0;
+    const corBarra = !ehUtil ? '#8e9fb8' : (realizado >= metaDia ? '#1a7a40' : '#c0392b');
+    html += `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:18px;" title="${chave}: ${realizado} feito${ehUtil ? ' · meta ' + metaDia.toFixed(1) : ' · sem meta (extra)'}">
+      <div style="position:relative;width:100%;height:120px;display:flex;align-items:flex-end;justify-content:center;">
+        ${ehUtil ? `<div style="position:absolute;left:2px;right:2px;bottom:${alturaMeta}%;border-top:2px dashed #8097b8;"></div>` : ''}
+        <div style="width:60%;height:${alturaRealizado}%;background:${corBarra};border-radius:3px 3px 0 0;"></div>
+      </div>
+      <div style="font-size:9px;color:var(--gray-400);margin-top:4px;">${d}</div>
+    </div>`;
+  }
+  document.getElementById('com-grafico-dias').innerHTML = html;
+}
+
+function comercialRenderTabelaSupervisor(rateio) {
+  const tbody = document.getElementById('com-tabela-supervisor');
+  const linhas = [...rateio].sort((a, b) => b.capacidade - a.capacidade);
+  const n = v => v === null || v === undefined ? '—' : v;
+  tbody.innerHTML = linhas.map(l => `<tr>
+    <td>${l.sup}</td>
+    <td class="op-num">${l.mediaHist.toFixed(2)}</td>
+    <td class="op-num">${l.equipes}</td>
+    <td class="op-num">${(l.pctParticipacao * 100).toFixed(1)}%</td>
+    <td class="op-num">${n(l.metaRestante)}</td>
+    <td class="op-num">${l.metaDia === null ? '—' : l.metaDia.toFixed(1)}</td>
+    <td class="op-num">${l.metaEquipeDia === null ? '—' : l.metaEquipeDia.toFixed(1)}</td>
+    <td class="op-num">${l.executado}</td>
+    <td class="op-num">${l.pctAtingimento === null ? '—' : l.pctAtingimento + '%'}</td>
+    <td class="op-num">${n(l.falta)}</td>
+  </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--gray-400);">Sem histórico suficiente ainda pra montar o rateio (precisa de pelo menos 1 mês passado completo)</td></tr>';
+}
+
+function comercialRenderTabelaEquipe() {
+  const porEquipe = {};
+  com.dadosMesAtual.forEach(r => {
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    const cod = r['Recurso/Equipe'];
+    if (!cod) return;
+    if (!porEquipe[cod]) porEquipe[cod] = { sup: getSupervisor(cod), executado: 0 };
+    porEquipe[cod].executado++;
+  });
+  const rateioPorSup = {};
+  com.rateio.forEach(l => { rateioPorSup[l.sup] = l; });
+
+  let linhas = Object.keys(porEquipe).map(cod => {
+    const e = porEquipe[cod];
+    const r = rateioPorSup[e.sup];
+    const temMeta = r && r.metaEquipeDia !== null;
+    const meta = temMeta ? Math.round(r.metaEquipeDia * com.diasRestantes) : null;
+    const metaImplicitaTotal = e.executado + (meta || 0);
+    const pct = temMeta && metaImplicitaTotal ? Math.round((e.executado / metaImplicitaTotal) * 100) : null;
+    return { cod, sup: e.sup, executado: e.executado, meta, pct, falta: meta };
+  });
+
+  const sel = document.getElementById('com-filtro-supervisor');
+  const supervisoresUnicos = Array.from(new Set(Object.values(porEquipe).map(e => e.sup).filter(Boolean))).sort();
+  const valorAtual = sel.value;
+  sel.innerHTML = '<option value="">Todos os supervisores</option>' + supervisoresUnicos.map(s => `<option value="${s}">${s}</option>`).join('');
+  sel.value = valorAtual;
+
+  if (com.filtroSupervisor) linhas = linhas.filter(l => l.sup === com.filtroSupervisor);
+  linhas.sort((a, b) => b.executado - a.executado);
+
+  document.getElementById('com-tabela-equipe').innerHTML = linhas.map(l => `<tr>
+    <td class="op-eqcode">${l.cod}</td><td>${l.sup || '—'}</td>
+    <td class="op-num">${l.executado}</td><td class="op-num">${l.meta === null ? '—' : l.meta}</td>
+    <td class="op-num">${l.pct === null ? '—' : l.pct + '%'}</td><td class="op-num">${l.falta === null ? '—' : l.falta}</td>
+  </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--gray-400);">Nenhuma equipe com Corte produtivo este mês (ainda)</td></tr>';
+}
+
+function comercialFiltrarSupervisor(nome) {
+  com.filtroSupervisor = nome;
+  comercialRenderTabelaEquipe();
+}
+
+function comercialRender() {
+  const ano = hoje.getFullYear(), mesIdx = hoje.getMonth();
+  const mesKey = comercialMesAtualKey();
+  const meta = com.metasPorMes[mesKey] || 0;
+
+  document.getElementById('com-meta-input').value = meta || '';
+  document.getElementById('com-meta-titulo').textContent = 'Meta de ' + OP_MESES_LABEL[mesIdx] + '/' + String(ano).slice(2);
+
+  const diasUteis = comercialDiasUteisNoMes(ano, mesIdx);
+  const diasDecorridos = comercialDiasUteisDecorridosNoMes(ano, mesIdx, hoje);
+  const diasRestantes = Math.max(diasUteis - diasDecorridos, 0);
+  const metaDia = diasUteis ? meta / diasUteis : 0;
+  com.diasRestantes = diasRestantes;
+
+  const metaDefinida = meta > 0;
+  const executado = com.dadosMesAtual.filter(r => opClassificar(r) === 'PRODUTIVO').length;
+  const falta = metaDefinida ? Math.max(meta - executado, 0) : 0;
+  const pctAtingimento = metaDefinida ? Math.min(100, Math.round((executado / meta) * 100)) : null;
+  const metaDiaNecessaria = metaDefinida && diasRestantes ? falta / diasRestantes : null;
+
+  document.getElementById('com-dias-uteis').textContent = diasUteis;
+  document.getElementById('com-meta-dia').textContent = metaDefinida ? metaDia.toFixed(1) : '—';
+  document.getElementById('com-executado').textContent = executado;
+  document.getElementById('com-falta').textContent = metaDefinida ? falta : '—';
+  document.getElementById('com-pct-atingimento').textContent = pctAtingimento === null ? '—' : pctAtingimento + '%';
+  document.getElementById('com-meta-dia-necessaria').textContent = metaDiaNecessaria ? metaDiaNecessaria.toFixed(1) : '—';
+
+  com.rateio = comercialCalcularRateio(falta, diasRestantes, metaDefinida);
+  comercialRenderGrafico(ano, mesIdx, metaDia);
+  comercialRenderTabelaSupervisor(com.rateio);
+  comercialRenderTabelaEquipe();
+}
 
 async function buscarCarimbo(regiao) {
   const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + regiao + '&select=atualizado_em', {
