@@ -841,14 +841,24 @@
   </div>
 
   <div class="op-panel">
-    <h3>Realizado × Meta por dia</h3>
-    <div class="op-sub">Segunda a quinta tem meta do dia (linha tracejada). Sexta/sábado/domingo/feriado é só extra — soma no mês, mas não tem cobrança diária.</div>
-    <div id="com-grafico-dias" style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-top:8px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+      <div>
+        <h3>Realizado × Meta por dia <span id="com-grafico-meta-label" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></h3>
+        <div class="op-sub">Segunda a quinta tem meta do dia (linha tracejada, com o valor da meta anotado). Sexta/sábado/domingo/feriado é só extra — soma no mês, mas não tem cobrança diária.</div>
+      </div>
+      <button onclick="comercialCopiarGrafico()" id="btn-copiar-com-grafico" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+    </div>
+    <div id="com-grafico-dias" style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-top:22px;"></div>
   </div>
 
   <div class="op-panel">
-    <h3>Ranking por Supervisor</h3>
-    <div class="op-sub">Rateio proporcional do que falta pra bater a meta: quem tem mais equipes e melhor média histórica carrega uma fatia maior.</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+      <div>
+        <h3>Ranking por Supervisor</h3>
+        <div class="op-sub">Rateio proporcional do que falta pra bater a meta: quem tem mais equipes e melhor média histórica carrega uma fatia maior. "Equipe ativa" = fez mais de 10 cortes produtivos no mês.</div>
+      </div>
+      <button onclick="comercialCopiarSupervisor()" id="btn-copiar-com-supervisor" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+    </div>
     <div style="overflow-x:auto;">
       <table class="op-table">
         <thead><tr>
@@ -867,9 +877,12 @@
         <h3>Ranking por Equipe</h3>
         <div class="op-sub">Meta (mês) = fatia do supervisor pro mês inteiro, dividida em partes iguais entre as equipes dele.</div>
       </div>
-      <select id="com-filtro-supervisor" onchange="comercialFiltrarSupervisor(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;">
-        <option value="">Todos os supervisores</option>
-      </select>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="com-filtro-supervisor" onchange="comercialFiltrarSupervisor(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;">
+          <option value="">Todos os supervisores</option>
+        </select>
+        <button onclick="comercialCopiarEquipe()" id="btn-copiar-com-equipe" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+      </div>
     </div>
     <div style="overflow-x:auto;">
       <table class="op-table">
@@ -4134,6 +4147,22 @@ async function comercialDadosDoMes(mesKey) {
   return registros.filter(r => opCategoriaServico(r) === 'Corte');
 }
 
+// Equipe "ativa" em Corte no mês = fez mais de 10 produtivos -- abaixo
+// disso é esporádico (pode ter feito 1-2 de apoio) e não deveria contar
+// pra "quantas equipes o supervisor tem" nem puxar a média de
+// produtividade por equipe/dia pra baixo sem representar trabalho real
+// nessa categoria. Usada tanto no mês corrente quanto em cada mês
+// histórico, pra manter a mesma régua nos dois.
+function comercialEquipesAtivas(dados) {
+  const contagem = {};
+  dados.forEach(r => {
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    const cod = r['Recurso/Equipe'];
+    if (cod) contagem[cod] = (contagem[cod] || 0) + 1;
+  });
+  return new Set(Object.keys(contagem).filter(cod => contagem[cod] > 10));
+}
+
 // Média histórica por supervisor = média simples de Produtivo/(Equipes×Dias)
 // de cada mês PASSADO E COMPLETO do ano corrente -- nunca o mês em
 // andamento, que ainda está incompleto e distorceria a média pra baixo.
@@ -4153,14 +4182,17 @@ async function comercialCalcularMediaHistorica() {
     const mesKey = mesesChave[m];
     const dados = await comercialDadosDoMes(mesKey);
     const diasUteis = comercialDiasUteisNoMes(ano, m);
+    const ativas = comercialEquipesAtivas(dados);
     const porSup = {};
     dados.forEach(r => {
       if (opClassificar(r) !== 'PRODUTIVO') return;
-      const sup = getSupervisor(r['Recurso/Equipe']);
+      const cod = r['Recurso/Equipe'];
+      if (!cod || !ativas.has(cod)) return;
+      const sup = getSupervisor(cod);
       if (!sup) return;
       if (!porSup[sup]) porSup[sup] = { produtivo: 0, equipes: new Set() };
       porSup[sup].produtivo++;
-      if (r['Recurso/Equipe']) porSup[sup].equipes.add(r['Recurso/Equipe']);
+      porSup[sup].equipes.add(cod);
     });
     Object.keys(porSup).forEach(sup => {
       const equipes = porSup[sup].equipes.size;
@@ -4210,16 +4242,21 @@ async function comercialCarregar() {
 // Em ambos, o último da lista absorve a sobra do arredondamento, pra soma
 // bater exatamente com o total (mesmo truque da planilha do Igor).
 function comercialCalcularRateio(metaMesTotal, saldo, diasRestantes, metaDefinida) {
+  const ativas = comercialEquipesAtivas(com.dadosMesAtual);
   const equipesPorSupervisor = {};
   const executadoPorSupervisor = {};
   com.dadosMesAtual.forEach(r => {
     if (opClassificar(r) !== 'PRODUTIVO') return;
     const sup = getSupervisor(r['Recurso/Equipe']);
     if (!sup) return;
+    // Executado conta TUDO (trabalho real é trabalho real); só a contagem
+    // de "quantas equipes" pro rateio de capacidade ignora quem fez ≤10
+    // (esporádico, não representa uma equipe de Corte de verdade).
     executadoPorSupervisor[sup] = (executadoPorSupervisor[sup] || 0) + 1;
-    if (r['Recurso/Equipe']) {
+    const cod = r['Recurso/Equipe'];
+    if (cod && ativas.has(cod)) {
       if (!equipesPorSupervisor[sup]) equipesPorSupervisor[sup] = new Set();
-      equipesPorSupervisor[sup].add(r['Recurso/Equipe']);
+      equipesPorSupervisor[sup].add(cod);
     }
   });
 
@@ -4271,6 +4308,10 @@ function comercialRenderGrafico(ano, mesIdx, metaDia) {
   });
   const maxBarra = Math.max(metaDia, ...Object.values(porDia), 1);
 
+  const metaLabel = document.getElementById('com-grafico-meta-label');
+  metaLabel.textContent = metaDia ? '· meta do dia: ' + metaDia.toFixed(1) : '';
+
+  const linhas = [];
   let html = '';
   for (let d = 1; d <= ultimoDia; d++) {
     const dataObj = new Date(ano, mesIdx, d);
@@ -4281,15 +4322,37 @@ function comercialRenderGrafico(ano, mesIdx, metaDia) {
     const alturaRealizado = futuro ? 0 : Math.round((realizado / maxBarra) * 100);
     const alturaMeta = ehUtil ? Math.round((metaDia / maxBarra) * 100) : 0;
     const corBarra = !ehUtil ? '#8e9fb8' : (realizado >= metaDia ? '#1a7a40' : '#c0392b');
-    html += `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:18px;" title="${chave}: ${realizado} feito${ehUtil ? ' · meta ' + metaDia.toFixed(1) : ' · sem meta (extra)'}">
-      <div style="position:relative;width:100%;height:120px;display:flex;align-items:flex-end;justify-content:center;">
+    linhas.push({ dia: d, data: chave, ehUtil, meta: ehUtil ? metaDia : null, realizado: futuro ? null : realizado });
+    // Número em cima da barra -- só quando tem algo feito, senão fica
+    // poluído de "0" em todo dia futuro/sem movimento.
+    const numeroTopo = !futuro && realizado > 0
+      ? `<div style="font-size:10px;font-weight:700;color:${corBarra};margin-bottom:2px;">${realizado}</div>` : '';
+    html += `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:22px;" title="${chave}: ${futuro ? 'ainda não chegou' : realizado + ' feito'}${ehUtil ? ' · meta ' + metaDia.toFixed(1) : ' · sem meta (extra)'}">
+      ${ehUtil ? `<div style="font-size:9px;color:#8097b8;margin-bottom:1px;">${metaDia.toFixed(0)}</div>` : '<div style="height:12px;"></div>'}
+      <div style="position:relative;width:100%;height:120px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;">
         ${ehUtil ? `<div style="position:absolute;left:2px;right:2px;bottom:${alturaMeta}%;border-top:2px dashed #8097b8;"></div>` : ''}
+        ${numeroTopo}
         <div style="width:60%;height:${alturaRealizado}%;background:${corBarra};border-radius:3px 3px 0 0;"></div>
       </div>
       <div style="font-size:9px;color:var(--gray-400);margin-top:4px;">${d}</div>
     </div>`;
   }
+  com.graficoLinhas = linhas;
   document.getElementById('com-grafico-dias').innerHTML = html;
+}
+
+function comercialCopiarGrafico() {
+  const cabecalho = ['Dia', 'Dia útil (tem meta)', 'Meta', 'Realizado'];
+  const linhas = [cabecalho.join('\t')];
+  (com.graficoLinhas || []).forEach(l => {
+    linhas.push([l.data, l.ehUtil ? 'Sim' : 'Não (extra)', l.meta === null ? '' : l.meta.toFixed(1), l.realizado === null ? '' : l.realizado].join('\t'));
+  });
+  navigator.clipboard.writeText(linhas.join('\n')).then(() => {
+    const btn = document.getElementById('btn-copiar-com-grafico');
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
 function comercialRenderTabelaSupervisor(rateio) {
@@ -4309,6 +4372,24 @@ function comercialRenderTabelaSupervisor(rateio) {
     <td class="op-num">${l.pctAtingimento === null ? '—' : l.pctAtingimento + '%'}</td>
     <td class="op-num">${n(l.falta)}</td>
   </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray-400);">Sem histórico suficiente ainda pra montar o rateio (precisa de pelo menos 1 mês passado completo)</td></tr>';
+  com.supervisorLinhas = linhas;
+}
+
+function comercialCopiarSupervisor() {
+  const cabecalho = ['Supervisor', 'Média hist. (cortes/equipe/dia)', 'Equipes (mês)', '% Participação',
+    'Meta restante', 'Meta/dia', 'Meta/equipe/dia', 'Meta (mês)', 'Executado (mês)', '% Atingimento', 'Falta'];
+  const linhas = [cabecalho.join('\t')];
+  (com.supervisorLinhas || []).forEach(l => {
+    linhas.push([l.sup, l.mediaHist.toFixed(2), l.equipes, (l.pctParticipacao * 100).toFixed(1) + '%',
+      l.metaRestante ?? '', l.metaDia === null ? '' : l.metaDia.toFixed(1), l.metaEquipeDia === null ? '' : l.metaEquipeDia.toFixed(1),
+      l.metaMensal ?? '', l.executado, l.pctAtingimento === null ? '' : l.pctAtingimento + '%', l.falta ?? ''].join('\t'));
+  });
+  navigator.clipboard.writeText(linhas.join('\n')).then(() => {
+    const btn = document.getElementById('btn-copiar-com-supervisor');
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
 function comercialRenderTabelaEquipe() {
@@ -4352,6 +4433,21 @@ function comercialRenderTabelaEquipe() {
     <td class="op-num">${l.executado}</td><td class="op-num">${l.meta === null ? '—' : l.meta}</td>
     <td class="op-num">${l.pct === null ? '—' : l.pct + '%'}</td><td class="op-num">${l.falta === null ? '—' : l.falta}</td>
   </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--gray-400);">Nenhuma equipe com Corte produtivo este mês (ainda)</td></tr>';
+  com.equipeLinhas = linhas;
+}
+
+function comercialCopiarEquipe() {
+  const cabecalho = ['Equipe', 'Supervisor', 'Executado (mês)', 'Meta (mês)', '% Atingimento', 'Falta'];
+  const linhas = [cabecalho.join('\t')];
+  (com.equipeLinhas || []).forEach(l => {
+    linhas.push([l.cod, l.sup || '', l.executado, l.meta ?? '', l.pct === null ? '' : l.pct + '%', l.falta ?? ''].join('\t'));
+  });
+  navigator.clipboard.writeText(linhas.join('\n')).then(() => {
+    const btn = document.getElementById('btn-copiar-com-equipe');
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
 }
 
 function comercialFiltrarSupervisor(nome) {
