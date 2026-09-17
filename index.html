@@ -196,6 +196,20 @@
   .op-eqcode { font-family:var(--font-mono); font-weight:700; color:#1565c0; }
   .op-badge { display:inline-block; padding:2px 9px; border-radius:12px; font-size:10.5px; font-weight:700; }
   .op-badge.op-rec { background:var(--red-soft); color:var(--red); }
+  .tab-section { padding: 24px 40px; }
+  .nav-tabs { padding: 0 32px; }
+  /* Celular: os 40px+20px de padding empilhados (seção + .op-panel) do
+     desktop/TV comiam boa parte de uma tela de 375px, deixando o
+     conteúdo espremido numa faixa estreita no meio (parecia "cortado"
+     nas duas bordas). Aqui só encolhe o respiro, não muda nada de
+     estrutura/layout. */
+  @media (max-width: 640px) {
+    #app-header { padding: 14px 16px; flex-wrap: wrap; row-gap: 8px; }
+    .nav-tabs { padding: 0 8px; overflow-x: auto; }
+    .tab-section { padding: 14px 12px; }
+    .op-panel { padding: 14px 12px; }
+    .op-hero { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -216,7 +230,7 @@
 </div>
 
 <!-- NAV TABS -->
-<div style="display:flex;gap:0;background:#0d1b2a;border-bottom:1px solid #1b2e45;padding:0 32px;">
+<div class="nav-tabs" style="display:flex;gap:0;background:#0d1b2a;border-bottom:1px solid #1b2e45;">
   <button id="tab-painel" onclick="setTab('painel')"
     style="padding:10px 20px;border:none;border-bottom:3px solid #e8a020;background:transparent;color:#e8a020;font-size:13px;font-weight:700;cursor:pointer;">
     📊 Painel Gerencial
@@ -236,7 +250,7 @@
 </div>
 
 <!-- ══ PAINEL GERENCIAL ══ -->
-<div id="painel-section" style="display:none;width:100%;padding:24px 40px;box-sizing:border-box;">
+<div id="painel-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
 
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
     <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Região:</span>
@@ -343,7 +357,7 @@
 </div>
 
 <!-- ══ EXECUÇÃO ══ -->
-<div id="execucao-section" style="display:none;width:100%;padding:24px 40px;box-sizing:border-box;">
+<div id="execucao-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
 
   <div id="exec-sem-dados" style="display:none;text-align:center;padding:60px;color:var(--gray-400);">
     <div style="font-size:40px;margin-bottom:12px;">☁</div>
@@ -583,7 +597,7 @@
 </div>
 
 <!-- ══ PAINEL OPERACIONAL ══ -->
-<div id="operacional-section" style="display:none;width:100%;padding:24px 40px;box-sizing:border-box;">
+<div id="operacional-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
 
   <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:14px 16px;margin-bottom:18px;">
     <div>
@@ -800,7 +814,7 @@
 </div>
 
 <!-- ══ INDICADOR COMERCIAL - CORTES ══ -->
-<div id="comercial-section" style="display:none;width:100%;padding:24px 40px;box-sizing:border-box;">
+<div id="comercial-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
 
   <div class="op-panel">
     <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;justify-content:space-between;">
