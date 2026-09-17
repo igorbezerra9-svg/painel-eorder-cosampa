@@ -4418,16 +4418,23 @@ async function comercialCarregar() {
   } finally {
     com.carregando = false;
   }
+  // O mês inteiro veio do cache (op.cache), que pode já estar de pé de
+  // uma visita anterior -- "hoje" especificamente pode estar desatualizado
+  // se a aba ficou um tempo sem ser a aba ativa (o refresh automático de
+  // hoje só roda com a aba visível, ver comercialAtualizarHoje). Força
+  // atualizar "hoje" agora que a aba acabou de abrir, sem esperar o
+  // próximo ciclo de 2 minutos.
+  await comercialAtualizarHoje();
 }
 
 // Mantém "hoje" atualizado ao longo do dia sem precisar de F5 -- busca só
 // o pedacinho de hoje (bem mais leve que buscar o mês inteiro de novo) e
 // substitui só esse dia dentro do cache do mês, mantendo os outros dias
-// intactos.
+// intactos. Chamada tanto pelo timer de 2min quanto ao abrir a aba.
 async function comercialAtualizarHoje() {
   if (document.hidden) return;
   if (document.getElementById('comercial-section').style.display === 'none') return;
-  if (com.carregando) return;
+  if (com.carregando) return; // comercialCarregar() já chama isso sozinho no final
   const mesAtualKey = comercialMesAtualKey();
   if (com.mesReferencia !== mesAtualKey) return; // só faz sentido vendo o mês corrente ao vivo
   const hojeKey = comercialChaveData(hoje);
