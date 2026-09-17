@@ -4283,6 +4283,16 @@ async function comercialDesfazerMeta() {
   await comercialGravarMetas(status, '↩ Desfeito');
 }
 
+// O Indicador Comercial é só sobre esses 2 códigos (pedido explícito do
+// Igor) -- NÃO usa a categoria "Corte" geral (TIPO_SERVICO_CATEGORIA),
+// que é mais ampla (inclui OUTCRT/OUTCSC/OUTERC/OUTERM/OUTIRR/OUTRFS) e
+// continua servindo o resto do painel (Painel Gerencial/Operacional)
+// sem alteração nenhuma.
+const COMERCIAL_TIPOS = ['OUTCDN', 'OUTRNN']; // OUTCDN - Corte Dunning, OUTRNN - Recorte Dunning
+function comercialEhTipoAlvo(r) {
+  return COMERCIAL_TIPOS.includes(opCodigoServico(r));
+}
+
 // MM-only -- usado pra Média histórica, rateio (Capacidade/Equipes/
 // %Participação/Meta) e os dois rankings. Equipe de carro (LB) faz outro
 // tipo de serviço e só de vez em quando pega um corte de apoio (1-3
@@ -4290,7 +4300,7 @@ async function comercialDesfazerMeta() {
 // por equipe/dia sem representar trabalho real na categoria.
 async function comercialDadosDoMes(mesKey) {
   const registros = await opFetchMes(mesKey);
-  return registros.filter(r => opCategoriaServico(r) === 'Corte' && getTipoEquipe(r['Recurso/Equipe']) === 'MM');
+  return registros.filter(r => comercialEhTipoAlvo(r) && getTipoEquipe(r['Recurso/Equipe']) === 'MM');
 }
 
 // MM+LB (todo mundo) -- usado só nos KPIs do topo e no gráfico, pra bater
@@ -4299,7 +4309,7 @@ async function comercialDadosDoMes(mesKey) {
 // só o resumo geral do mês soma os cortes de apoio do LB também.
 async function comercialDadosDoMesTodos(mesKey) {
   const registros = await opFetchMes(mesKey);
-  return registros.filter(r => opCategoriaServico(r) === 'Corte');
+  return registros.filter(r => comercialEhTipoAlvo(r));
 }
 
 // Equipe "ativa" em Corte no mês = fez mais de 10 produtivos -- abaixo
