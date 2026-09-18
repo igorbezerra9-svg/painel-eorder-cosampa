@@ -2008,6 +2008,15 @@ function rotuloRegulacao(r) {
   return t === 'REG' ? 'Regulada' : t === 'NREG' ? 'Não regulada' : 'Outro';
 }
 
+// Mesma ideia, pro botão "Sem Perdas" da tela: a regra aqui é idêntica à que
+// pgFiltrarBase usa pra esconder essas OS (categoria do serviço === 'Perdas'),
+// então a coluna nunca discorda do que o filtro faz.
+const COLUNA_PERDAS = 'Perdas';
+
+function rotuloPerdas(r) {
+  return opCategoriaServico(r) === 'Perdas' ? 'Sim' : 'Não';
+}
+
 function gerarCSV(dados, ordemPreferida, ordemFinal) {
   if (!dados || !dados.length) return '';
   const todasColunas = Object.keys(dados[0]);
@@ -2071,12 +2080,15 @@ async function baixarArquivoAtual() {
   // Cópia por registro de propósito: escrever a coluna direto no objeto
   // original poluiria o pgDados que a tela usa pra renderizar e filtrar.
   if (painelVisivel) {
-    dados = dados.map(r => Object.assign({}, r, { [COLUNA_REGULACAO]: rotuloRegulacao(r) }));
+    dados = dados.map(r => Object.assign({}, r, {
+      [COLUNA_REGULACAO]: rotuloRegulacao(r),
+      [COLUNA_PERDAS]: rotuloPerdas(r)
+    }));
   }
   const csv = gerarCSV(
     dados,
     painelVisivel ? ORDEM_EXPORT_COMPLETO_SUL : null,
-    painelVisivel ? [COLUNA_REGULACAO] : null
+    painelVisivel ? [COLUNA_REGULACAO, COLUNA_PERDAS] : null
   );
   const bom = '﻿'; // garante que os acentos apareçam certo no Excel
   const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
