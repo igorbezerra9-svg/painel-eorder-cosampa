@@ -1997,7 +1997,18 @@ const ORDEM_COLUNAS_EXECUCAO = ['Numero de Serviço', 'Tipo Remessa WIN', ' Tipo
 // Gerencial -- o arquivo cru da Enel não vem nessa ordem.
 const ORDEM_EXPORT_COMPLETO_SUL = ['CO', 'Contratado', 'Contrato', 'Data e Hora de Criação TdC', 'Código TdC', 'Código Sistema Externo de Origem', 'Código externo do TdC', 'Numero de Serviço', 'Processo', 'Tipo TdC', 'Ciclo de trabalho', ' Tipo de Serviço', 'Tipo Remessa WIN', 'Estado TdC', 'Causa-Descritivo de Cancelamento/Suspensão', 'Nome TdC pré-homologação', 'Código Cliente', 'Nome e Sobrenome Cliente', 'Rota de Leitura', 'Área', 'Longitude', 'Latitude', 'Centro Operacional Cliente', 'Tipo Rua', 'Núm. Rua Endereço', 'Núm. Placa Endereço', 'Cód. Unidade Predial', 'Núm. da Unidade Predial', 'Cód. Modalidade Unidade Predial', 'Núm. Modalidade Unidade Predial', 'Dica Localização', 'Município', 'Bairro', 'Código Equipe', 'Equipe', 'Chefe/Responsável de Equipe', 'Tipo Agrupamento', 'Código Postal', 'Endereço Completo', 'Estado', 'Agrupamento', 'Espaço urbano', 'Lote', 'Prazo ANS Legal', 'Prazo ANS Interno', 'Data vencimento ANS Contratada', 'Data Prevista Início atividades', 'Data Prevista Finalização Trabalhos', 'Id Reclamação'];
 
-function gerarCSV(dados, ordemPreferida) {
+// Coluna calculada -- não vem no arquivo da Enel. É a mesma classificação
+// Regulada/Não regulada do filtro TIPO da tela (getTipoOrdem), pra quem abre o
+// CSV não ter que decorar os códigos OUTxxx. Vai no fim, depois das colunas
+// originais, pra não deslocar quem já usa o arquivo com a ordem de hoje.
+const COLUNA_REGULACAO = 'Regulada/Não regulada';
+
+function rotuloRegulacao(r) {
+  const t = getTipoOrdem(r);
+  return t === 'REG' ? 'Regulada' : t === 'NREG' ? 'Não regulada' : 'Outro';
+}
+
+function gerarCSV(dados, ordemPreferida, ordemFinal) {
   if (!dados || !dados.length) return '';
   const todasColunas = Object.keys(dados[0]);
   let colunas = todasColunas;
@@ -2005,6 +2016,12 @@ function gerarCSV(dados, ordemPreferida) {
     const preferidas = ordemPreferida.filter(c => todasColunas.includes(c));
     const restantes = todasColunas.filter(c => !preferidas.includes(c));
     colunas = [...preferidas, ...restantes];
+  }
+  // Empurra pro fim as colunas listadas em ordemFinal, independente de onde
+  // elas tenham caído na ordenação acima.
+  if (ordemFinal) {
+    const finais = ordemFinal.filter(c => colunas.includes(c));
+    if (finais.length) colunas = [...colunas.filter(c => !finais.includes(c)), ...finais];
   }
   const linhas = [colunas.join(';')];
   dados.forEach(row => {
@@ -2051,7 +2068,16 @@ async function baixarArquivoAtual() {
   // completa ainda não publicada -- ex.: antes do próximo ciclo do bot).
   if (!dados) dados = painelVisivel ? pgDados : execDados;
   if (!dados || !dados.length) { showToast('Sem dados pra baixar', 3000); return; }
-  const csv = gerarCSV(dados, painelVisivel ? ORDEM_EXPORT_COMPLETO_SUL : null);
+  // Cópia por registro de propósito: escrever a coluna direto no objeto
+  // original poluiria o pgDados que a tela usa pra renderizar e filtrar.
+  if (painelVisivel) {
+    dados = dados.map(r => Object.assign({}, r, { [COLUNA_REGULACAO]: rotuloRegulacao(r) }));
+  }
+  const csv = gerarCSV(
+    dados,
+    painelVisivel ? ORDEM_EXPORT_COMPLETO_SUL : null,
+    painelVisivel ? [COLUNA_REGULACAO] : null
+  );
   const bom = '﻿'; // garante que os acentos apareçam certo no Excel
   const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
