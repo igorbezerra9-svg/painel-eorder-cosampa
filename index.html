@@ -4638,7 +4638,10 @@ async function comercialCopiarGraficoPng() {
   btn.textContent = 'Gerando...';
   try {
     const el = document.getElementById('com-grafico-dias');
-    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+    // scale alto pra ficar nítido em PowerPoint/apresentação (o gráfico em si
+    // é pequeno em pixels de CSS -- sem isso a imagem sai minúscula/borrada
+    // quando ampliada numa tela grande).
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 4 });
     canvas.toBlob(async (blob) => {
       if (!blob) { showToast('Não foi possível gerar a imagem', 3000); btn.textContent = original; return; }
       try {
