@@ -4637,11 +4637,37 @@ async function comercialCopiarGraficoPng() {
   const original = btn.textContent;
   btn.textContent = 'Gerando...';
   try {
-    const el = document.getElementById('com-grafico-dias');
+    const elOriginal = document.getElementById('com-grafico-dias');
+    // Clona o gráfico só pra exportação -- não mexe no gráfico de verdade
+    // da tela. Deixa as barras bem mais altas (as barras são % da altura
+    // do "poço" de 120px, então só aumentar esse poço já recalcula tudo
+    // proporcionalmente) -- sem isso a imagem sai numa faixa fina e
+    // panorâmica, horrível ao colar numa apresentação.
+    const el = elOriginal.cloneNode(true);
+    el.querySelectorAll('div[style*="height:120px"]').forEach(poco => {
+      poco.style.height = '340px';
+    });
+    el.style.position = 'fixed';
+    el.style.left = '-99999px';
+    el.style.top = '0';
+    document.body.appendChild(el);
+
+    // Corta os dias futuros (sem barra nenhuma, só a linha tracejada) --
+    // incluir o mês inteiro até o dia 30 deixava a imagem enormemente
+    // panorâmica, mesmo com as barras mais altas. Captura só até a última
+    // coluna que já tem dado de verdade.
+    const linhasComDado = (com.graficoLinhas || []).filter(l => l.realizado !== null);
+    const ultimoDiaComDado = linhasComDado.length ? linhasComDado[linhasComDado.length - 1].dia : null;
+    let largura = el.scrollWidth;
+    if (ultimoDiaComDado && el.children[ultimoDiaComDado - 1]) {
+      const coluna = el.children[ultimoDiaComDado - 1];
+      largura = Math.ceil(coluna.offsetLeft + coluna.offsetWidth) + 4;
+    }
     // scale alto pra ficar nítido em PowerPoint/apresentação (o gráfico em si
     // é pequeno em pixels de CSS -- sem isso a imagem sai minúscula/borrada
     // quando ampliada numa tela grande).
-    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 4 });
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 3, width: largura, windowWidth: el.scrollWidth });
+    document.body.removeChild(el);
     canvas.toBlob(async (blob) => {
       if (!blob) { showToast('Não foi possível gerar a imagem', 3000); btn.textContent = original; return; }
       try {
