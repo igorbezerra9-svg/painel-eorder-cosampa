@@ -4231,12 +4231,20 @@ function comercialDiasUteisNoMes(ano, mesIdx) {
   for (let d = 1; d <= ultimoDia; d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) n++;
   return n;
 }
-// Dias úteis ANTES de hoje -- hoje ainda está em andamento, então entra em
-// "restantes", não em "decorridos" (ainda dá tempo de produzir hoje).
-function comercialDiasUteisDecorridosNoMes(ano, mesIdx, hojeData) {
+// Conta dias úteis já decorridos. Um dia REALMENTE já passado (antes de
+// hoje de verdade -- ex.: escolheu "até 22/09" e hoje já é 23) conta
+// INTEIRO, já que ele acabou. Só o dia de HOJE mesmo (ainda em
+// andamento) fica de fora -- ainda dá tempo de produzir hoje, então ele
+// entra em "restantes", não em "decorridos". Antes isso excluía o dia
+// escolhido mesmo quando ele já tinha passado de verdade, subestimando
+// em 1 dia útil a meta proporcional (ex.: dava 11 dias em vez de 12 pro
+// dia 22, com hoje sendo 23).
+function comercialDiasUteisDecorridosNoMes(ano, mesIdx, diaRef, hojeReal) {
   const feriados = comercialFeriados(ano);
+  const diaRefJaPassou = diaRef.getTime() < hojeReal.getTime();
+  const limite = diaRefJaPassou ? diaRef.getDate() + 1 : diaRef.getDate();
   let n = 0;
-  for (let d = 1; d < hojeData.getDate(); d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) n++;
+  for (let d = 1; d < limite; d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) n++;
   return n;
 }
 
@@ -4896,7 +4904,7 @@ function comercialRender() {
     : (!ehMesAtual ? '📅 Mês fechado — vendo o mês inteiro' : '');
 
   const diasUteis = comercialDiasUteisNoMes(ano, mesIdx);
-  const diasDecorridos = ehMesAtual ? comercialDiasUteisDecorridosNoMes(ano, mesIdx, diaRef) : diasUteis;
+  const diasDecorridos = ehMesAtual ? comercialDiasUteisDecorridosNoMes(ano, mesIdx, diaRef, hoje) : diasUteis;
   const diasRestantes = Math.max(diasUteis - diasDecorridos, 0);
   const metaDia = diasUteis ? meta / diasUteis : 0;
   com.diasRestantes = diasRestantes;
