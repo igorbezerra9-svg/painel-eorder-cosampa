@@ -854,6 +854,7 @@
     <div style="flex:1;min-width:160px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
       <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✓ Executado (mês)</div>
       <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="com-executado">0</div>
+      <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;" id="com-ritmo">—</div>
     </div>
     <div style="flex:1;min-width:160px;background:#fdece9;border-radius:12px;padding:14px 16px;">
       <div style="font-size:10px;color:#c0392b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⚠ Falta pra meta</div>
@@ -4921,6 +4922,26 @@ function comercialRender() {
   document.getElementById('com-falta').textContent = metaDefinida ? falta : '—';
   document.getElementById('com-pct-atingimento').textContent = pctAtingimento === null ? '—' : pctAtingimento + '%';
   document.getElementById('com-meta-dia-necessaria').textContent = metaDiaNecessaria ? metaDiaNecessaria.toFixed(1) : '—';
+
+  // "Tá no ritmo ou não?" -- compara o que já foi feito com o que
+  // deveria ter sido feito até aqui, numa distribuição linear da meta
+  // pelos dias úteis já decorridos. Diferente do % Atingimento (que é
+  // sobre o mês INTEIRO e sempre parece baixo no começo do mês, mesmo
+  // estando no ritmo certo) -- esse aqui responde "tô adiantado ou
+  // atrasado pro ponto do mês em que estou".
+  const ritmoEl = document.getElementById('com-ritmo');
+  if (!metaDefinida) {
+    ritmoEl.textContent = '';
+  } else {
+    const metaProporcional = Math.round(metaDia * diasDecorridos);
+    if (!metaProporcional) {
+      ritmoEl.textContent = 'Ainda sem dia útil decorrido pra comparar ritmo';
+    } else {
+      const pctProporcional = Math.round((executado / metaProporcional) * 100);
+      const cor = pctProporcional >= 100 ? '#1a7a40' : '#c0392b';
+      ritmoEl.innerHTML = `Meta até aqui: ${metaProporcional} · <span style="color:${cor};font-weight:700;">${pctProporcional}% do ritmo</span>`;
+    }
+  }
 
   // O rateio pra bater a meta ainda parte do saldo MM+LB (falta é sobre o
   // total, que é o que realmente falta pra bater a meta) -- só a
