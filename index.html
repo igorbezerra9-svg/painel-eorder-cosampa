@@ -341,7 +341,9 @@
               <th style="padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Tipo</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#f06060;">Estouradas</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#f0a040;">Vence hoje</th>
-              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#50d080;">No prazo</th>
+              <th id="pg-th-d1" style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#8fb8e8;" title="Vence na janela do dia seguinte (mesma régua das 09:00 do 'Vence hoje')">D+1</th>
+              <th id="pg-th-d2" style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#8fb8e8;" title="Vence na janela de dois dias à frente (mesma régua das 09:00)">D+2</th>
+              <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#50d080;" title="O que vence depois do D+2">No prazo</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Total</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Reguladas</th>
               <th style="padding:8px 12px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Não reg.</th>
@@ -1288,6 +1290,48 @@ function getPrioridade(r) {
   return 'ok';
 }
 
+// ══ JANELA DE VENCIMENTO (visão de curto prazo na tabela de equipes) ══
+// Reparte o que ainda NÃO venceu em hoje / D+1 / D+2 / depois, seguindo a
+// MESMA régua das 09:00 do getPrioridade: cada balde termina às 09:00 do dia
+// seguinte, e no sábado o primeiro estica até segunda (não tem equipe no
+// domingo). Por isso 'est' e 'hj' aqui dão exatamente os mesmos números que
+// o getPrioridade já dava -- só o que sobrava em 'ok' é que foi repartido.
+//
+// Função separada de propósito, em vez de fazer o getPrioridade devolver
+// 'd1'/'d2': o card "No prazo" do topo conta p!=='hj' && p!=='est' (e
+// continuaria certo), mas o modal dele filtra por ==='ok' -- então o modal
+// passaria a listar menos OS do que o número do card, card e modal
+// discordando. Mexer só aqui deixa os cards do topo intactos.
+function pgJanelaBase() {
+  const diaBase = pgReferenciaHoje || hoje;
+  const diasJanela = diaBase.getDay() === 6 ? 2 : 1; // sábado cobre sáb+dom
+  const desloca = n => new Date(diaBase.getFullYear(), diaBase.getMonth(), diaBase.getDate() + diasJanela + n);
+  return {
+    // fim de cada balde: 09:00 do dia n à frente do fim da janela de hoje
+    lim: n => { const d = desloca(n); d.setHours(9, 0, 0, 0); return d; },
+    // dia que a coluna representa -- sai da MESMA conta, pra data do
+    // cabeçalho nunca sair de sincronia com o que a coluna conta
+    dia: n => desloca(n)
+  };
+}
+
+function pgRotuloDia(d) {
+  const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  return DIAS[d.getDay()] + ' ' + String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function getJanelaPrazo(r) {
+  const dt = parseDateTimeStr(r['Data Prevista Finalização Trabalhos'] || '');
+  if (!dt) return 'depois';
+  const agora = pgReferenciaAgora || new Date();
+  if (dt < agora) return 'est';
+  const b = pgJanelaBase();
+  if (dt <= b.lim(0)) return 'hj';
+  if (dt <= b.lim(1)) return 'd1';
+  if (dt <= b.lim(2)) return 'd2';
+  return 'depois';
+}
+
 // ══ TAB NAVIGATION ══
 function setTab(tab) {
   document.getElementById('painel-section').style.display = tab === 'painel' ? 'block' : 'none';
@@ -1814,9 +1858,16 @@ function pgFiltrarModal() {
 
 function pgAbrirModalEquipe(codEquipe, prioFiltro) {
   const dados = pgGetFiltrado().filter(r => (r['Código Equipe']||'') === codEquipe);
-  const filtrado = prioFiltro ? dados.filter(r => getPrioridade(r) === prioFiltro) : dados;
+  // Usa a mesma janela que montou a linha da tabela -- senão o modal listaria
+  // um conjunto diferente do número em que a pessoa clicou.
+  const filtrado = prioFiltro ? dados.filter(r => getJanelaPrazo(r) === prioFiltro) : dados;
   const lider = dados[0] ? (dados[0]['Chefe/Responsável de Equipe']||codEquipe) : codEquipe;
-  const prioLabel = prioFiltro === 'est' ? ' · Estouradas' : prioFiltro === 'hj' ? ' · Vencem hoje' : prioFiltro === 'ok' ? ' · No prazo' : '';
+  const _jb2 = pgJanelaBase();
+  const prioLabel = prioFiltro === 'est' ? ' · Estouradas'
+    : prioFiltro === 'hj' ? ' · Vencem hoje'
+    : prioFiltro === 'd1' ? ' · Vencem ' + pgRotuloDia(_jb2.dia(0))
+    : prioFiltro === 'd2' ? ' · Vencem ' + pgRotuloDia(_jb2.dia(1))
+    : prioFiltro === 'depois' ? ' · No prazo (depois do D+2)' : '';
   pgModalDados = filtrado;
   document.getElementById('pg-modal-title').textContent = codEquipe + prioLabel;
   document.getElementById('pg-modal-sub').textContent = lider + ' · ' + filtrado.length + ' OS · ' + pgRegiao;
@@ -1888,10 +1939,12 @@ function pgRenderTabela() {
   dados.forEach(r => {
     const cod = r['Código Equipe'] || '';
     if (!cod) return;
-    if (!eqMap[cod]) eqMap[cod] = { lider: r['Chefe/Responsável de Equipe']||'', est:0, hj:0, ok:0, reg:0, nreg:0 };
-    const p = getPrioridade(r);
-    if (p==='est') eqMap[cod].est++;
-    else if (p==='hj') eqMap[cod].hj++;
+    if (!eqMap[cod]) eqMap[cod] = { lider: r['Chefe/Responsável de Equipe']||'', est:0, hj:0, d1:0, d2:0, ok:0, reg:0, nreg:0 };
+    const j = getJanelaPrazo(r);
+    if (j==='est') eqMap[cod].est++;
+    else if (j==='hj') eqMap[cod].hj++;
+    else if (j==='d1') eqMap[cod].d1++;
+    else if (j==='d2') eqMap[cod].d2++;
     else eqMap[cod].ok++;
     const t = getTipoOrdem(r);
     if (t==='REG') eqMap[cod].reg++;
@@ -1900,16 +1953,24 @@ function pgRenderTabela() {
   const rows = Object.entries(eqMap)
     .filter(([cod,d]) => !search || cod.toLowerCase().includes(search) || d.lider.toLowerCase().includes(search))
     .sort((a,b) => b[1].est-a[1].est || b[1].hj-a[1].hj);
+  // Datas das colunas novas, tiradas da mesma base que classifica as OS
+  const _jb = pgJanelaBase();
+  const thD1 = document.getElementById('pg-th-d1');
+  const thD2 = document.getElementById('pg-th-d2');
+  if (thD1) thD1.textContent = pgRotuloDia(_jb.dia(0));
+  if (thD2) thD2.textContent = pgRotuloDia(_jb.dia(1));
   let html = '';
   rows.forEach(([cod,d], i) => {
-    const total = d.est+d.hj+d.ok;
+    const total = d.est+d.hj+d.d1+d.d2+d.ok;
     const tipoEq = getTipoEquipe(cod);
     const icon = tipoEq==='LB'?'🚗':tipoEq==='MM'?'🏍':'⚡';
     const bg = i%2===0?'#fff':'#f8fafc';
     const bordL = d.est>0?'border-left:3px solid #e53935':d.hj>0?'border-left:3px solid #ff9800':'border-left:3px solid #43a047';
     const clkEst = d.est ? 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'est\')" style="cursor:pointer;text-decoration:underline dotted;"' : '';
     const clkHj  = d.hj  ? 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'hj\')"  style="cursor:pointer;text-decoration:underline dotted;"' : '';
-    const clkOk  = d.ok  ? 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'ok\')"  style="cursor:pointer;text-decoration:underline dotted;"' : '';
+    const clkOk  = d.ok  ? 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'depois\')"  style="cursor:pointer;text-decoration:underline dotted;"' : '';
+    const clkD1  = d.d1  ? 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'d1\')"  style="cursor:pointer;text-decoration:underline dotted;"' : '';
+    const clkD2  = d.d2  ? 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'d2\')"  style="cursor:pointer;text-decoration:underline dotted;"' : '';
     const clkAll = 'onclick="pgAbrirModalEquipe(\'' + cod + '\',\'\')" style="cursor:pointer;text-decoration:underline dotted;"';
     html += `<tr style="background:${bg};${bordL};border-bottom:1px solid #e8edf5;">
       <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#1565c0;white-space:nowrap;">${icon} ${cod}</td>
@@ -1917,13 +1978,15 @@ function pgRenderTabela() {
       <td style="padding:7px 12px;font-size:11px;color:#8097b8;">${tipoEq==='LB'?'Carro':tipoEq==='MM'?'Moto':'—'}</td>
       <td style="padding:7px 12px;text-align:center;font-weight:700;color:${d.est?'#c0392b':'#ccc'};" ${clkEst}>${d.est||'—'}</td>
       <td style="padding:7px 12px;text-align:center;font-weight:700;color:${d.hj?'#d35400':'#ccc'};${d.hj?` --pulse-dur:${pgPulseDuration()};`:''}" class="${d.hj?'pg-pulse-hj':''}" ${clkHj}>${d.hj||'—'}</td>
+      <td style="padding:7px 12px;text-align:center;color:${d.d1?'#1565c0':'#ccc'};" ${clkD1}>${d.d1||'—'}</td>
+      <td style="padding:7px 12px;text-align:center;color:${d.d2?'#1565c0':'#ccc'};" ${clkD2}>${d.d2||'—'}</td>
       <td style="padding:7px 12px;text-align:center;color:#1a7a40;" ${clkOk}>${d.ok}</td>
       <td style="padding:7px 12px;text-align:center;font-weight:700;" ${clkAll}>${total}</td>
       <td style="padding:7px 12px;text-align:center;color:#1565c0;">${d.reg}</td>
       <td style="padding:7px 12px;text-align:center;color:#bf360c;">${d.nreg}</td>
     </tr>`;
   });
-  document.getElementById('pg-tabela-body').innerHTML = html || '<tr><td colspan="9" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
+  document.getElementById('pg-tabela-body').innerHTML = html || '<tr><td colspan="11" style="padding:20px;text-align:center;color:#8097b8;">Nenhuma equipe encontrada</td></tr>';
 }
 
 // ══ INDICADOR "ATUALIZADO" (topo) ══
