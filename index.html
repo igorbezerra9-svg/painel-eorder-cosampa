@@ -1738,7 +1738,7 @@ function pgRenderOrdensVencendo(dados, dadosTodos) {
 
   const hj = porPrioridade(dadosTodos || dados, 'hj');
   const est = porPrioridade(dados, 'est');
-  const LIMITE_EST = 30;
+  const LIMITE = 5;
 
   if (!hj.length && !est.length) {
     document.getElementById('pg-ordens-vencendo').innerHTML =
@@ -1749,15 +1749,18 @@ function pgRenderOrdensVencendo(dados, dadosTodos) {
   let html = '';
   html += `<div style="font-size:10px;font-weight:700;color:#d35400;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">⏰ Vence Hoje (${hj.length}) — a mais antiga pisca</div>`;
   html += hj.length
-    ? pgOrdensTabelaHTML(hj, { pulseIndex: 0 })
+    ? pgOrdensTabelaHTML(hj.slice(0, LIMITE), { pulseIndex: 0 })
     : '<div style="padding:10px;color:var(--gray-400);font-size:12px;margin-bottom:12px;">Nenhuma OS vence hoje 🎉</div>';
+  if (hj.length > LIMITE) {
+    html += `<div style="padding:10px;text-align:center;font-size:11px;color:var(--gray-400);">+ ${hj.length - LIMITE} outras — use o card "Vencem hoje" no topo pra ver a lista completa</div>`;
+  }
 
   html += `<div style="font-size:10px;font-weight:700;color:#c0392b;text-transform:uppercase;letter-spacing:.8px;margin:16px 0 6px;">⚠ Estouradas (${est.length})</div>`;
   html += est.length
-    ? pgOrdensTabelaHTML(est.slice(0, LIMITE_EST))
+    ? pgOrdensTabelaHTML(est.slice(0, LIMITE))
     : '<div style="padding:10px;color:var(--gray-400);font-size:12px;">Nenhuma OS estourada 🎉</div>';
-  if (est.length > LIMITE_EST) {
-    html += `<div style="padding:10px;text-align:center;font-size:11px;color:var(--gray-400);">+ ${est.length - LIMITE_EST} outras — use o card "Estouradas" no topo pra ver a lista completa</div>`;
+  if (est.length > LIMITE) {
+    html += `<div style="padding:10px;text-align:center;font-size:11px;color:var(--gray-400);">+ ${est.length - LIMITE} outras — use o card "Estouradas" no topo pra ver a lista completa</div>`;
   }
 
   document.getElementById('pg-ordens-vencendo').innerHTML = html;
