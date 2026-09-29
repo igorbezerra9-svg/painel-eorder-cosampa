@@ -4987,7 +4987,7 @@ function comercialRender() {
   const metaDefinida = meta > 0;
   const executado = dadosAteRefTodos.filter(r => opClassificar(r) === 'PRODUTIVO').length;
   const falta = metaDefinida ? Math.max(meta - executado, 0) : 0;
-  const pctAtingimento = metaDefinida ? Math.min(100, Math.round((executado / meta) * 100)) : null;
+  const pctAtingimento = metaDefinida ? Math.round((executado / meta) * 100) : null;
   const metaDiaNecessaria = metaDefinida && diasRestantes ? falta / diasRestantes : null;
 
   document.getElementById('com-dias-uteis').textContent = diasUteis;
