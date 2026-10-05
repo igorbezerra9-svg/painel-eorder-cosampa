@@ -287,6 +287,53 @@ def _salvar_clientes_sul_local(clientes):
 def _carregar_clientes_sul_local():
     return set(_carregar_json_idx(CLIENTES_SUL_PATH) or [])
 
+
+# ── Prazo de cada OS (aba "Cumprimento de Prazo" do painel) ──────────────
+# A OS some do TdC quando é baixada e o export da Execução não traz o prazo
+# ("Data Prevista Finalização Trabalhos" só existe no TdC) -- então o robô
+# lembra o prazo de cada OS enquanto ela ainda aparece no TdC e grava esse
+# prazo, com o mesmo nome de coluna, em cada linha da Execução. Assim o painel
+# junta prazo × hora da baixa mesmo meses depois (o histórico do TdC no
+# Supabase só guarda 30 dias). Arquivo local, de graça -- nada de tabela nova.
+PRAZOS_OS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prazos_os_idx.json")
+PRAZO_COL = "Data Prevista Finalização Trabalhos"
+PRAZOS_RETENCAO_DIAS = 90  # esquece OS com prazo mais antigo que isso, o arquivo não cresce sem limite
+# TdC e Execução rodam em threads paralelas no mesmo ciclo (ver rodar_automatico.py).
+_PRAZOS_LOCK = threading.Lock()
+
+
+def _atualizar_prazos_os(linhas_tdc):
+    """Dobra as OS do TdC (já lidas pelo robô) no índice local nº -> prazo.
+    Se o prazo da OS mudar (reprogramação), vale o último visto."""
+    with _PRAZOS_LOCK:
+        idx = _carregar_json_idx(PRAZOS_OS_PATH) or {}
+        for r in linhas_tdc:
+            n = (r.get("Numero de Serviço") or "").strip()
+            p = (r.get(PRAZO_COL) or "").strip()
+            if n and p:
+                idx[n] = p
+        limite = datetime.now() - timedelta(days=PRAZOS_RETENCAO_DIAS)
+        idx = {n: p for n, p in idx.items() if (_parse_data_fim(p) or datetime.max) >= limite}
+        tmp = PRAZOS_OS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(idx, f, ensure_ascii=False)
+        os.replace(tmp, PRAZOS_OS_PATH)
+    return len(idx)
+
+
+def _anexar_prazos_execucao(linhas):
+    """Coloca o prazo (do índice local) em cada linha da Execução que tiver.
+    Devolve quantas linhas receberam."""
+    with _PRAZOS_LOCK:
+        idx = _carregar_json_idx(PRAZOS_OS_PATH) or {}
+    com = 0
+    for r in linhas:
+        p = idx.get((r.get("Numero de Serviço") or "").strip())
+        if p:
+            r[PRAZO_COL] = p
+            com += 1
+    return com
+
 # ── XPaths ───────────────────────────────────────────────────────────
 XP_USER          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[1]/td[2]/input"
 XP_PASS          = "/html/body/table/tbody/tr/td/div/div[2]/div/div/form/div/div[2]/table/tbody/tr[2]/td[2]/input"
@@ -816,6 +863,19 @@ class EOrderExecucaoBot:
             # tinha medido 2,24MB -- rodando em toda rodada, uns 2GB/mês só
             # nisso, quase 40% da cota de egress).
             _salvar_clientes_sul_local({(r.get("Código Cliente") or "").strip() for r in linhas if r.get("Código Cliente")})
+            try:
+                total_prazos = _atualizar_prazos_os(linhas)
+                self._plog(f"⏱ Índice de prazos atualizado: {total_prazos} OS lembradas")
+            except Exception as e:
+                self._plog(f"⚠️  Falha ao atualizar índice de prazos: {e}")
+        if regiao == "Execucao":
+            # Antes de publicar (tela ao vivo E histórico): a OS baixada some do
+            # TdC, então esse é o último momento em que dá pra gravar o prazo dela.
+            try:
+                com_prazo = _anexar_prazos_execucao(linhas)
+                self._plog(f"⏱ Prazo anexado em {com_prazo}/{len(linhas)} linha(s) da Execução")
+            except Exception as e:
+                self._plog(f"⚠️  Falha ao anexar prazos na Execução: {e}")
         # Atualiza o índice de reincidentes com o que acabou de ser lido --
         # roda mesmo quando publicar_ao_vivo=False (reconsulta de ontem
         # também traz resultado válido pra incorporar), antes do POST ao

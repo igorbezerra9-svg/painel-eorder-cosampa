@@ -247,6 +247,10 @@
     style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
     🎯 Indicador Comercial
   </button>
+  <button id="tab-prazo" onclick="setTab('prazo')"
+    style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
+    ⏱️ Cumprimento de Prazo
+  </button>
 </div>
 
 <!-- ══ PAINEL GERENCIAL ══ -->
@@ -932,6 +936,166 @@
 
 </div>
 
+<!-- ══ CUMPRIMENTO DE PRAZO ══ -->
+<div id="prazo-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
+
+  <div class="op-panel">
+    <h3>Cumprimento de Prazo</h3>
+    <div class="op-sub">Ordens por data de vencimento. A ordem nasce no Painel Gerencial com um prazo e some de lá quando é baixada (produtiva ou improdutiva — devolvida não conta como baixa); a hora da baixa vem da Execução. Ordem ainda aberta depois do prazo já conta como fora do prazo.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Vencimento:</span>
+        <button class="pg-tipo-btn" id="pz-p-hoje" onclick="pzSetPeriodo('hoje')">Hoje</button>
+        <button class="pg-tipo-btn" id="pz-p-ontem" onclick="pzSetPeriodo('ontem')">Ontem</button>
+        <button class="pg-tipo-btn" id="pz-p-7d" onclick="pzSetPeriodo('7d')">7 dias</button>
+        <select id="pz-mes" onchange="pzSetMes(this.value)" title="Ver o mês inteiro" style="font-size:12px;font-weight:700;padding:5px 10px;border:1.5px solid var(--gray-200);border-radius:20px;background:var(--white);color:var(--gray-700);cursor:pointer;"></select>
+        <input type="date" id="pz-dia" onchange="pzSetDia(this.value)" title="Escolher um dia específico" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--gray-200);border-radius:20px;background:var(--white);">
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo:</span>
+        <button class="pg-tipo-btn" id="pz-t-" onclick="pzSetTipo('')">Todas</button>
+        <button class="pg-tipo-btn" id="pz-t-REG" onclick="pzSetTipo('REG')">Reguladas</button>
+        <button class="pg-tipo-btn" id="pz-t-NREG" onclick="pzSetTipo('NREG')">Não reguladas</button>
+        <button class="pg-tipo-btn" id="pz-sem-perdas" onclick="pzToggleSemPerdas()" title="Tira as OS de categoria Perdas (mesma regra do Painel Gerencial)">Sem Perdas</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">C. Serviço:</span>
+        <select id="pz-centro" onchange="pzSetCentro(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+          <option value="">Todos</option><option>Juazeiro</option><option>Milagres</option><option>C. Sales</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Supervisor:</span>
+        <select id="pz-supervisor" onchange="pzSetSupervisor(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-700);cursor:pointer;" title="O Painel Gerencial não conta essas ordens em Estouradas/No Prazo (é backlog sem equipe). Marque pra incluir.">
+        <input type="checkbox" id="pz-incluir-prog" onchange="pzToggleIncluirProg(this.checked)"> Incluir programáveis / a reprogramar
+      </label>
+    </div>
+    <div id="pz-aviso" style="margin-top:10px;"></div>
+  </div>
+
+  <div id="pz-loading" style="display:none;text-align:center;padding:40px;color:var(--gray-400);font-size:13px;">⏳ Carregando ordens e baixas...</div>
+
+  <div id="pz-conteudo" style="display:none;">
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:150px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📋 Vencendo no período</div>
+        <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="pz-k-total">0</div>
+        <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;" id="pz-k-total-sub">—</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:#e9f7ef;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#1a7a40;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✅ Baixadas no prazo</div>
+        <div style="font-size:30px;font-weight:700;color:#1a7a40;line-height:1;" id="pz-k-dentro">0</div>
+        <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;" id="pz-k-dentro-sub">—</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:#fdece9;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#c0392b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">❌ Baixadas fora do prazo</div>
+        <div style="font-size:30px;font-weight:700;color:#c0392b;line-height:1;" id="pz-k-fora">0</div>
+        <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;" id="pz-k-fora-sub">—</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:#fdf3e0;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#b8860b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⚠ Abertas e vencidas</div>
+        <div style="font-size:30px;font-weight:700;color:#b8860b;line-height:1;" id="pz-k-vencida">0</div>
+        <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;" id="pz-k-vencida-sub">—</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:#f4f6f9;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#3d4d60;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">⏳ Ainda no prazo</div>
+        <div style="font-size:30px;font-weight:700;color:#3d4d60;line-height:1;" id="pz-k-pendente">0</div>
+        <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;">abertas, prazo ainda não chegou</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">📊 % Cumprimento</div>
+        <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="pz-k-pct">—</div>
+        <div style="font-size:10.5px;color:#7a8aaa;margin-top:4px;">no prazo ÷ (no prazo + fora + vencidas)</div>
+      </div>
+    </div>
+
+    <div class="op-panel">
+      <h3>No prazo × fora do prazo, por dia de vencimento</h3>
+      <div class="op-sub" id="pz-grafico-sub"></div>
+      <div id="pz-grafico" style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;overflow-y:hidden;padding:4px 0 8px;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:11px;color:var(--gray-700);">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1a7a40;vertical-align:-1px;"></span> Baixadas no prazo</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#c0392b;vertical-align:-1px;"></span> Baixadas fora do prazo</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e0a526;vertical-align:-1px;"></span> Abertas e vencidas</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#c8d3e3;vertical-align:-1px;"></span> Ainda no prazo</span>
+        <span style="color:var(--gray-400);">Número em cima = % de cumprimento · números embaixo do dia: <b style="color:#c0392b;">fora</b> / <b style="color:#b8860b;">vencidas</b></span>
+      </div>
+    </div>
+
+    <div class="op-panel" id="pz-painel-dias" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div>
+          <h3>Por dia de vencimento</h3>
+          <div class="op-sub">Cada linha é o dia em que o prazo das ordens vencia.</div>
+        </div>
+        <button onclick="pzCopiar('dias')" id="btn-pz-copiar-dias" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="op-table">
+          <thead><tr><th>Dia</th><th class="op-num">Total</th><th class="op-num">No prazo</th><th class="op-num">Fora do prazo</th><th class="op-num">Abertas vencidas</th><th class="op-num">Ainda no prazo</th><th class="op-num">% Cumprimento</th></tr></thead>
+          <tbody id="pz-tabela-dias"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="op-panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div>
+          <h3>Por supervisor</h3>
+          <div class="op-sub">Equipe da baixa (ou da ordem, se ainda aberta) → supervisor.</div>
+        </div>
+        <button onclick="pzCopiar('sup')" id="btn-pz-copiar-sup" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="op-table">
+          <thead><tr><th>Supervisor</th><th class="op-num">Total</th><th class="op-num">No prazo</th><th class="op-num">Fora do prazo</th><th class="op-num">Abertas vencidas</th><th class="op-num">Ainda no prazo</th><th class="op-num">% Cumprimento</th></tr></thead>
+          <tbody id="pz-tabela-sup"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="op-panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div>
+          <h3>Por tipo de serviço</h3>
+          <div class="op-sub">Regulada / não regulada pela mesma regra do Painel Gerencial.</div>
+        </div>
+        <button onclick="pzCopiar('tipo')" id="btn-pz-copiar-tipo" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="op-table">
+          <thead><tr><th>Tipo</th><th class="op-num">Total</th><th class="op-num">No prazo</th><th class="op-num">Fora do prazo</th><th class="op-num">Abertas vencidas</th><th class="op-num">Ainda no prazo</th><th class="op-num">% Cumprimento</th></tr></thead>
+          <tbody id="pz-tabela-tipo"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="op-panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div>
+          <h3>Fora do prazo — maior atraso primeiro</h3>
+          <div class="op-sub">Baixadas depois do prazo e ordens ainda abertas com o prazo vencido.</div>
+        </div>
+        <button onclick="pzCopiar('lista')" id="btn-pz-copiar-lista" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="op-table">
+          <thead><tr><th>N. Serviço</th><th>Tipo</th><th>Equipe</th><th>Prazo</th><th>Baixa</th><th class="op-num">Atraso</th><th>Situação</th></tr></thead>
+          <tbody id="pz-tabela-lista"></tbody>
+        </table>
+      </div>
+      <div id="pz-lista-mais" style="text-align:center;padding:10px;"></div>
+    </div>
+  </div>
+
+</div>
+
 <!-- MODAL DETALHE SERVIÇOS (Indicador Comercial) -->
 <div id="com-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:820px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25);">
@@ -1338,7 +1502,8 @@ function setTab(tab) {
   document.getElementById('execucao-section').style.display = tab === 'execucao' ? 'block' : 'none';
   document.getElementById('operacional-section').style.display = tab === 'operacional' ? 'block' : 'none';
   document.getElementById('comercial-section').style.display = tab === 'comercial' ? 'block' : 'none';
-  ['painel','execucao','operacional','comercial'].forEach(t => {
+  document.getElementById('prazo-section').style.display = tab === 'prazo' ? 'block' : 'none';
+  ['painel','execucao','operacional','comercial','prazo'].forEach(t => {
     const on = t === tab;
     const btn = document.getElementById('tab-' + t);
     btn.style.color = on ? '#e8a020' : '#8097b8';
@@ -1349,6 +1514,7 @@ function setTab(tab) {
   if (tab === 'execucao') execCarregar();
   if (tab === 'operacional') opCarregar();
   if (tab === 'comercial') comercialCarregar();
+  if (tab === 'prazo') prazoCarregar();
   atualizarIndicadorTopo();
 }
 
@@ -2151,6 +2317,16 @@ async function baixarArquivoAtual() {
       [COLUNA_REGULACAO]: rotuloRegulacao(r),
       [COLUNA_PERDAS]: rotuloPerdas(r)
     }));
+  } else {
+    // O robô passou a gravar o prazo (PZ_PRAZO) nas linhas da Execução pra aba
+    // Cumprimento de Prazo -- essa coluna não fazia parte deste arquivo, então
+    // tira, pro CSV da Execução sair igual ao de sempre.
+    dados = dados.map(r => {
+      if (!(PZ_PRAZO in r)) return r;
+      const c = Object.assign({}, r);
+      delete c[PZ_PRAZO];
+      return c;
+    });
   }
   const csv = gerarCSV(
     dados,
@@ -2697,7 +2873,9 @@ function execRenderTabela() {
   const search = (document.getElementById('exec-search')?.value || '').toLowerCase();
   const rows = execGetFiltrado().filter(r => {
     if (!search) return true;
-    return Object.values(r).some(v => String(v||'').toLowerCase().includes(search));
+    // PZ_PRAZO fica de fora da busca: a coluna é nova (aba Cumprimento de Prazo)
+    // e digitar uma data não deve passar a casar com o prazo da OS.
+    return Object.entries(r).some(([k, v]) => k !== PZ_PRAZO && String(v||'').toLowerCase().includes(search));
   });
   let html = '';
   rows.slice(0, 500).forEach((r, i) => {
@@ -5027,6 +5205,492 @@ function comercialRender() {
   comercialRenderTabelaEquipe(dadosAteRef);
 }
 
+// ══ CUMPRIMENTO DE PRAZO ══
+// A ordem nasce no Painel Gerencial (TdC) com um prazo ("Data Prevista
+// Finalização Trabalhos") e SOME de lá quando é baixada -- produtiva ou
+// improdutiva (devolvida volta pra fila e continua no TdC). A hora da baixa
+// só existe na Execução ("Data fim Execução"). Como a ordem baixada some do
+// TdC, o robô grava o prazo dentro de cada linha da Execução (mesmo nome de
+// coluna do TdC) -- é isso que permite juntar as duas pontas depois que o
+// histórico do TdC (só 30 dias) já foi apagado.
+const PZ_PRIMEIRO_DIA = '2026-09-05'; // primeiro dia com prazo gravado nas linhas da Execução
+// Uma ordem pode ser baixada bem ANTES do prazo (medido: 97,5% das baixas
+// antecipadas saem até 8 dias antes -- ex.: Dunning tem prazo de ~8 dias e é
+// feito logo). Pra contar essas, a busca da Execução olha PZ_LOOKBACK dias
+// antes do começo do período. Consequência: vencimentos de até PZ_LOOKBACK dias
+// depois do primeiro dia gravado ficam com a conta incompleta (as baixas
+// antecipadas deles são anteriores ao histórico) -- por isso a aba só conta
+// vencimentos a partir de PZ_COBERTURA_INICIO.
+const PZ_LOOKBACK = 10;
+const PZ_COBERTURA_INICIO = pzChave(pzSomaDias(pzParseChave(PZ_PRIMEIRO_DIA), PZ_LOOKBACK));
+const PZ_PRAZO = 'Data Prevista Finalização Trabalhos';
+const PZ_NUM = 'Numero de Serviço';
+const PZ_ESTADOS_FORA = ['programáveis', 'a reprogramar']; // mesma regra do pgFiltrarBase
+const PZ_LIMITE_LISTA = 50;
+
+const pz = {
+  periodo: 'hoje', diaCustom: '', mes: '', tipo: '', excluirPerdas: false, centro: '', supervisor: '',
+  incluirProg: false, verTodas: false,
+  cacheDia: {},                 // 'YYYY-MM-DD' -> { rows, em } (linhas da Execução)
+  execRows: [], tdc: [],
+  carimbos: { exec: null, sul: null },
+  carregando: false, resultado: null,
+};
+
+function pzChave(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function pzParseChave(k) { const [a, m, d] = k.split('-').map(Number); return new Date(a, m - 1, d); }
+function pzSomaDias(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function pzDM(d) { return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); }
+function pzDMHM(d) { return pzDM(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function pzFmtDur(ms) {
+  const min = Math.max(0, Math.round(ms / 60000));
+  if (min >= 1440) return Math.floor(min / 1440) + 'd ' + Math.floor((min % 1440) / 60) + 'h';
+  if (min >= 60) return Math.floor(min / 60) + 'h ' + String(min % 60).padStart(2, '0') + 'min';
+  return min + 'min';
+}
+function pzEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// `ini`..`fim`: o período escolhido (KPIs e tabelas). `iniG`: onde o gráfico
+// começa -- quando o período é um dia só (hoje/ontem/dia), o gráfico mostra os
+// 7 dias até ele, senão ficaria uma barra sozinha.
+function pzIntervalo() {
+  const h = hoje;
+  let ini = h, fim = h;
+  if (pz.periodo === 'ontem') { ini = fim = pzSomaDias(h, -1); }
+  else if (pz.periodo === '7d') { ini = pzSomaDias(h, -6); }
+  else if (pz.periodo === 'mes') {
+    const [a, m] = (pz.mes || pzMesKey(h)).split('-').map(Number);
+    ini = new Date(a, m - 1, 1); fim = new Date(a, m, 0);
+  }
+  else if (pz.periodo === 'dia' && pz.diaCustom) { ini = fim = pzParseChave(pz.diaCustom); }
+  const umDia = pzChave(ini) === pzChave(fim);
+  return {
+    ini,
+    fim: new Date(fim.getFullYear(), fim.getMonth(), fim.getDate(), 23, 59, 59),
+    iniG: umDia ? pzSomaDias(ini, -6) : ini,
+  };
+}
+function pzMesKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+
+function pzRenderControles() {
+  ['hoje', 'ontem', '7d'].forEach(p => {
+    document.getElementById('pz-p-' + p).classList.toggle('active', pz.periodo === p);
+  });
+  const selMes = document.getElementById('pz-mes');
+  if (!selMes.dataset.pop) {
+    let html = '<option value="">Mês...</option>';
+    const mAtual = pzMesKey(hoje);
+    const [a0, m0] = PZ_PRIMEIRO_DIA.split('-').map(Number);
+    for (let d = new Date(a0, m0 - 1, 1); pzMesKey(d) <= mAtual; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+      const k = pzMesKey(d);
+      html += '<option value="' + k + '">' + OP_MESES_LABEL[d.getMonth()] + '/' + String(d.getFullYear()).slice(2) + (k === mAtual ? ' (atual)' : '') + '</option>';
+    }
+    selMes.innerHTML = html;
+    selMes.dataset.pop = '1';
+  }
+  selMes.value = pz.periodo === 'mes' ? (pz.mes || pzMesKey(hoje)) : '';
+  selMes.style.borderColor = pz.periodo === 'mes' ? 'var(--navy)' : '';
+  const inp = document.getElementById('pz-dia');
+  inp.value = pz.periodo === 'dia' ? pz.diaCustom : '';
+  inp.style.borderColor = pz.periodo === 'dia' ? 'var(--navy)' : '';
+  ['', 'REG', 'NREG'].forEach(t => document.getElementById('pz-t-' + t).classList.toggle('active', pz.tipo === t));
+  document.getElementById('pz-sem-perdas').classList.toggle('active', pz.excluirPerdas);
+  document.getElementById('pz-centro').value = pz.centro;
+  const sel = document.getElementById('pz-supervisor');
+  if (!sel.dataset.pop) {
+    const nomes = Array.from(new Set(Object.values(SUPERVISOR_MAP))).sort();
+    nomes.concat(['(sem equipe)']).forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n; opt.textContent = n;
+      sel.appendChild(opt);
+    });
+    sel.dataset.pop = '1';
+  }
+  sel.value = pz.supervisor;
+  document.getElementById('pz-incluir-prog').checked = pz.incluirProg;
+}
+
+function pzSetPeriodo(p) { pz.periodo = p; pz.verTodas = false; prazoCarregar(); }
+function pzSetMes(v) { if (!v) return; pz.periodo = 'mes'; pz.mes = v; pz.verTodas = false; prazoCarregar(); }
+function pzSetDia(v) { if (!v) return; pz.periodo = 'dia'; pz.diaCustom = v; pz.verTodas = false; prazoCarregar(); }
+function pzSetTipo(t) { pz.tipo = t; pzFiltroMudou(); }
+function pzToggleSemPerdas() { pz.excluirPerdas = !pz.excluirPerdas; pzFiltroMudou(); }
+function pzSetCentro(c) { pz.centro = c; pzFiltroMudou(); }
+function pzSetSupervisor(s) { pz.supervisor = s; pzFiltroMudou(); }
+function pzToggleIncluirProg(v) { pz.incluirProg = v; pzFiltroMudou(); }
+function pzFiltroMudou() { pz.verTodas = false; pzRenderControles(); pzRender(); }
+
+async function pzFetchComRetry(url) {
+  for (let t = 1; t <= 3; t++) {
+    try {
+      const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+      if (!Array.isArray(j)) throw new Error('resposta inesperada');
+      return j;
+    } catch (e) {
+      if (t === 3) throw e;
+      await new Promise(r => setTimeout(r, 800));
+    }
+  }
+}
+
+// Linhas da Execução dos dias [desde..ate] (chaves 'YYYY-MM-DD'), com cache por
+// dia. Dias antigos ficam em cache pra sessão toda; ontem e hoje (que o robô
+// ainda reescreve) são rebaixados quando o carimbo da Execução muda (ou, por
+// segurança, após 30 min -- a reconsulta de ontem não mexe no carimbo).
+async function pzBuscarExecucao(desde, ate, forcarRecentes) {
+  const ontemK = pzChave(pzSomaDias(hoje, -1));
+  const agora = Date.now();
+  const dias = [];
+  for (let d = pzParseChave(desde); pzChave(d) <= ate; d = pzSomaDias(d, 1)) dias.push(pzChave(d));
+  const faltando = dias.filter(k => {
+    const c = pz.cacheDia[k];
+    if (!c) return true;
+    if (k < ontemK) return false;
+    return forcarRecentes || agora - c.em > 1800000;
+  });
+  const blocos = [];
+  faltando.forEach(k => {
+    const b = blocos[blocos.length - 1];
+    if (b && b.length < 7 && pzChave(pzSomaDias(pzParseChave(b[b.length - 1]), 1)) === k) b.push(k);
+    else blocos.push([k]);
+  });
+  for (const b of blocos) {
+    const url = SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=gte.' + b[0] + '&data=lte.' + b[b.length - 1] + '&select=dados,data';
+    const linhas = await pzFetchComRetry(url);
+    const porDia = {};
+    linhas.forEach(l => { porDia[l.data] = l.dados || []; });
+    b.forEach(k => {
+      const rows = porDia[k] || [];
+      rows.forEach(r => { r.__data = k; });
+      pz.cacheDia[k] = { rows, em: Date.now() };
+    });
+  }
+  let todas = [];
+  dias.forEach(k => { if (pz.cacheDia[k]) todas = todas.concat(pz.cacheDia[k].rows); });
+  return todas;
+}
+
+async function pzBuscarTdc() {
+  const j = await pzFetchComRetry(SB_URL + '/rest/v1/snapshots?regiao=eq.Sul&select=dados,atualizado_em');
+  pz.tdc = (j[0] && j[0].dados) || [];
+}
+
+async function prazoCarregar() {
+  if (pz.carregando) return;
+  pz.carregando = true;
+  const primeira = !pz.resultado;
+  if (primeira) {
+    document.getElementById('pz-loading').style.display = 'block';
+    document.getElementById('pz-conteudo').style.display = 'none';
+  }
+  try {
+    pzRenderControles();
+    const { iniG } = pzIntervalo();
+    const [cExec, cSul] = await Promise.all([buscarCarimbo('Execucao'), buscarCarimbo('Sul')]);
+    const minimo = pzChave(pzSomaDias(iniG, -PZ_LOOKBACK));
+    const desde = minimo > PZ_PRIMEIRO_DIA ? minimo : PZ_PRIMEIRO_DIA;
+    pz.execRows = await pzBuscarExecucao(desde, pzChave(hoje), cExec !== pz.carimbos.exec);
+    if (cSul !== pz.carimbos.sul || !pz.tdc.length) await pzBuscarTdc();
+    pz.carimbos = { exec: cExec, sul: cSul };
+    pzRender();
+  } catch (e) {
+    showToast('Erro ao carregar Cumprimento de Prazo: ' + e.message, 4000);
+  } finally {
+    pz.carregando = false;
+    document.getElementById('pz-loading').style.display = 'none';
+  }
+}
+
+function pzEquipeDe(r) { return r['Recurso/Equipe'] || r['Código Equipe'] || ''; }
+
+function pzPassaFiltros(r) {
+  if (pz.tipo && getTipoOrdem(r) !== pz.tipo) return false;
+  if (pz.excluirPerdas && opCategoriaServico(r) === 'Perdas') return false;
+  const eq = pzEquipeDe(r);
+  if (pz.centro && pgGetCS({ 'Código Equipe': eq, 'Município': r['Município'] }) !== pz.centro) return false;
+  if (pz.supervisor && (getSupervisor(eq) || '(sem equipe)') !== pz.supervisor) return false;
+  return true;
+}
+
+// Junta as duas pontas: baixas da Execução (com o prazo gravado na linha) +
+// ordens ainda abertas no TdC ao vivo, todas com prazo dentro do período.
+function pzCalcular() {
+  const { ini, fim, iniG } = pzIntervalo();
+  const agora = new Date();
+  const cobertura = pzParseChave(PZ_COBERTURA_INICIO);
+  const itensG = [];              // janela do gráfico (iniG..fim); `itens` é só o período escolhido
+  const baixas = new Map();       // nº -> { r, fim }  (primeira baixa não-devolvida)
+  const prazoPorNum = new Map();
+  const dias = {};                // dia da Execução -> { total, com }  (diagnóstico de cobertura)
+
+  pz.execRows.forEach(r => {
+    const n = r[PZ_NUM];
+    if (n && r[PZ_PRAZO]) prazoPorNum.set(n, r[PZ_PRAZO]);
+    if (_classificarResultado(r) === 'DEVOLVIDO') return;
+    const fimDt = parseDateTimeStr(r['Data fim Execução']);
+    if (!n || !fimDt) return;
+    const d = dias[r.__data] || (dias[r.__data] = { total: 0, com: 0 });
+    d.total++;
+    if (r[PZ_PRAZO]) d.com++;
+    const ant = baixas.get(n);
+    if (!ant || fimDt < ant.fim) baixas.set(n, { r, fim: fimDt });
+  });
+
+  let baixasSemPrazo = 0;
+  baixas.forEach((b, n) => {
+    const prazo = parseDateTimeStr(b.r[PZ_PRAZO] || prazoPorNum.get(n));
+    if (!prazo) { if (b.fim >= ini && b.fim <= fim) baixasSemPrazo++; return; }
+    if (prazo < iniG || prazo < cobertura || prazo > fim) return;
+    if (!pzPassaFiltros(b.r)) return;
+    itensG.push({ n, r: b.r, prazo, baixa: b.fim, status: b.fim <= prazo ? 'dentro' : 'fora' });
+  });
+
+  let progFora = 0;
+  pz.tdc.forEach(r => {
+    const n = r[PZ_NUM];
+    if (!n || baixas.has(n)) return;
+    const prazo = parseDateTimeStr(r[PZ_PRAZO]);
+    if (!prazo || prazo < iniG || prazo < cobertura || prazo > fim) return;
+    const estado = (r['Estado TdC'] || '').trim().toLowerCase();
+    if (!pz.incluirProg && PZ_ESTADOS_FORA.includes(estado)) { if (prazo >= ini) progFora++; return; }
+    if (!pzPassaFiltros(r)) return;
+    itensG.push({ n, r, prazo, baixa: null, status: prazo < agora ? 'vencida' : 'pendente' });
+  });
+
+  const itens = itensG.filter(i => i.prazo >= ini);
+  const diasSemPrazo = Object.keys(dias).filter(k => k >= PZ_COBERTURA_INICIO && dias[k].total >= 30 && dias[k].com / dias[k].total < 0.5).sort();
+  return { ini, fim, iniG, agora, itens, itensG, baixasSemPrazo, progFora, diasSemPrazo };
+}
+
+const PZ_DIA_SEM = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// Barras empilhadas por dia de vencimento: verde = baixadas no prazo, vermelho =
+// baixadas fora, âmbar = abertas já vencidas, cinza = ainda no prazo. As
+// contagens de fora/vencidas vão também em texto embaixo de cada dia -- num dia
+// de 450 ordens, 5 atrasadas viram uma fatia de 2px que ninguém enxerga.
+function pzRenderGrafico(res) {
+  const H = 170;
+  const porDia = pzAgrupar(res.itensG, i => pzChave(i.prazo));
+  const iniK = pzChave(res.ini), fimK = pzChave(res.fim), hojeK = pzChave(hoje);
+  // Dias antes de PZ_COBERTURA_INICIO não entram na conta (ver o comentário lá em cima).
+  const dias = [];
+  for (let d = res.iniG; pzChave(d) <= fimK; d = pzSomaDias(d, 1)) { if (pzChave(d) >= PZ_COBERTURA_INICIO) dias.push(pzChave(d)); }
+  if (!dias.length) {
+    document.getElementById('pz-grafico-sub').textContent = '';
+    document.getElementById('pz-grafico').innerHTML = '<div style="padding:20px;color:var(--gray-400);font-size:12px;">Sem dados de prazo guardados nesse período.</div>';
+    return;
+  }
+  const max = Math.max(1, ...dias.map(k => (porDia[k] || pzVazio()).total));
+  const umDia = iniK === fimK;
+  document.getElementById('pz-grafico-sub').textContent = umDia
+    ? 'Os 7 dias até ' + pzDM(pzParseChave(iniK)) + ' — o dia escolhido está em destaque.'
+    : 'Cada barra é um dia em que o prazo das ordens vencia (' + pzDM(pzParseChave(dias[0])) + ' a ' + pzDM(res.fim) + ').';
+  const fatia = (n, cor, titulo) => n
+    ? '<div title="' + titulo + '" style="height:' + Math.max(3, Math.round((n / max) * H)) + 'px;background:' + cor + ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;overflow:hidden;">' +
+      (Math.round((n / max) * H) >= 15 ? n : '') + '</div>'
+    : '';
+  document.getElementById('pz-grafico').innerHTML = dias.map(k => {
+    const g = porDia[k] || pzVazio();
+    const d = pzParseChave(k);
+    const sel = k >= iniK && k <= fimK;
+    const futuro = k > hojeK;
+    const den = g.dentro + g.fora + g.vencida;
+    const topo = futuro || !den
+      ? '<span style="color:#98a4b8;">' + (g.total || '') + '</span>'
+      : '<span style="color:' + pzCorPct(pzPctCump(g)) + ';">' + pzPctCumpTxt(g) + '</span>';
+    const tip = pzDM(d) + ' (' + PZ_DIA_SEM[d.getDay()] + '): ' + g.total + ' ordens — ' + g.dentro + ' baixadas no prazo, ' + g.fora +
+      ' baixadas fora, ' + g.vencida + ' abertas vencidas, ' + g.pendente + ' ainda no prazo';
+    return '<div title="' + tip + '" style="flex:1;min-width:34px;display:flex;flex-direction:column;align-items:stretch;opacity:' + (sel ? 1 : .42) + ';">' +
+      '<div style="text-align:center;font-size:10px;font-weight:700;height:16px;line-height:16px;">' + topo + '</div>' +
+      '<div style="height:' + H + 'px;display:flex;flex-direction:column-reverse;justify-content:flex-start;border-bottom:1px solid var(--gray-200);padding:0 3px;">' +
+        fatia(g.dentro, '#1a7a40', g.dentro + ' baixadas no prazo') +
+        fatia(g.fora, '#c0392b', g.fora + ' baixadas fora do prazo') +
+        fatia(g.vencida, '#e0a526', g.vencida + ' abertas e vencidas') +
+        fatia(g.pendente, '#c8d3e3', g.pendente + ' ainda no prazo') +
+      '</div>' +
+      '<div style="text-align:center;font-size:10.5px;color:var(--gray-700);margin-top:4px;' + (sel && umDia ? 'font-weight:800;' : '') + '">' + String(d.getDate()).padStart(2, '0') +
+        '<div style="font-size:9px;color:var(--gray-400);">' + PZ_DIA_SEM[d.getDay()] + '</div></div>' +
+      '<div style="text-align:center;font-size:10px;font-weight:700;height:13px;color:#c0392b;">' + (g.fora || '') + '</div>' +
+      '<div style="text-align:center;font-size:10px;font-weight:700;height:13px;color:#b8860b;">' + (g.vencida || '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function pzVazio() { return { total: 0, dentro: 0, fora: 0, vencida: 0, pendente: 0 }; }
+function pzAgrupar(itens, chaveFn) {
+  const m = {};
+  itens.forEach(it => {
+    const k = chaveFn(it);
+    const g = m[k] || (m[k] = pzVazio());
+    g.total++; g[it.status]++;
+  });
+  return m;
+}
+function pzPctCump(g) {
+  const den = g.dentro + g.fora + g.vencida;
+  return den ? Math.round((g.dentro / den) * 100) : null;
+}
+// Arredondar 99,6% pra "100%" esconde que ainda tem atrasada -- nesses casos
+// (e o inverso, 0,4% virando "0%") mostra uma casa decimal.
+function pzPctTxt(n, d) {
+  if (!d) return '—';
+  const p = (n / d) * 100;
+  const r = Math.round(p);
+  if (r === 100 && n < d) return (Math.floor(p * 10) / 10).toFixed(1) + '%';
+  if (r === 0 && n > 0) return (Math.ceil(p * 10) / 10).toFixed(1) + '%';
+  return r + '%';
+}
+function pzPctCumpTxt(g) { return pzPctTxt(g.dentro, g.dentro + g.fora + g.vencida); }
+function pzCorPct(p) { return p === null ? '#98a4b8' : p >= 90 ? '#1a7a40' : p >= 70 ? '#b8860b' : '#c0392b'; }
+function pzPctHtml(g) {
+  const p = pzPctCump(g);
+  return p === null ? '—' : '<span style="color:' + pzCorPct(p) + ';font-weight:700;">' + pzPctCumpTxt(g) + '</span>';
+}
+
+// `futuro`: dia de vencimento que ainda não chegou -- ninguém pode estar
+// atrasado ainda, então o % (sempre 100%) só enganaria; fica "—" e a linha esmaecida.
+function pzLinhaResumo(rotuloHtml, g, futuro) {
+  return '<tr' + (futuro ? ' style="opacity:.55;"' : '') + '><td>' + rotuloHtml + '</td><td class="op-num">' + g.total + '</td><td class="op-num">' + g.dentro +
+    '</td><td class="op-num">' + g.fora + '</td><td class="op-num">' + g.vencida + '</td><td class="op-num">' + g.pendente +
+    '</td><td class="op-num">' + (futuro ? '—' : pzPctHtml(g)) + '</td></tr>';
+}
+
+function pzLinhasTsv(cabecalho, linhas) {
+  return [cabecalho.join('\t')].concat(linhas.map(l => l.join('\t'))).join('\n');
+}
+
+function pzRender() {
+  const res = pzCalcular();
+  const { itens } = res;
+  pz.resultado = res;
+
+  const tot = pzVazio();
+  itens.forEach(it => { tot.total++; tot[it.status]++; });
+  const baixadas = tot.dentro + tot.fora;
+  const pct = pzPctCump(tot);
+
+  document.getElementById('pz-k-total').textContent = tot.total;
+  document.getElementById('pz-k-total-sub').textContent = baixadas + ' baixadas · ' + (tot.vencida + tot.pendente) + ' abertas';
+  document.getElementById('pz-k-dentro').textContent = tot.dentro;
+  document.getElementById('pz-k-dentro-sub').textContent = baixadas ? pzPctTxt(tot.dentro, baixadas) + ' das baixadas' : '—';
+  document.getElementById('pz-k-fora').textContent = tot.fora;
+  const fora = itens.filter(i => i.status === 'fora');
+  document.getElementById('pz-k-fora-sub').textContent = fora.length
+    ? 'atraso médio ' + pzFmtDur(fora.reduce((s, i) => s + (i.baixa - i.prazo), 0) / fora.length)
+    : '—';
+  document.getElementById('pz-k-vencida').textContent = tot.vencida;
+  const venc = itens.filter(i => i.status === 'vencida');
+  document.getElementById('pz-k-vencida-sub').textContent = venc.length
+    ? 'mais antiga: ' + pzFmtDur(res.agora - Math.min.apply(null, venc.map(i => i.prazo.getTime()))) + ' de atraso'
+    : '—';
+  document.getElementById('pz-k-pendente').textContent = tot.pendente;
+  const pe = document.getElementById('pz-k-pct');
+  pe.textContent = pzPctCumpTxt(tot);
+  pe.style.color = pzCorPct(pct) === '#98a4b8' ? '#1565c0' : pzCorPct(pct);
+
+  pzRenderGrafico(res);
+
+  // Por dia de vencimento (só quando o período tem mais de um dia)
+  const multiDia = pzChave(res.ini) !== pzChave(res.fim);
+  document.getElementById('pz-painel-dias').style.display = multiDia ? 'block' : 'none';
+  const porDia = pzAgrupar(itens, i => pzChave(i.prazo));
+  const chavesDia = Object.keys(porDia).sort();
+  pz.tsvDias = pzLinhasTsv(['Dia', 'Total', 'No prazo', 'Fora do prazo', 'Abertas vencidas', 'Ainda no prazo', '% Cumprimento'],
+    chavesDia.map(k => { const g = porDia[k]; return [pzDM(pzParseChave(k)), g.total, g.dentro, g.fora, g.vencida, g.pendente, k > pzChave(hoje) ? '' : pzPctCumpTxt(g).replace('—', '')]; }));
+  document.getElementById('pz-tabela-dias').innerHTML = chavesDia.map(k => pzLinhaResumo(pzDM(pzParseChave(k)), porDia[k], k > pzChave(hoje))).join('') ||
+    '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--gray-400);">Nenhuma ordem no período</td></tr>';
+
+  // Por supervisor
+  const porSup = pzAgrupar(itens, i => getSupervisor(pzEquipeDe(i.r)) || '(sem equipe)');
+  const chavesSup = Object.keys(porSup).sort((a, b) => porSup[b].total - porSup[a].total);
+  pz.tsvSup = pzLinhasTsv(['Supervisor', 'Total', 'No prazo', 'Fora do prazo', 'Abertas vencidas', 'Ainda no prazo', '% Cumprimento'],
+    chavesSup.map(k => { const g = porSup[k]; return [k, g.total, g.dentro, g.fora, g.vencida, g.pendente, pzPctCumpTxt(g).replace('—', '')]; }));
+  document.getElementById('pz-tabela-sup').innerHTML = chavesSup.map(k => pzLinhaResumo(pzEsc(k), porSup[k])).join('') ||
+    '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--gray-400);">Nenhuma ordem no período</td></tr>';
+
+  // Por tipo de serviço
+  const descTipo = {};
+  itens.forEach(i => {
+    const cod = opCodigoServico(i.r);
+    if (!descTipo[cod]) {
+      const partes = (i.r['Tipo Remessa WIN'] || '').trim().split(' - ');
+      descTipo[cod] = partes.length > 1 ? partes.slice(1).join(' - ').trim() : '';
+    }
+  });
+  const porTipo = pzAgrupar(itens, i => opCodigoServico(i.r) || '(sem tipo)');
+  const chavesTipo = Object.keys(porTipo).sort((a, b) => porTipo[b].total - porTipo[a].total);
+  const rotTipo = cod => {
+    const reg = TIPO_REGULADA[cod] ? 'Reg' : TIPO_NAO_REGULADA[cod] ? 'NReg' : '';
+    return { txt: cod + (descTipo[cod] ? ' · ' + descTipo[cod] : ''), reg };
+  };
+  pz.tsvTipo = pzLinhasTsv(['Tipo', 'Regulada', 'Total', 'No prazo', 'Fora do prazo', 'Abertas vencidas', 'Ainda no prazo', '% Cumprimento'],
+    chavesTipo.map(k => { const g = porTipo[k]; const rt = rotTipo(k); return [rt.txt, rt.reg, g.total, g.dentro, g.fora, g.vencida, g.pendente, pzPctCumpTxt(g).replace('—', '')]; }));
+  document.getElementById('pz-tabela-tipo').innerHTML = chavesTipo.map(k => {
+    const rt = rotTipo(k);
+    const badge = rt.reg ? ' <span style="font-size:9.5px;font-weight:700;color:#7a8aaa;border:1px solid var(--gray-200);border-radius:4px;padding:0 4px;">' + rt.reg + '</span>' : '';
+    return pzLinhaResumo(pzEsc(rt.txt) + badge, porTipo[k]);
+  }).join('') || '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--gray-400);">Nenhuma ordem no período</td></tr>';
+
+  // Lista de atrasadas (baixadas fora + abertas vencidas), maior atraso primeiro
+  const atrasadas = itens.filter(i => i.status === 'fora' || i.status === 'vencida')
+    .map(i => Object.assign({ atraso: (i.baixa || res.agora) - i.prazo }, i))
+    .sort((a, b) => b.atraso - a.atraso);
+  const linhaAtraso = i => [i.n, opCodigoServico(i.r), pzEquipeDe(i.r), pzDMHM(i.prazo), i.baixa ? pzDMHM(i.baixa) : '—', pzFmtDur(i.atraso),
+    i.status === 'fora' ? 'Baixada fora do prazo' : 'Aberta (vencida)'];
+  pz.tsvLista = pzLinhasTsv(['N. Serviço', 'Tipo', 'Equipe', 'Prazo', 'Baixa', 'Atraso', 'Situação'], atrasadas.map(linhaAtraso));
+  const mostrar = pz.verTodas ? atrasadas : atrasadas.slice(0, PZ_LIMITE_LISTA);
+  document.getElementById('pz-tabela-lista').innerHTML = mostrar.map(i => {
+    const l = linhaAtraso(i);
+    const cor = i.status === 'fora' ? '#c0392b' : '#b8860b';
+    return '<tr><td style="font-family:monospace;color:#1565c0;">' + pzEsc(l[0]) + '</td><td>' + pzEsc(l[1]) + '</td><td style="font-family:monospace;">' + pzEsc(l[2]) +
+      '</td><td>' + l[3] + '</td><td>' + l[4] + '</td><td class="op-num" style="color:' + cor + ';font-weight:700;">' + l[5] +
+      '</td><td style="color:' + cor + ';">' + l[6] + '</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--gray-400);">Nenhuma ordem fora do prazo no período 🎉</td></tr>';
+  document.getElementById('pz-lista-mais').innerHTML = atrasadas.length > PZ_LIMITE_LISTA
+    ? (pz.verTodas
+      ? '<a style="cursor:pointer;font-size:12px;color:var(--navy);font-weight:700;" onclick="pz.verTodas=false;pzRender()">Mostrar só as ' + PZ_LIMITE_LISTA + ' primeiras</a>'
+      : '<a style="cursor:pointer;font-size:12px;color:var(--navy);font-weight:700;" onclick="pz.verTodas=true;pzRender()">Ver todas (' + atrasadas.length + ')</a>')
+    : '';
+
+  pzRenderAviso(res);
+  document.getElementById('pz-conteudo').style.display = 'block';
+}
+
+function pzRenderAviso(res) {
+  const av = [];
+  if (pzChave(res.ini) < PZ_COBERTURA_INICIO) {
+    av.push('Vencimentos antes de ' + pzDM(pzParseChave(PZ_COBERTURA_INICIO)) + ' ficam fora da conta: o prazo só começou a ser guardado em ' +
+      pzDM(pzParseChave(PZ_PRIMEIRO_DIA)) + ' e uma ordem pode ser baixada até ' + PZ_LOOKBACK + ' dias antes do vencimento — antes dessa data a conta sairia incompleta.');
+  }
+  if (res.diasSemPrazo.length) {
+    av.push('Baixas de ' + res.diasSemPrazo.map(k => pzDM(pzParseChave(k))).join(', ') +
+      ' estão sem o prazo gravado (o robô da VPS ainda não grava o prazo na Execução) — ficam fora da conta.');
+  }
+  if (res.baixasSemPrazo > 0) {
+    av.push(res.baixasSemPrazo + ' baixa(s) feita(s) no período não têm prazo guardado (ordem criada e baixada entre duas atualizações do robô) — ficam fora da conta.');
+  }
+  if (res.progFora > 0) {
+    av.push(res.progFora + ' ordem(ns) em "programáveis/a reprogramar" fora da conta (igual ao Painel Gerencial) — marque "Incluir" pra ver.');
+  }
+  document.getElementById('pz-aviso').innerHTML = av.map(t =>
+    '<div style="font-size:11.5px;color:#8a6d1a;background:#fdf6e3;border:1px solid #f0e0b0;border-radius:8px;padding:6px 10px;margin-top:6px;">ℹ️ ' + pzEsc(t) + '</div>').join('');
+}
+
+function pzCopiar(qual) {
+  const txt = { dias: pz.tsvDias, sup: pz.tsvSup, tipo: pz.tsvTipo, lista: pz.tsvLista }[qual];
+  if (!txt) return;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = document.getElementById('btn-pz-copiar-' + qual);
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
+}
+
 async function buscarCarimbo(regiao) {
   const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + regiao + '&select=atualizado_em', {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
@@ -5053,6 +5717,9 @@ async function verificarAtualizacoes() {
       const [cExec, cPlan] = await Promise.all([buscarCarimbo('Execucao'), buscarCarimbo('Sul')]);
       if (cExec !== execUltimoCarimbo || cPlan !== execPlanUltimoCarimbo) execCarregar();
       else pintarIndicadorTopo(cExec);
+    } else if (document.getElementById('prazo-section').style.display !== 'none') {
+      // prazoCarregar() já compara os carimbos e só rebaixa o que mudou.
+      prazoCarregar();
     }
   } catch(e) {
     console.log('Falha ao checar atualização:', e.message);
