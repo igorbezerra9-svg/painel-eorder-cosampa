@@ -4831,6 +4831,13 @@ function comercialRenderGrafico(ano, mesIdx, metaDia, diaRef, dadosTodos) {
     porDia[r.__data] = (porDia[r.__data] || 0) + 1;
   });
   const maxBarra = Math.max(metaDia, ...Object.values(porDia), 1);
+  // Barra e linha da meta usam a MESMA régua em pixels (PLOT_H). Antes eram %
+  // da caixa de 120px, que também abriga o número em cima da barra (~14px):
+  // a barra maior do mês (100% = 120px) não cabia junto com o número, o
+  // navegador a encolhia e ela ficava visualmente ABAIXO da linha da meta mesmo
+  // com realizado > meta (ex.: 203 abaixo da linha de 201). PLOT_H deixa a
+  // folga pro número, então nada precisa encolher.
+  const PLOT_H = 104;
 
   const metaLabel = document.getElementById('com-grafico-meta-label');
   metaLabel.textContent = metaDia ? '· meta do dia: ' + metaDia.toFixed(1) : '';
@@ -4843,20 +4850,20 @@ function comercialRenderGrafico(ano, mesIdx, metaDia, diaRef, dadosTodos) {
     const ehUtil = comercialEhDiaUtilCorte(dataObj, feriados);
     const realizado = porDia[chave] || 0;
     const futuro = dataObj > diaRef;
-    const alturaRealizado = futuro ? 0 : Math.round((realizado / maxBarra) * 100);
-    const alturaMeta = ehUtil ? Math.round((metaDia / maxBarra) * 100) : 0;
+    const alturaRealizado = futuro ? 0 : Math.round((realizado / maxBarra) * PLOT_H);
+    const alturaMeta = ehUtil ? Math.round((metaDia / maxBarra) * PLOT_H) : 0;
     const corBarra = !ehUtil ? '#8e9fb8' : (realizado >= metaDia ? '#1a7a40' : '#c0392b');
     linhas.push({ dia: d, data: chave, ehUtil, meta: ehUtil ? metaDia : null, realizado: futuro ? null : realizado });
     // Número em cima da barra -- só quando tem algo feito, senão fica
     // poluído de "0" em todo dia futuro/sem movimento.
     const numeroTopo = !futuro && realizado > 0
-      ? `<div style="font-size:10px;font-weight:700;color:${corBarra};margin-bottom:2px;">${realizado}</div>` : '';
+      ? `<div style="font-size:10px;font-weight:700;color:${corBarra};margin-bottom:2px;flex-shrink:0;">${realizado}</div>` : '';
     html += `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:22px;" title="${chave}: ${futuro ? 'ainda não chegou' : realizado + ' feito'}${ehUtil ? ' · meta ' + metaDia.toFixed(1) : ' · sem meta (extra)'}">
       ${ehUtil ? `<div style="font-size:9px;color:#8097b8;margin-bottom:1px;">${metaDia.toFixed(0)}</div>` : '<div style="height:12px;"></div>'}
       <div style="position:relative;width:100%;height:120px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;">
-        ${ehUtil ? `<div style="position:absolute;left:2px;right:2px;bottom:${alturaMeta}%;border-top:2px dashed #8097b8;"></div>` : ''}
+        ${ehUtil ? `<div style="position:absolute;left:2px;right:2px;bottom:${alturaMeta}px;border-top:2px dashed #8097b8;"></div>` : ''}
         ${numeroTopo}
-        <div style="width:60%;height:${alturaRealizado}%;background:${corBarra};border-radius:3px 3px 0 0;"></div>
+        <div style="width:60%;height:${alturaRealizado}px;flex-shrink:0;background:${corBarra};border-radius:3px 3px 0 0;"></div>
       </div>
       <div style="font-size:9px;color:#98a4b8;margin-top:4px;">${d}</div>
     </div>`;
