@@ -220,6 +220,12 @@
     <h1>Painel Cosampa Sul</h1>
     <p>DESUL Sul — Grupo Cosampa</p>
   </div>
+  <!-- Indicador dos Avisos de prazo (WhatsApp): só aparece se o motor de avisos já publicou status -->
+  <div id="avisos-wrap" style="display:none;margin-left:auto;position:relative;">
+    <button id="avisos-chip" onclick="avisosTogglePop(event)" title="Status dos avisos de prazo por WhatsApp"
+      style="background:transparent;border:1px solid #3a4a5f;color:#dbe6f5;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap;"></button>
+    <div id="avisos-pop" style="display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:9998;background:#fff;color:#0d1b2a;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);padding:14px 16px;width:330px;max-width:calc(100vw - 24px);font-weight:400;"></div>
+  </div>
   <div id="topo-atualizado" style="margin-left:auto;color:#a0e8b0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap;">
     <span class="topo-dot"></span> Verificando...
   </div>
@@ -1154,6 +1160,25 @@
           <tbody id="op-modal-body"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: pausar/retomar os avisos de prazo (pede a senha) -->
+<div id="avisos-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:340px;padding:20px 22px;box-shadow:0 8px 40px rgba(0,0,0,.3);">
+    <div id="avisos-modal-titulo" style="font-size:16px;font-weight:700;color:#0d1b2a;margin-bottom:4px;">⏸ Pausar avisos</div>
+    <div id="avisos-modal-opcoes"></div>
+    <div id="avisos-pin-bloco">
+      <div style="font-size:12px;color:#7a8aaa;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;">Senha</div>
+      <input id="avisos-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" onkeydown="if(event.key==='Enter')avisosConfirmar()"
+        style="width:100%;box-sizing:border-box;font-size:18px;letter-spacing:4px;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;">
+      <div style="font-size:11.5px;color:#98a4b8;margin-top:6px;">Pedimos a senha pra ninguém pausar sem querer.</div>
+    </div>
+    <div id="avisos-modal-erro" style="font-size:12px;color:#c0392b;min-height:16px;margin-top:6px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button onclick="avisosFecharModal()" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;">Cancelar</button>
+      <button id="avisos-modal-ok" onclick="avisosConfirmar()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Pausar</button>
     </div>
   </div>
 </div>
@@ -2218,6 +2243,8 @@ window.addEventListener('DOMContentLoaded', () => {
   atualizarIndicadorTopo();
   iniciarRealtime();
   setTab('painel');
+  avisosCarregar();
+  setInterval(() => { if (!document.hidden) avisosCarregar(); }, 60000);
 });
 
 // ══ BAIXAR ARQUIVO (CSV compatível com Excel) ══
@@ -5696,6 +5723,216 @@ function pzCopiar(qual) {
     btn.textContent = '✔ Copiado!';
     setTimeout(() => { btn.textContent = original; }, 2000);
   }).catch(() => showToast('Não foi possível copiar', 3000));
+}
+
+// ══ AVISOS DE PRAZO (WhatsApp): indicador de status + botão de pausa ══
+// O motor de avisos (eorder_alertas.py, na VPS) publica um resumo a cada rodada em
+// snapshots/'Alertas_status'; aqui a gente só LÊ e pinta. A pausa vai no sentido
+// contrário: o painel grava 'Alertas_controle' e o motor obedece na próxima rodada.
+// O chip só aparece se o motor já publicou alguma vez (antes disso fica invisível).
+// Senha: guardamos só o hash. É barreira contra clique sem querer -- o código da
+// página é público, então NÃO é segurança de verdade (combinado com o Igor).
+const AV_SALT = 'eorder-avisos|';
+const AV_PIN_HASH = '65088803cfe34e20281390423d752e1bd9b5c185cc2e7f8dd3d122b9e576aa24';
+const AV_LEMBRAR_PIN_MS = 30 * 60 * 1000;
+const AV_COR = {   // [bolinha, texto, borda]
+  verde: ['#1D9E75', '#7fd3b4', '#3a7a64'], amarelo: ['#EF9F27', '#f5c978', '#8a6a2a'],
+  vermelho: ['#E24B4A', '#f5a3a3', '#a33c3c'], cinza: ['#888780', '#b7c3d4', '#5b6f8a'],
+};
+const avState = { status: null, controle: null, acao: 'pausar', pinOkAte: 0, erros: 0, bloqueadoAte: 0 };
+
+// Nos testes dá pra apontar pras linhas _teste (window.AVISOS_SUFIXO = '_teste') sem mexer na produção.
+function avRegiao(base) { return base + (window.AVISOS_SUFIXO || ''); }
+function avEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function avHM(d) { return new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+function avDur(min) {
+  const m = Math.round(min);
+  return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min';
+}
+async function avSha256(txt) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function avBuscarLinha(regiao) {
+  const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.' + regiao + '&select=dados,atualizado_em',
+    { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const j = await res.json();
+  return j[0] ? { dados: (j[0].dados || [])[0] || {}, em: new Date(j[0].atualizado_em) } : null;
+}
+async function avisosCarregar() {
+  try {
+    const [st, ct] = await Promise.all([avBuscarLinha(avRegiao('Alertas_status')), avBuscarLinha(avRegiao('Alertas_controle'))]);
+    avState.status = st; avState.controle = ct;
+    avisosPintar();
+  } catch (e) { /* sem rede/Supabase engasgado: mantém o que já estava na tela */ }
+}
+
+function avPausaAtiva() {
+  const c = avState.controle && avState.controle.dados;
+  if (!c || !c.pausado) return null;
+  if (c.ate === 'retomar' || !c.ate) return { ate: null };
+  const ate = new Date(c.ate);
+  return ate > new Date() ? { ate } : null;
+}
+
+function avEstadoVisual() {
+  const st = avState.status;
+  if (!st) return null;
+  const d = st.dados || {};
+  const idade = (new Date() - st.em) / 60000;
+  const limite = Math.max(30, (d.cadencia_min || 10) * 3);
+  if (idade > limite) return { cor: 'vermelho', texto: 'sem sinal há ' + avDur(idade) };
+  const pausa = avPausaAtiva();
+  if (pausa) return { cor: 'cinza', texto: pausa.ate ? 'pausados até ' + avHM(pausa.ate) : 'pausados até retomar' };
+  switch (d.estado) {
+    case 'ativo': return { cor: 'verde', texto: 'ativos' };
+    case 'fora_horario': return { cor: 'cinza', texto: 'fora do horário · volta às ' + (d.inicio || '07:00') };
+    // motivo 'painel' + o painel já registrou a retomada (senão cairia na pausa lá em cima): falta o motor perceber
+    case 'pausado': return d.motivo === 'painel'
+      ? { cor: 'cinza', texto: 'retomando · vale na próxima rodada' }
+      : { cor: 'cinza', texto: 'pausados (chave geral)' };
+    case 'dados_velhos': return { cor: 'amarelo', texto: 'painel parado há ' + avDur(d.dados_idade_min || 0) + ' · avisos pausados' };
+    case 'freio': return { cor: 'amarelo', texto: 'limite de mensagens atingido' };
+    case 'whatsapp_off': return { cor: 'vermelho', texto: 'WhatsApp desconectado' + (d.whatsapp_desde ? ' desde ' + avHM(d.whatsapp_desde) : '') + ' · ler o QR' };
+    case 'servico_off': return { cor: 'vermelho', texto: 'serviço de WhatsApp fora do ar' };
+    case 'erro': return { cor: 'amarelo', texto: 'erro no envio · tentando de novo' };
+  }
+  return { cor: 'cinza', texto: String(d.estado || '—') };
+}
+
+function avisosPintar() {
+  const wrap = document.getElementById('avisos-wrap');
+  const ev = avEstadoVisual();
+  if (!ev) { wrap.style.display = 'none'; document.getElementById('topo-atualizado').style.marginLeft = 'auto'; return; }
+  wrap.style.display = 'block';
+  document.getElementById('topo-atualizado').style.marginLeft = '12px';
+  const [dot, txt, borda] = AV_COR[ev.cor];
+  const chip = document.getElementById('avisos-chip');
+  chip.style.borderColor = borda;
+  chip.innerHTML = '💬 Avisos <span style="width:8px;height:8px;border-radius:50%;background:' + dot + ';display:inline-block;"></span>' +
+    '<span style="color:' + txt + ';">' + avEsc(ev.texto) + '</span>';
+  if (document.getElementById('avisos-pop').style.display === 'block') avisosMontarPop();
+}
+
+function avisosMontarPop() {
+  const st = avState.status, d = st.dados || {}, ev = avEstadoVisual();
+  const pausa = avPausaAtiva();
+  const linha = (rot, val) => '<tr><td style="color:#7a8aaa;padding:3px 0;font-size:12.5px;">' + rot + '</td><td style="text-align:right;font-size:12.5px;">' + val + '</td></tr>';
+  const bolinha = c => '<span style="width:8px;height:8px;border-radius:50%;background:' + AV_COR[c][0] + ';display:inline-block;margin-right:6px;"></span>';
+  const zap = d.whatsapp_conectado === true ? bolinha('verde') + 'Conectado'
+    : d.whatsapp_conectado === false ? bolinha('vermelho') + 'Desconectado' : '—';
+  const idade = (new Date() - st.em) / 60000;
+  let h = '<div style="font-size:14px;font-weight:700;margin-bottom:2px;">Avisos de prazo</div>' +
+    '<div style="font-size:12.5px;margin-bottom:8px;">' + bolinha(ev.cor) + avEsc(ev.texto) + '</div>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    linha('WhatsApp', zap) +
+    linha('Última checagem', avHM(st.em) + ' (há ' + avDur(idade) + ')') +
+    linha('Dados do painel', avEsc(d.dados_ate || '—')) +
+    linha('Enviados hoje', (d.enviados_hoje ?? 0) + (d.limite_dia ? ' de ' + d.limite_dia : '')) +
+    linha('Último aviso', d.ultimo_aviso ? avHM(d.ultimo_aviso) : 'nenhum hoje') +
+    linha('Último erro', d.ultimo_erro ? avEsc(d.ultimo_erro) + (d.ultimo_erro_em ? ' (' + avHM(d.ultimo_erro_em) + ')' : '') : 'nenhum') +
+    linha('Horário', avEsc(d.horario || '—'));
+  if (pausa) h += linha('Pausa', (pausa.ate ? 'até ' + avHM(pausa.ate) : 'até retomar') + (avState.controle.em ? ' (pedida às ' + avHM(avState.controle.em) + ')' : ''));
+  h += '</table>' +
+    '<div style="margin-top:12px;text-align:right;"><button onclick="avisosAbrirModal(\'' + (pausa ? 'retomar' : 'pausar') + '\')" ' +
+    'style="background:' + (pausa ? '#1a7a40' : 'var(--navy)') + ';color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;">' +
+    (pausa ? '▶ Retomar avisos' : '⏸ Pausar avisos') + '</button></div>';
+  document.getElementById('avisos-pop').innerHTML = h;
+}
+
+function avisosTogglePop(e) {
+  if (e) e.stopPropagation();
+  const pop = document.getElementById('avisos-pop');
+  if (pop.style.display === 'block') { pop.style.display = 'none'; return; }
+  if (!avState.status) return;
+  avisosMontarPop();
+  pop.style.display = 'block';
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('avisos-pop');
+  if (pop && pop.style.display === 'block' && !pop.contains(e.target)) pop.style.display = 'none';
+});
+
+function avOpcoesPausa() {
+  const agora = new Date();
+  const hoje21 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 21, 0, 0);
+  const hoje14 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 0, 0);
+  const ops = [{ id: '1h', rot: '1 hora', ate: new Date(agora.getTime() + 3600000) }];
+  if (agora < new Date(hoje14.getTime() - 60000)) ops.push({ id: '14h', rot: 'Até as 14:00', ate: hoje14 });
+  if (agora < new Date(hoje21.getTime() - 60000)) ops.push({ id: 'fim', rot: 'Até o fim do dia (21:00)', ate: hoje21 });
+  ops.push({ id: 'retomar', rot: 'Até eu retomar', ate: 'retomar' });
+  return ops;
+}
+
+function avisosAbrirModal(acao) {
+  avState.acao = acao;
+  document.getElementById('avisos-pop').style.display = 'none';
+  const op = document.getElementById('avisos-modal-opcoes');
+  const ok = document.getElementById('avisos-modal-ok');
+  if (acao === 'pausar') {
+    document.getElementById('avisos-modal-titulo').textContent = '⏸ Pausar avisos';
+    op.innerHTML = '<div style="font-size:13px;color:#7a8aaa;margin:2px 0 8px;">Por quanto tempo?</div>' + avOpcoesPausa().map((o, i) =>
+      '<label style="display:flex;align-items:center;gap:8px;font-size:14px;padding:5px 0;cursor:pointer;color:#0d1b2a;"><input type="radio" name="avisos-dur" value="' + o.id + '"' + (i === 0 ? ' checked' : '') + '> ' + o.rot + '</label>').join('');
+    ok.textContent = 'Pausar'; ok.style.background = 'var(--navy)';
+  } else {
+    document.getElementById('avisos-modal-titulo').textContent = '▶ Retomar avisos';
+    op.innerHTML = '<div style="font-size:13px;color:#7a8aaa;margin:2px 0 4px;">Os avisos voltam na próxima rodada, com um resumo do que ficou aberto.</div>';
+    ok.textContent = 'Retomar'; ok.style.background = '#1a7a40';
+  }
+  const lembrado = Date.now() < avState.pinOkAte;
+  document.getElementById('avisos-pin-bloco').style.display = lembrado ? 'none' : 'block';
+  document.getElementById('avisos-pin').value = '';
+  document.getElementById('avisos-modal-erro').textContent = '';
+  document.getElementById('avisos-modal').style.display = 'flex';
+  if (!lembrado) setTimeout(() => document.getElementById('avisos-pin').focus(), 50);
+}
+function avisosFecharModal() { document.getElementById('avisos-modal').style.display = 'none'; }
+
+async function avisosConfirmar() {
+  const erro = document.getElementById('avisos-modal-erro');
+  const ok = document.getElementById('avisos-modal-ok');
+  if (Date.now() >= avState.pinOkAte) {
+    if (Date.now() < avState.bloqueadoAte) { erro.textContent = 'Muitas tentativas. Espere ' + Math.ceil((avState.bloqueadoAte - Date.now()) / 1000) + 's.'; return; }
+    const pin = document.getElementById('avisos-pin').value.trim();
+    if (!pin) { erro.textContent = 'Digite a senha.'; return; }
+    if (await avSha256(AV_SALT + pin) !== AV_PIN_HASH) {
+      avState.erros++;
+      document.getElementById('avisos-pin').value = '';
+      if (avState.erros >= 3) { avState.erros = 0; avState.bloqueadoAte = Date.now() + 30000; erro.textContent = 'Senha incorreta. Espere 30s pra tentar de novo.'; }
+      else erro.textContent = 'Senha incorreta. Tente de novo.';
+      return;
+    }
+    avState.erros = 0;
+    avState.pinOkAte = Date.now() + AV_LEMBRAR_PIN_MS;
+  }
+  let controle;
+  if (avState.acao === 'retomar') controle = { pausado: false, ate: null };
+  else {
+    const escolha = (document.querySelector('input[name="avisos-dur"]:checked') || {}).value;
+    const o = avOpcoesPausa().find(x => x.id === escolha);
+    if (!o) { erro.textContent = 'Escolha por quanto tempo.'; return; }
+    controle = { pausado: true, ate: o.ate === 'retomar' ? 'retomar' : o.ate.toISOString() };
+  }
+  controle.por = 'painel';
+  controle.em = new Date().toISOString();
+  ok.disabled = true;
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/snapshots', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ regiao: avRegiao('Alertas_controle'), dados: [controle], atualizado_em: controle.em }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    avState.controle = { dados: controle, em: new Date(controle.em) };
+    avisosFecharModal();
+    avisosPintar();
+    showToast(avState.acao === 'retomar' ? '▶ Retomada registrada — vale na próxima rodada do motor' : '⏸ Pausa registrada — vale na próxima rodada do motor', 4000);
+  } catch (e) {
+    erro.textContent = 'Não deu pra gravar. Tente de novo.';
+  } finally {
+    ok.disabled = false;
+  }
 }
 
 async function buscarCarimbo(regiao) {
