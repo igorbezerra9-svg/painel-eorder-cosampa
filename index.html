@@ -6040,6 +6040,8 @@ async function avcConsultar(mensagem) {
 }
 
 function avcMostrar(r, mensagem, idComando) {
+  // Resposta do "testar" (e erros) não traz a lista de grupos -- sem isso a lista sumia depois do teste.
+  if (!r.grupos && r.conectado && avc.dados && avc.dados.grupos) r.grupos = avc.dados.grupos;
   avc.dados = r; avc.aviso = mensagem || ''; avc.erro = r.erro && r.erro !== 'precisa_confirmar' ? r.erro : '';
   avc.escolhido = (r.destino && r.destino.id) || '';
   if (r.conectado) { avc.tela = 'conectado'; avc.seguindo++; }
@@ -6090,7 +6092,8 @@ function avcRender() {
   c.innerHTML = '<div style="background:#e9f7ef;border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
       '<span style="font-size:13px;color:#1a7a40;">Conectado como <b>' + avEsc(avcFmtNumero(d.numero)) + '</b></span>' +
       '<button onclick="avcConectarOutro()" style="background:transparent;border:1px solid #9fd2b3;color:#1a7a40;border-radius:8px;padding:3px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap;">Conectar outro número</button></div>' +
-    rotulo('Grupo que recebe os avisos') +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;">' + rotulo('Grupo que recebe os avisos') +
+      '<a onclick="avcConsultar()" title="Buscar a lista de grupos de novo" style="cursor:pointer;font-size:12px;color:#5a6b85;text-decoration:underline;margin-top:14px;">↻ atualizar lista</a></div>' +
     '<div style="font-size:13px;margin-bottom:8px;">' + (d.destino ? 'Atual: <b>' + avEsc(d.destino.nome) + '</b>' : '<span style="color:#b8860b;">Nenhum grupo escolhido ainda — escolha abaixo.</span>') + '</div>' +
     '<input id="avc-busca" type="text" placeholder="Buscar grupo" oninput="avcFiltrar(this.value)" value="' + avEsc(avc.filtro) + '" style="width:100%;box-sizing:border-box;font-size:14px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;">' +
     '<div id="avc-lista" style="border:1px solid var(--gray-200);border-radius:8px;max-height:230px;overflow-y:auto;"></div>' +
