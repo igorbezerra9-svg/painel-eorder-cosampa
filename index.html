@@ -1183,6 +1183,17 @@
   </div>
 </div>
 
+<!-- MODAL: Conexão dos avisos (escolher o grupo, ler o QR de outro número, testar) -->
+<div id="avisos-conexao" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:400px;padding:20px 22px;box-shadow:0 8px 40px rgba(0,0,0,.3);margin:auto;color:#0d1b2a;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:700;">💬 Conexão dos avisos</div>
+      <button onclick="avcFechar()" title="Fechar" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:#7a8aaa;">✕</button>
+    </div>
+    <div id="avc-corpo"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -2245,6 +2256,8 @@ window.addEventListener('DOMContentLoaded', () => {
   setTab('painel');
   avisosCarregar();
   setInterval(() => { if (!document.hidden) avisosCarregar(); }, 60000);
+  // Entrada discreta pra configurar mesmo antes de existir status: abrir o painel com ?avisos=1
+  if (/[?&]avisos=1\b/.test(location.search)) avcIniciar();
 });
 
 // ══ BAIXAR ARQUIVO (CSV compatível com Excel) ══
@@ -5794,6 +5807,7 @@ function avEstadoVisual() {
       : { cor: 'cinza', texto: 'pausados (chave geral)' };
     case 'dados_velhos': return { cor: 'amarelo', texto: 'painel parado há ' + avDur(d.dados_idade_min || 0) + ' · avisos pausados' };
     case 'freio': return { cor: 'amarelo', texto: 'limite de mensagens atingido' };
+    case 'sem_destino': return { cor: 'amarelo', texto: 'nenhum grupo escolhido · abrir ⚙ Conexão' };
     case 'whatsapp_off': return { cor: 'vermelho', texto: 'WhatsApp desconectado' + (d.whatsapp_desde ? ' desde ' + avHM(d.whatsapp_desde) : '') + ' · ler o QR' };
     case 'servico_off': return { cor: 'vermelho', texto: 'serviço de WhatsApp fora do ar' };
     case 'erro': return { cor: 'amarelo', texto: 'erro no envio · tentando de novo' };
@@ -5837,7 +5851,8 @@ function avisosMontarPop() {
   h += '</table>' +
     '<div style="margin-top:12px;text-align:right;"><button onclick="avisosAbrirModal(\'' + (pausa ? 'retomar' : 'pausar') + '\')" ' +
     'style="background:' + (pausa ? '#1a7a40' : 'var(--navy)') + ';color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;">' +
-    (pausa ? '▶ Retomar avisos' : '⏸ Pausar avisos') + '</button></div>';
+    (pausa ? '▶ Retomar avisos' : '⏸ Pausar avisos') + '</button></div>' +
+    '<div style="margin-top:8px;text-align:right;"><a onclick="avcIniciar()" style="cursor:pointer;font-size:12px;color:#5a6b85;text-decoration:underline;">⚙ Conexão (grupo e número)</a></div>';
   document.getElementById('avisos-pop').innerHTML = h;
 }
 
@@ -5933,6 +5948,206 @@ async function avisosConfirmar() {
   } finally {
     ok.disabled = false;
   }
+}
+
+// ══ CONEXÃO DOS AVISOS: escolher o grupo, ler o QR de outro número, mandar teste ══
+// O banco é legível por qualquer pessoa com o endereço do painel, então aqui NADA vai em claro:
+// cada comando é assinado (HMAC-SHA256) com uma SENHA LONGA que só o Igor sabe -- o serviço de
+// WhatsApp ignora comando sem a assinatura certa -- e as respostas (lista de grupos, QR) voltam
+// criptografadas (AES-256-GCM) com a mesma senha. A senha só existe na memória desta página
+// por 30 min; não é gravada em lugar nenhum nem vai pro Supabase.
+const AVC_SALT = 'eorder-avisos-conexao-v1';          // tem que ser igual ao do whatsapp_sender.mjs
+const AVC_LEMBRAR_MS = 30 * 60 * 1000;
+const AVC_GRUPO_GRANDE = 30;
+const avc = { chaves: null, chavesAte: 0, tela: 'senha', erro: '', aviso: '', dados: null, filtro: '', escolhido: '', seguindo: 0 };
+
+async function avcDerivar(segredo) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(segredo.normalize('NFC').trim()), 'PBKDF2', false, ['deriveBits']);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(AVC_SALT), iterations: 200000, hash: 'SHA-256' }, base, 512));
+  return {
+    hmac: await crypto.subtle.importKey('raw', bits.slice(0, 32), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']),
+    aes: await crypto.subtle.importKey('raw', bits.slice(32, 64), 'AES-GCM', false, ['decrypt']),
+  };
+}
+const avcHex = buf => Array.from(new Uint8Array(buf)).map(x => x.toString(16).padStart(2, '0')).join('');
+const avcB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function avcDecifrar(cif) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: avcB64(cif.iv) }, avc.chaves.aes, avcB64(cif.dados));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function avcComando(acao, params) {
+  const id = crypto.randomUUID(), ts = new Date().toISOString(), params_json = JSON.stringify(params || {});
+  const assinatura = avcHex(await crypto.subtle.sign('HMAC', avc.chaves.hmac, new TextEncoder().encode([id, acao, params_json, ts].join('|'))));
+  const res = await fetch(SB_URL + '/rest/v1/snapshots', {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify({ regiao: avRegiao('Alertas_comando'), dados: [{ id, acao, params_json, ts, assinatura }], atualizado_em: ts }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return id;
+}
+// Espera o serviço responder AO comando `id` (o serviço confere a assinatura; senha errada = silêncio).
+async function avcAguardar(id, ms) {
+  const fim = Date.now() + ms;
+  while (Date.now() < fim) {
+    const l = await avBuscarLinha(avRegiao('Alertas_conexao')).catch(() => null);
+    if (l && l.dados && l.dados.para === id && l.dados.cifrado) {
+      try { return await avcDecifrar(l.dados.cifrado); } catch (e) { throw new Error('resposta ilegível'); }
+    }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  return null;
+}
+
+function avcFmtNumero(n) {
+  n = String(n || '');
+  return n.length >= 10 ? '+' + n.slice(0, 2) + ' ' + n.slice(2, 4) + ' ' + n.slice(4, n.length - 4) + '-' + n.slice(-4) : n;
+}
+function avcAberto() { return document.getElementById('avisos-conexao').style.display === 'flex'; }
+
+function avcIniciar() {
+  document.getElementById('avisos-pop').style.display = 'none';
+  document.getElementById('avisos-conexao').style.display = 'flex';
+  avc.erro = ''; avc.aviso = '';
+  if (avc.chaves && Date.now() < avc.chavesAte) avcConsultar();
+  else { avc.chaves = null; avc.tela = 'senha'; avcRender(); }
+}
+function avcFechar() { avc.seguindo++; document.getElementById('avisos-conexao').style.display = 'none'; }
+
+async function avcEntrar() {
+  const campo = document.getElementById('avc-senha');
+  const segredo = campo ? campo.value : '';
+  if (segredo.trim().length < 12) { avc.erro = 'A senha de conexão tem pelo menos 12 caracteres.'; avcRender(); return; }
+  avc.tela = 'carregando'; avc.aviso = 'Preparando a chave...'; avcRender();
+  try { avc.chaves = await avcDerivar(segredo); avc.chavesAte = Date.now() + AVC_LEMBRAR_MS; }
+  catch (e) { avc.tela = 'senha'; avc.erro = 'Não deu pra preparar a chave neste navegador.'; avcRender(); return; }
+  avcConsultar();
+}
+
+// Pergunta ao serviço como estão as coisas: conectado? grupos? ou QR pra ler.
+async function avcConsultar(mensagem) {
+  avc.seguindo++;
+  avc.tela = 'carregando'; avc.aviso = 'Falando com o serviço de WhatsApp...'; avcRender();
+  try {
+    const id = await avcComando('listar_grupos');
+    const r = await avcAguardar(id, 30000);
+    if (!r) { avc.chaves = null; avc.tela = 'senha'; avc.erro = 'O serviço não respondeu. A senha pode estar errada, ou o serviço de WhatsApp está desligado.'; avcRender(); return; }
+    avcMostrar(r, mensagem, id);
+  } catch (e) {
+    avc.tela = 'senha'; avc.erro = 'Não deu pra falar com o serviço: ' + e.message; avcRender();
+  }
+}
+
+function avcMostrar(r, mensagem, idComando) {
+  avc.dados = r; avc.aviso = mensagem || ''; avc.erro = r.erro && r.erro !== 'precisa_confirmar' ? r.erro : '';
+  avc.escolhido = (r.destino && r.destino.id) || '';
+  if (r.conectado) { avc.tela = 'conectado'; avc.seguindo++; }
+  else { avc.tela = 'qr'; if (idComando) avcSeguirQr(idComando); }
+  avcRender();
+}
+
+// Enquanto o QR está na tela, ele troca a cada ~20s e a leitura pode acontecer a qualquer momento.
+async function avcSeguirQr(id) {
+  const meu = ++avc.seguindo, fim = Date.now() + 5 * 60 * 1000;
+  let visto = '';
+  while (meu === avc.seguindo && avcAberto() && Date.now() < fim) {
+    await new Promise(r => setTimeout(r, 2000));
+    const l = await avBuscarLinha(avRegiao('Alertas_conexao')).catch(() => null);
+    if (!l || !l.dados || l.dados.para !== id || !l.dados.cifrado || l.dados.em === visto) continue;
+    visto = l.dados.em;
+    let p; try { p = await avcDecifrar(l.dados.cifrado); } catch (e) { continue; }
+    if (p.conectado) { avcConsultar('✔ WhatsApp conectado.'); return; }
+    if (p.qr) { avc.dados = p; const img = document.getElementById('avc-qr'); if (img) img.src = p.qr; }
+  }
+  if (meu === avc.seguindo && avc.tela === 'qr') { avc.tela = 'senha'; avc.chaves = null; avc.erro = 'O QR expirou. Entre de novo pra gerar outro.'; avcRender(); }
+}
+
+function avcRender() {
+  const c = document.getElementById('avc-corpo');
+  if (!c) return;
+  const erro = avc.erro ? '<div style="font-size:12.5px;color:#c0392b;margin:8px 0;">' + avEsc(avc.erro) + '</div>' : '';
+  const aviso = avc.aviso ? '<div style="font-size:12.5px;color:#1a7a40;margin:8px 0;">' + avEsc(avc.aviso) + '</div>' : '';
+  const rotulo = t => '<div style="font-size:12px;color:#7a8aaa;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;">' + t + '</div>';
+  if (avc.tela === 'senha') {
+    c.innerHTML = '<div style="font-size:13px;color:#3d4d60;">Pra escolher o grupo ou conectar um número, digite a <b>senha de conexão</b>.</div>' +
+      rotulo('Senha de conexão') +
+      '<input id="avc-senha" type="password" autocomplete="off" placeholder="a senha longa" onkeydown="if(event.key===\'Enter\')avcEntrar()" style="width:100%;box-sizing:border-box;font-size:15px;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;">' +
+      '<div style="font-size:11.5px;color:#98a4b8;margin-top:6px;">É a senha longa que só você sabe (a mesma do servidor). Ela fica só na memória desta página por 30 minutos.</div>' + erro +
+      '<div style="text-align:right;margin-top:14px;"><button onclick="avcEntrar()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Entrar</button></div>';
+    const s = document.getElementById('avc-senha'); if (s) setTimeout(() => s.focus(), 50);
+    return;
+  }
+  if (avc.tela === 'carregando') { c.innerHTML = '<div style="padding:26px 0;text-align:center;color:#7a8aaa;font-size:13px;">⏳ ' + avEsc(avc.aviso || 'Carregando...') + '</div>'; return; }
+  const d = avc.dados || {};
+  if (avc.tela === 'qr') {
+    c.innerHTML = '<div style="font-size:13px;color:#3d4d60;">Nenhum número conectado. No celular do chip: <b>WhatsApp › Aparelhos conectados › Conectar um aparelho</b> e aponte pra imagem.</div>' +
+      '<div style="text-align:center;margin:12px 0;">' + (d.qr ? '<img id="avc-qr" src="' + d.qr + '" width="300" height="300" alt="QR code do WhatsApp" style="background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:6px;">' : '<div style="padding:40px 0;color:#7a8aaa;">⏳ Gerando o QR...</div>') + '</div>' +
+      '<div style="font-size:11.5px;color:#98a4b8;">O QR se renova sozinho. Ele dá acesso à conta, então só fica visível aqui, com a senha, por alguns minutos.</div>' + aviso + erro;
+    return;
+  }
+  // conectado
+  c.innerHTML = '<div style="background:#e9f7ef;border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+      '<span style="font-size:13px;color:#1a7a40;">Conectado como <b>' + avEsc(avcFmtNumero(d.numero)) + '</b></span>' +
+      '<button onclick="avcConectarOutro()" style="background:transparent;border:1px solid #9fd2b3;color:#1a7a40;border-radius:8px;padding:3px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap;">Conectar outro número</button></div>' +
+    rotulo('Grupo que recebe os avisos') +
+    '<div style="font-size:13px;margin-bottom:8px;">' + (d.destino ? 'Atual: <b>' + avEsc(d.destino.nome) + '</b>' : '<span style="color:#b8860b;">Nenhum grupo escolhido ainda — escolha abaixo.</span>') + '</div>' +
+    '<input id="avc-busca" type="text" placeholder="Buscar grupo" oninput="avcFiltrar(this.value)" value="' + avEsc(avc.filtro) + '" style="width:100%;box-sizing:border-box;font-size:14px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;">' +
+    '<div id="avc-lista" style="border:1px solid var(--gray-200);border-radius:8px;max-height:230px;overflow-y:auto;"></div>' +
+    '<div style="font-size:11.5px;color:#98a4b8;margin-top:6px;">Mostra todos os grupos do número conectado. Grupo grande pede confirmação antes de salvar.</div>' + aviso + erro +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;">' +
+      '<button onclick="avcTestar()" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;"' + (d.destino ? '' : ' disabled') + '>Enviar mensagem de teste</button>' +
+      '<button id="avc-salvar" onclick="avcSalvarGrupo()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Salvar grupo</button></div>';
+  avcRenderLista();
+}
+
+function avcRenderLista() {
+  const el = document.getElementById('avc-lista');
+  if (!el) return;
+  const d = avc.dados || {}, f = avc.filtro.trim().toLowerCase();
+  const itens = (d.grupos || []).filter(g => !f || g.nome.toLowerCase().includes(f));
+  el.innerHTML = itens.map((g, i) => '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:14px;cursor:pointer;' + (i ? 'border-top:1px solid var(--gray-100);' : '') + (g.id === avc.escolhido ? 'background:#eef3fb;' : '') + '">' +
+    '<input type="radio" name="avc-grupo" value="' + avEsc(g.id) + '"' + (g.id === avc.escolhido ? ' checked' : '') + ' onchange="avc.escolhido=this.value;avcRenderLista()">' +
+    '<span style="flex:1;">' + avEsc(g.nome) + (d.destino && d.destino.id === g.id ? ' <span style="font-size:11px;color:#1a7a40;font-weight:700;">(atual)</span>' : '') + '</span>' +
+    '<span style="font-size:12px;color:#7a8aaa;white-space:nowrap;">' + g.participantes + (g.participantes === 1 ? ' pessoa' : ' pessoas') + '</span></label>').join('') ||
+    '<div style="padding:14px;text-align:center;color:#98a4b8;font-size:13px;">Nenhum grupo encontrado</div>';
+}
+function avcFiltrar(v) { avc.filtro = v; avcRenderLista(); }
+
+async function avcExecutar(acao, params, mensagemOk) {
+  avc.tela = 'carregando'; avc.aviso = 'Enviando o pedido ao serviço...'; avcRender();
+  try {
+    const id = await avcComando(acao, params);
+    const r = await avcAguardar(id, 40000);
+    if (!r) { avc.tela = 'conectado'; avc.erro = 'O serviço não respondeu a tempo.'; avc.aviso = ''; avcRender(); return null; }
+    return { r, id };
+  } catch (e) {
+    avc.tela = 'conectado'; avc.erro = 'Não deu pra falar com o serviço: ' + e.message; avc.aviso = ''; avcRender(); return null;
+  }
+}
+
+async function avcSalvarGrupo() {
+  const g = ((avc.dados || {}).grupos || []).find(x => x.id === avc.escolhido);
+  if (!g) { avc.erro = 'Escolha um grupo na lista.'; avc.aviso = ''; avcRender(); return; }
+  if (g.participantes > AVC_GRUPO_GRANDE && !confirm('O grupo "' + g.nome + '" tem ' + g.participantes + ' pessoas. Os avisos vão aparecer pra todas elas, como mensagens do seu número. Salvar mesmo assim?')) return;
+  const o = await avcExecutar('definir_grupo', { grupo_id: g.id });
+  if (!o) return;
+  avcMostrar(o.r, o.r.erro ? '' : '✔ Grupo salvo: ' + g.nome + '. Os avisos passam a ir pra ele.');
+}
+async function avcTestar() {
+  const o = await avcExecutar('testar', {});
+  if (!o) return;
+  avcMostrar(o.r, o.r.testeEnviado ? '✔ Mensagem de teste enviada ao grupo.' : '');
+}
+async function avcConectarOutro() {
+  if (!confirm('Conectar outro número vai DESCONECTAR o número atual (' + avcFmtNumero((avc.dados || {}).numero) + ') e apagar a escolha do grupo. Os avisos param até você conectar de novo. Continuar?')) return;
+  avc.tela = 'carregando'; avc.aviso = 'Desconectando o número atual...'; avcRender();
+  try {
+    const id = await avcComando('conectar', { confirmar_troca: true });
+    avc.seguindo++;
+    avc.dados = { conectado: false }; avc.tela = 'qr'; avc.aviso = ''; avc.erro = ''; avcRender();
+    avcSeguirQr(id);
+  } catch (e) { avc.tela = 'conectado'; avc.erro = 'Não deu pra falar com o serviço: ' + e.message; avcRender(); }
 }
 
 async function buscarCarimbo(regiao) {
