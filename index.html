@@ -210,6 +210,9 @@
     .op-panel { padding: 14px 12px; }
     .op-hero { grid-template-columns: 1fr; }
   }
+  /* Campos de senha SEM type="password": com ele o Chrome acha que a página tem um login e preenche
+     o usuário salvo ("admin") na caixa de busca visível mais próxima. Aqui só escondemos os caracteres. */
+  .campo-senha { -webkit-text-security: disc; }
 </style>
 </head>
 <body>
@@ -1171,7 +1174,7 @@
     <div id="avisos-modal-opcoes"></div>
     <div id="avisos-pin-bloco">
       <div style="font-size:12px;color:#7a8aaa;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;">Senha</div>
-      <input id="avisos-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" onkeydown="if(event.key==='Enter')avisosConfirmar()"
+      <input id="avisos-pin" class="campo-senha" type="text" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="••••" onkeydown="if(event.key==='Enter')avisosConfirmar()"
         style="width:100%;box-sizing:border-box;font-size:18px;letter-spacing:4px;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;">
       <div style="font-size:11.5px;color:#98a4b8;margin-top:6px;">Pedimos a senha pra ninguém pausar sem querer.</div>
     </div>
@@ -2250,7 +2253,15 @@ function aplicarAtualizacao(regiao) {
   atualizarIndicadorTopo();
 }
 
+// Navegador sem suporte a -webkit-text-security mostraria a senha em texto claro: nesse caso (e só nele)
+// volta pra type="password", com autocomplete="new-password" pra não preencher usuário salvo em outro campo.
+function avAjustarCamposSenha(raiz) {
+  if (window.CSS && CSS.supports && CSS.supports('-webkit-text-security', 'disc')) return;
+  (raiz || document).querySelectorAll('.campo-senha').forEach(el => { el.type = 'password'; el.setAttribute('autocomplete', 'new-password'); });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  avAjustarCamposSenha();
   atualizarIndicadorTopo();
   iniciarRealtime();
   setTab('painel');
@@ -6099,9 +6110,10 @@ function avcRender() {
   if (avc.tela === 'senha') {
     c.innerHTML = '<div style="font-size:13px;color:#3d4d60;">Pra escolher o grupo ou conectar um número, digite a <b>senha de conexão</b>.</div>' +
       rotulo('Senha de conexão') +
-      '<input id="avc-senha" type="password" autocomplete="off" placeholder="a senha longa" onkeydown="if(event.key===\'Enter\')avcEntrar()" style="width:100%;box-sizing:border-box;font-size:15px;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;">' +
+      '<input id="avc-senha" class="campo-senha" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="a senha longa" onkeydown="if(event.key===\'Enter\')avcEntrar()" style="width:100%;box-sizing:border-box;font-size:15px;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;">' +
       '<div style="font-size:11.5px;color:#98a4b8;margin-top:6px;">É a senha longa que só você sabe (a mesma do servidor). Ela fica só na memória desta página por 30 minutos.</div>' + erro +
       '<div style="text-align:right;margin-top:14px;"><button onclick="avcEntrar()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Entrar</button></div>';
+    avAjustarCamposSenha(c);
     const s = document.getElementById('avc-senha'); if (s) setTimeout(() => s.focus(), 50);
     return;
   }
