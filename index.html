@@ -4446,6 +4446,12 @@ const com = {
   modalDados: [],
   modalOrdemAsc: true,
   metaValorAnterior: {}, // { 'YYYY-MM': valor antes do último Salvar } -- pro "Desfazer"
+  // Carimbo (salvo_em) do fechamento de hoje que já está aplicado em tela.
+  // Guarda a data junto porque "hoje" vira à meia-noite e aí o carimbo
+  // antigo passa a ser de outro dia -- comparar só o salvo_em deixaria a
+  // virada do dia passar batido.
+  carimboHojeKey: null,
+  carimboHoje: null,
 };
 
 function comercialMesAtualKey() {
@@ -4770,8 +4776,22 @@ async function comercialAtualizarHoje() {
   if (com.mesReferencia !== mesAtualKey) return; // só faz sentido vendo o mês corrente ao vivo
   const hojeKey = comercialChaveData(hoje);
   try {
-    const url = SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=eq.' + hojeKey + '&select=dados,data';
-    const res = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    const base = SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=eq.' + hojeKey;
+    const cab = { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } };
+    // Pergunta primeiro se o fechamento de hoje mudou (49 bytes) em vez de
+    // rebaixar os ~93 KB do dia a cada 2 minutos. Sem isso, uma tela parada
+    // nesta aba consumia ~2 GB/mês de egress sozinha -- 40% da franquia do
+    // plano gratuito. É a mesma doença que o verificarAtualizacoes já tinha
+    // curado no Painel Gerencial e na Execução, que reapareceu aqui.
+    const resCarimbo = await fetch(base + '&select=salvo_em', cab);
+    if (!resCarimbo.ok) throw new Error('HTTP ' + resCarimbo.status);
+    const linhasCarimbo = await resCarimbo.json();
+    const carimbo = (Array.isArray(linhasCarimbo) && linhasCarimbo[0] && linhasCarimbo[0].salvo_em) || null;
+    if (!carimbo) return; // o bot ainda não publicou o fechamento de hoje
+    // Mesmo dia E mesmo carimbo = nada mudou desde a última busca.
+    if (com.carimboHojeKey === hojeKey && com.carimboHoje === carimbo) return;
+
+    const res = await fetch(base + '&select=dados,data', cab);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const linhas = await res.json();
     if (!Array.isArray(linhas) || !linhas[0]) return;
@@ -4782,6 +4802,11 @@ async function comercialAtualizarHoje() {
     com.dadosMesAtual = await comercialDadosDoMes(mesAtualKey);
     com.dadosMesAtualTodos = await comercialDadosDoMesTodos(mesAtualKey);
     comercialRender();
+    // Só marca como aplicado DEPOIS de tudo dar certo -- se qualquer passo
+    // acima falhar, a próxima rodada tenta de novo em vez de achar que já
+    // está em dia e ficar parada com o dado velho.
+    com.carimboHojeKey = hojeKey;
+    com.carimboHoje = carimbo;
   } catch (e) {
     // falha aqui não é grave -- "hoje" só fica um pouco atrasado até a
     // próxima tentativa, daqui a pouco.
