@@ -150,6 +150,21 @@ REINCIDENTES_IDX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # resolve) -- é o "desde o início do ano até hoje já deu improdutivo Nx"
 # mostrado ao lado do texto Improdutivo no painel.
 CONTAGEM_IMPRODUTIVOS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contagem_improdutivos_ano_idx.json")
+# Rastreio das vistorias com PLC: da baixa "NPLC - NECESSITA PLC" ate a
+# execucao. Serve pra cobrar que a ordem volte pra MESMA equipe que vistoriou
+# -- quem foi no local sabe o que o padrao precisa, e hoje ela reabre pra
+# qualquer um. Indice local porque varrer meses de historico a cada rodada
+# seria caro (e no navegador seria pior ainda: ~7MB por abertura da aba).
+PLC_IDX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plc_rastreio_idx.json")
+# Depois de executada a ordem some do rastreio -- mas fica um tempo no indice
+# pra alimentar o historico de "caiu na mesma equipe?" do painel.
+PLC_RETENCAO_DIAS = 90
+# A vistoria com PLC e marcada pelo codigo; a nota confirma. Usa o codigo como
+# criterio porque a Nota Codificada veio contaminada em parte de julho/2026
+# (carimbava o mesmo texto em toda linha, inclusive FJL, que nao deveria ter
+# nota nenhuma) -- o codigo nunca falhou em nenhum periodo.
+PLC_COD_VISTORIA = "SDJV04"
+PLC_COD_EXECUTADO = ("SDJE01", "SDJV02")
 
 
 def _carregar_json_idx(caminho):
@@ -245,6 +260,75 @@ def _atualizar_indice_reincidentes(linhas):
     _salvar_indice_reincidentes(indice)
     _salvar_json_idx(CONTAGEM_IMPRODUTIVOS_PATH, contagem)
     return indice, contagem
+
+
+def _atualizar_indice_plc(linhas):
+    """Dobra as `linhas` recem-lidas em cima do indice salvo.
+
+    Para cada ordem que recebeu SDJV04 guarda quem vistoriou e quando, e a
+    partir dai vai acumulando TODA baixa seguinte daquela ordem (equipe,
+    codigo e nota) -- e isso que permite dizer "reabriu e foi pra outra
+    equipe" e "voltou improdutivo por CASA FECHADA".
+
+    Releitura e idempotente: cada rodada rele o dia inteiro, entao o mesmo
+    evento reaparece. A chave e a 'Data fim Execucao' exata, igual o indice
+    de reincidentes faz.
+    """
+    indice = _carregar_json_idx(PLC_IDX_PATH)
+
+    def ordena(r):
+        d = _parse_data_fim(r.get("Data fim Execução"))
+        return d or datetime.min
+
+    for r in sorted(linhas, key=ordena):
+        os_num = (r.get("Numero de Serviço") or "").strip()
+        if not os_num:
+            continue
+        cod = (r.get("Código Resultado") or "").strip().upper()
+        quando = (r.get("Data fim Execução") or "").strip()
+        equipe = (r.get("Recurso/Equipe") or "").strip()
+        nota = (r.get("Nota Codificada") or "").strip()
+
+        if cod == PLC_COD_VISTORIA:
+            # Uma ordem pode receber PLC mais de uma vez; vale o primeiro,
+            # que e quando o acompanhamento comeca.
+            if os_num not in indice:
+                indice[os_num] = {
+                    "plc_em": quando,
+                    "eq_plc": equipe,
+                    "nota_plc": nota,
+                    "cliente": (r.get("Cliente") or "").strip(),
+                    "endereco": (r.get("Endereço") or "").strip(),
+                    "municipio": (r.get("Município") or "").strip(),
+                    "eventos": [],
+                    "executada_em": None,
+                    "eq_exec": None,
+                }
+            continue
+
+        entry = indice.get(os_num)
+        if not entry or not entry.get("plc_em"):
+            continue
+        # So interessa o que aconteceu DEPOIS da vistoria com PLC
+        dt_ev, dt_plc = _parse_data_fim(quando), _parse_data_fim(entry["plc_em"])
+        if dt_ev and dt_plc and dt_ev <= dt_plc:
+            continue
+        if any(e.get("em") == quando and e.get("cod") == cod for e in entry["eventos"]):
+            continue  # mesma baixa sendo relida numa rodada seguinte
+        entry["eventos"].append({"em": quando, "eq": equipe, "cod": cod, "nota": nota})
+        if cod in PLC_COD_EXECUTADO and not entry["executada_em"]:
+            entry["executada_em"] = quando
+            entry["eq_exec"] = equipe
+
+    # Poda: executadas ha mais de PLC_RETENCAO_DIAS saem do indice
+    limite = datetime.now() - timedelta(days=PLC_RETENCAO_DIAS)
+    for os_num in list(indice):
+        fim = _parse_data_fim(indice[os_num].get("executada_em"))
+        if fim and fim < limite:
+            indice.pop(os_num, None)
+
+    _salvar_json_idx(PLC_IDX_PATH, indice)
+    return indice
 
 
 def _eh_reincidente_hoje(entry):
@@ -881,12 +965,21 @@ class EOrderExecucaoBot:
         # também traz resultado válido pra incorporar), antes do POST ao
         # vivo pra não depender dele.
         reincidentes = contagem = None
+        plc_indice = None
         if regiao == "Execucao":
             try:
                 reincidentes, contagem = _atualizar_indice_reincidentes(linhas)
                 self._plog(f"🔁 Índice de reincidentes: {len(reincidentes)} cliente(s) com improdutivo em aberto")
             except Exception as e:
                 self._plog(f"⚠️  Falha ao atualizar índice de reincidentes: {e}")
+            # Mesmo tratamento: roda na reconsulta de ontem também, e antes do
+            # POST ao vivo pra não depender dele.
+            try:
+                plc_indice = _atualizar_indice_plc(linhas)
+                em_aberto = sum(1 for e in plc_indice.values() if not e.get("executada_em"))
+                self._plog(f"🔧 Índice PLC: {len(plc_indice)} ordem(ns) rastreadas, {em_aberto} em aberto")
+            except Exception as e:
+                self._plog(f"⚠️  Falha ao atualizar índice PLC: {e}")
         if publicar_ao_vivo:
             try:
                 corpo = json.dumps({
@@ -911,6 +1004,8 @@ class EOrderExecucaoBot:
                 clientes_hoje |= _carregar_clientes_sul_local()
                 clientes_hoje.discard("")
                 self._publicar_reincidentes(regiao, reincidentes, contagem or {}, clientes_hoje)
+            if plc_indice is not None:
+                self._publicar_plc(plc_indice)
         self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
 
@@ -950,6 +1045,38 @@ class EOrderExecucaoBot:
             self._plog(f"⚠️  Falha ao publicar reincidentes ({regiao}): {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
             self._plog(f"⚠️  Falha ao publicar reincidentes ({regiao}): {e}")
+
+    def _publicar_plc(self, indice):
+        """Publica o rastreio PLC como regiao propria. So os campos que a tela
+        usa -- o estado atual no TdC (equipe de hoje, prazo) o painel cruza
+        sozinho com o Sul que ja tem carregado, sem requisicao extra."""
+        try:
+            dados = []
+            for os_num, e in indice.items():
+                dados.append({
+                    "os": os_num,
+                    "plc_em": e.get("plc_em"),
+                    "eq_plc": e.get("eq_plc"),
+                    "cliente": e.get("cliente"),
+                    "endereco": e.get("endereco"),
+                    "municipio": e.get("municipio"),
+                    "executada_em": e.get("executada_em"),
+                    "eq_exec": e.get("eq_exec"),
+                    "eventos": e.get("eventos") or [],
+                })
+            dados.sort(key=lambda x: _parse_data_fim(x["plc_em"]) or datetime.min, reverse=True)
+            corpo = json.dumps({
+                "regiao": "PLC_rastreio",
+                "dados": dados,
+                "atualizado_em": datetime.now(timezone.utc).isoformat(),
+            }, default=str).encode("utf-8")
+            status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
+            abertas = sum(1 for d in dados if not d["executada_em"])
+            self._plog(f"☁ Rastreio PLC publicado: {len(dados)} ordem(ns), {abertas} em aberto — status {status}")
+        except urllib.error.HTTPError as e:
+            self._plog(f"⚠️  Falha ao publicar rastreio PLC: {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            self._plog(f"⚠️  Falha ao publicar rastreio PLC: {e}")
 
     def _publicar_nuvem_completo(self, regiao, caminho):
         """Publica TODAS as colunas do arquivo original numa região
