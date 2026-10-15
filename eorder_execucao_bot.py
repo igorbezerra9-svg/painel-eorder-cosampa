@@ -173,6 +173,23 @@ PLC_TIPO_SERVICO = "OUTSDJ"
 PLC_COD_EXECUTADO = ("SDJE01", "SDJV02")
 
 
+def _plc_eh_execucao(cod, nota):
+    """Executou de verdade?
+
+    O caminho normal e o codigo. Mas o export as vezes traz a baixa com o
+    Codigo Resultado VAZIO e so a nota preenchida (5 casos em 93 mil, mas um
+    deles foi justamente uma ordem que estava sendo acompanhada) -- nesse
+    caso, e so nesse, a nota decide.
+    """
+    cod = (cod or "").strip().upper()
+    if cod in PLC_COD_EXECUTADO:
+        return True
+    if cod:
+        return False
+    n = (nota or "").strip().upper()
+    return "EXECUTAD" in n and "NAO" not in n and "NÃO" not in n
+
+
 def _carregar_json_idx(caminho):
     try:
         with open(caminho, encoding='utf-8') as f:
@@ -364,7 +381,7 @@ def _atualizar_indice_plc(linhas):
         if any(e.get("em") == quando and e.get("cod") == cod for e in entry["eventos"]):
             continue  # mesma baixa sendo relida numa rodada seguinte
         entry["eventos"].append({"em": quando, "eq": equipe, "cod": cod, "nota": nota})
-        if cod in PLC_COD_EXECUTADO and not entry["executada_em"]:
+        if _plc_eh_execucao(cod, nota) and not entry["executada_em"]:
             entry["executada_em"] = quando
             entry["eq_exec"] = equipe
 
