@@ -298,6 +298,17 @@
           </div>
         </div>
       </div>
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo de Serviço:</span>
+      <div class="pg-multisel" id="pg-tiposrv-wrap">
+        <button type="button" class="pg-multisel-btn" id="pg-tiposrv-btn" onclick="pgToggleTipoSrvDropdown(event)" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Todos</button>
+        <div class="pg-multisel-menu" id="pg-tiposrv-menu" style="display:none;max-height:260px;overflow-y:auto;min-width:280px;">
+          <div id="pg-tiposrv-opcoes"></div>
+          <div class="pg-multisel-actions">
+            <a onclick="pgSelectAllTipoSrv()">Marcar todos</a>
+            <a onclick="pgClearTipoSrv()">Limpar</a>
+          </div>
+        </div>
+      </div>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
       <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Tipo:</span>
@@ -1447,6 +1458,65 @@ function getTipoOrdem(r) {
   return 'OUTRO';
 }
 
+// ══ FILTRO DE TIPO DE SERVIÇO (Painel Gerencial) ══
+// Mesmo padrão do filtro da Execução. Serve pra olhar um tipo isolado -- por
+// exemplo só as OUTSDJ que vencem amanhã, que antes se misturavam com os
+// outros 16 tipos na coluna D+1.
+function pgPopularFiltroTipoSrv() {
+  const cont = {};
+  const desc = {};
+  pgDados.forEach(r => {
+    const c = opCodigoServico(r);
+    if (!c) return;
+    cont[c] = (cont[c] || 0) + 1;
+    if (!desc[c]) {
+      const t = (r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || '').trim();
+      desc[c] = t.split(' - ').slice(1).join(' - ');
+    }
+  });
+  // Mais frequentes primeiro -- é o que a pessoa procura
+  const codigos = Object.keys(cont).sort((a, b) => cont[b] - cont[a]);
+  pgTiposServico = pgTiposServico.filter(c => codigos.includes(c));
+  document.getElementById('pg-tiposrv-opcoes').innerHTML = codigos.map(c => {
+    const marcado = pgTiposServico.includes(c) ? 'checked' : '';
+    const d = (desc[c] || '').toLowerCase();
+    return `<label title="${c}${d ? ' · ' + d : ''}"><input type="checkbox" value="${c}" ${marcado} onchange="pgToggleTipoSrv(this)"> <span style="font-family:var(--font-mono);font-weight:700;">${c}</span> <span style="color:var(--gray-400);">${d.slice(0, 26)}</span> <span style="color:var(--gray-400);">(${cont[c]})</span></label>`;
+  }).join('');
+  pgAtualizarTipoSrvLabel();
+}
+
+function pgAtualizarTipoSrvLabel() {
+  const b = document.getElementById('pg-tiposrv-btn');
+  if (!b) return;
+  b.textContent = !pgTiposServico.length ? 'Todos'
+    : pgTiposServico.length === 1 ? pgTiposServico[0]
+    : pgTiposServico.length + ' tipos';
+  b.style.fontWeight = pgTiposServico.length ? '700' : '';
+}
+
+function pgToggleTipoSrvDropdown(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('pg-tiposrv-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+
+function pgToggleTipoSrv(cb) {
+  const v = cb.value;
+  if (cb.checked) { if (!pgTiposServico.includes(v)) pgTiposServico.push(v); }
+  else pgTiposServico = pgTiposServico.filter(x => x !== v);
+  pgAtualizarTipoSrvLabel();
+  pgRender();
+}
+
+function pgSelectAllTipoSrv() {
+  pgTiposServico = [];
+  document.querySelectorAll('#pg-tiposrv-menu input[type=checkbox]').forEach(cb => { cb.checked = false; });
+  pgAtualizarTipoSrvLabel();
+  pgRender();
+}
+
+function pgClearTipoSrv() { pgSelectAllTipoSrv(); }
+
 // ══ PRIORIDADE ══
 function parseDateTimeStr(str) {
   // "18/06/2026 23:59" → Date com hora
@@ -1561,6 +1631,8 @@ function setTab(tab) {
 let pgRegiao = 'Sul';
 let pgTipo = '';
 let pgExcluirPerdas = false;
+// Codigos de tipo de servico selecionados (ex.: OUTSDJ). Vazio = todos.
+let pgTiposServico = [];
 let pgCS = '';
 let pgSupervisores = [];
 let pgDados = [];
@@ -1729,6 +1801,7 @@ function pgFiltrarBase(csFiltro, incluirTodosEstados) {
     }
     if (pgTipo && getTipoOrdem(r) !== pgTipo) return false;
     if (pgExcluirPerdas && opCategoriaServico(r) === 'Perdas') return false;
+    if (pgTiposServico.length && !pgTiposServico.includes(opCodigoServico(r))) return false;
     if (csFiltro && pgGetCS(r) !== csFiltro) return false;
     if (pgSupervisores.length && !pgSupervisores.includes(getSupervisor(r['Código Equipe']||''))) return false;
     return true;
@@ -1784,6 +1857,7 @@ function pgRenderComparativo() {
 }
 
 function pgRender() {
+  pgPopularFiltroTipoSrv();
   const dados = pgGetFiltrado();
   const dadosTodos = pgGetFiltradoTodos();
   pgRenderKPIs(dados, dadosTodos);
