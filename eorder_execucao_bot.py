@@ -268,6 +268,32 @@ def _atualizar_indice_reincidentes(linhas):
     return indice, contagem
 
 
+def montar_dados_plc(indice):
+    """Converte o indice interno na lista que vai pro Supabase.
+
+    Fica aqui, no nivel do modulo, porque o script de carga inicial publica o
+    mesmo formato -- ter duas copias da lista de campos ja fez o 'antes' ficar
+    de fora da tela uma vez."""
+    dados = []
+    for os_num, e in indice.items():
+        if os_num.startswith("_"):
+            continue  # chave reservada (buffer), nao e ordem
+        dados.append({
+            "os": os_num,
+            "plc_em": e.get("plc_em"),
+            "eq_plc": e.get("eq_plc"),
+            "cliente": e.get("cliente"),
+            "endereco": e.get("endereco"),
+            "municipio": e.get("municipio"),
+            "executada_em": e.get("executada_em"),
+            "eq_exec": e.get("eq_exec"),
+            "antes": e.get("antes") or [],
+            "eventos": e.get("eventos") or [],
+        })
+    dados.sort(key=lambda x: _parse_data_fim(x["plc_em"]) or datetime.min, reverse=True)
+    return dados
+
+
 def _cod_tipo_servico(r):
     t = (r.get("Tipo Remessa WIN") or r.get(" Tipo de Serviço") or "").strip().upper()
     return t.split(" - ")[0].strip().split(" ")[0]
@@ -1084,21 +1110,7 @@ class EOrderExecucaoBot:
         usa -- o estado atual no TdC (equipe de hoje, prazo) o painel cruza
         sozinho com o Sul que ja tem carregado, sem requisicao extra."""
         try:
-            dados = []
-            for os_num, e in indice.items():
-                dados.append({
-                    "os": os_num,
-                    "plc_em": e.get("plc_em"),
-                    "eq_plc": e.get("eq_plc"),
-                    "cliente": e.get("cliente"),
-                    "endereco": e.get("endereco"),
-                    "municipio": e.get("municipio"),
-                    "executada_em": e.get("executada_em"),
-                    "eq_exec": e.get("eq_exec"),
-                    "antes": e.get("antes") or [],
-                    "eventos": e.get("eventos") or [],
-                })
-            dados.sort(key=lambda x: _parse_data_fim(x["plc_em"]) or datetime.min, reverse=True)
+            dados = montar_dados_plc(indice)
             corpo = json.dumps({
                 "regiao": "PLC_rastreio",
                 "dados": dados,

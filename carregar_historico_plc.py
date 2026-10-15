@@ -115,21 +115,8 @@ def main():
     if args.publicar:
         print()
         print("Publicando PLC_rastreio...")
-        dados = []
-        for os_num, e in indice.items():
-            dados.append({
-                "os": os_num,
-                "plc_em": e.get("plc_em"),
-                "eq_plc": e.get("eq_plc"),
-                "cliente": e.get("cliente"),
-                "endereco": e.get("endereco"),
-                "municipio": e.get("municipio"),
-                "executada_em": e.get("executada_em"),
-                "eq_exec": e.get("eq_exec"),
-                "eventos": e.get("eventos") or [],
-            })
-        dados.sort(key=lambda x: bot._parse_data_fim(x["plc_em"]) or datetime.min,
-                   reverse=True)
+        # Mesma função que o bot usa -- a lista de campos mora num lugar só.
+        dados = bot.montar_dados_plc(indice)
         corpo = json.dumps({
             "regiao": "PLC_rastreio",
             "dados": dados,
