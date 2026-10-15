@@ -1147,6 +1147,7 @@
             <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Direcionamento</th>
             <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Estado TdC</th>
             <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Parada há</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;" title="Quantas equipes diferentes pegaram a ordem depois do PLC">Equipes</th>
             <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Prazo</th>
           </tr></thead>
           <tbody id="plc-tb-radar"></tbody>
@@ -1195,7 +1196,9 @@
             <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Executada em</th>
             <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe que executou</th>
             <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Direcionamento</th>
-            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Dias</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;" title="Dias entre a vistoria com PLC e a execução">Dias</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;" title="Baixas registradas depois da vistoria com PLC">Baixas</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;" title="Quantas equipes diferentes pegaram a ordem depois do PLC">Equipes</th>
           </tr></thead>
           <tbody id="plc-tb-exec"></tbody>
         </table>
@@ -4627,6 +4630,15 @@ const PLC_NEUTRO = ['var(--gray-200)', 'var(--gray-700)'];
 
 function plcErrada(l) { return !!(l.eq_hoje && l.eq_plc && l.eq_hoje !== l.eq_plc); }
 
+// Quantas equipes DIFERENTES pegaram a ordem depois do PLC (contando a que
+// vistoriou, quando ela aparece de novo). É o número que mostra o vai-e-vem:
+// 11 baixas sempre na mesma equipe é um caso, 11 baixas passando por 6
+// equipes é outro bem diferente.
+function plcEquipes(l) {
+  const s = new Set((l.eventos || []).map(e => e.eq).filter(Boolean));
+  return s.size;
+}
+
 // A prioridade NÃO depende do prazo: uma ordem com 30 dias de prazo mas na
 // equipe errada continua sendo problema e tem que aparecer no topo.
 function plcPrio(l) {
@@ -4747,8 +4759,9 @@ function plcRender() {
       '<td style="padding:8px 11px;text-align:center;">' + st + '</td>' +
       '<td style="padding:8px 11px;font-size:11.5px;">' + (l.estado || '—') + '</td>' +
       '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;">' + plcDiasDesde(l.plc_em) + 'd</td>' +
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;font-weight:' + (plcEquipes(l) > 1 ? '700;color:var(--red);' : '400;') + '">' + plcEquipes(l) + '</td>' +
       '<td style="padding:8px 11px;text-align:center;">' + plcPrazoTag(l) + '</td></tr>';
-  }).join('') : '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gray-400);font-size:12.5px;">Nenhuma ordem nesse filtro</td></tr>';
+  }).join('') : '<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--gray-400);font-size:12.5px;">Nenhuma ordem nesse filtro</td></tr>';
 
   plcRenderTimeline();
   plcRenderEspera(espera);
@@ -4804,6 +4817,7 @@ function plcRenderExec(execs) {
     const a = parseDateTimeStr(l.plc_em), b = parseDateTimeStr(l.executada_em);
     const dias = (a && b) ? Math.round((b - a) / 86400000) : '—';
     const mesma = l.eq_exec === l.eq_plc;
+    const eqs = plcEquipes(l);
     return '<tr onclick="plcAbrir(\'' + l.os + '\')" style="cursor:pointer;border-bottom:1px solid var(--gray-200);' + (mesma ? '' : 'background:#fff8f7;box-shadow:inset 3px 0 0 var(--red);') + (plcSel === l.os ? 'background:#e3edfb;' : '') + '">' +
       '<td style="padding:8px 11px;"><span style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;">' + l.os + '</span></td>' +
       '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.plc_em || '').slice(0, 10) + '</td>' +
@@ -4811,8 +4825,10 @@ function plcRenderExec(execs) {
       '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.executada_em || '').slice(0, 10) + '</td>' +
       '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.eq_exec || '—') + '</td>' +
       '<td style="padding:8px 11px;text-align:center;">' + (mesma ? plcTag('MESMA', PLC_OK[0], PLC_OK[1]) : plcTag('TROCOU', PLC_ERR[0], PLC_ERR[1])) + '</td>' +
-      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;">' + dias + '</td></tr>';
-  }).join('') || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma execução nesse recorte</td></tr>';
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;">' + dias + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;color:var(--gray-700);">' + (l.eventos || []).length + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;font-weight:' + (eqs > 1 ? '700;color:var(--red);' : '400;') + '">' + eqs + '</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma execução nesse recorte</td></tr>';
 }
 
 function plcRenderTimeline() {
