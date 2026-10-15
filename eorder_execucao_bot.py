@@ -164,6 +164,12 @@ PLC_RETENCAO_DIAS = 90
 # (carimbava o mesmo texto em toda linha, inclusive FJL, que nao deveria ter
 # nota nenhuma) -- o codigo nunca falhou em nenhum periodo.
 PLC_COD_VISTORIA = "SDJV04"
+# Buffer rolante das baixas de OUTSDJ que ainda nao receberam PLC. Quando o
+# PLC chega, vira o "antes" daquela ordem. Sem isso o rastreio comecaria no
+# meio da historia -- e o que veio antes costuma explicar o PLC (ex.: duas
+# CASA FECHADA antes da vistoria).
+PLC_BUFFER_DIAS = 90
+PLC_TIPO_SERVICO = "OUTSDJ"
 PLC_COD_EXECUTADO = ("SDJE01", "SDJV02")
 
 
@@ -262,6 +268,11 @@ def _atualizar_indice_reincidentes(linhas):
     return indice, contagem
 
 
+def _cod_tipo_servico(r):
+    t = (r.get("Tipo Remessa WIN") or r.get(" Tipo de Serviço") or "").strip().upper()
+    return t.split(" - ")[0].strip().split(" ")[0]
+
+
 def _atualizar_indice_plc(linhas):
     """Dobra as `linhas` recem-lidas em cima do indice salvo.
 
@@ -275,6 +286,9 @@ def _atualizar_indice_plc(linhas):
     de reincidentes faz.
     """
     indice = _carregar_json_idx(PLC_IDX_PATH)
+    # O buffer mora numa chave reservada do proprio indice (prefixo "_" nao
+    # colide com numero de ordem) pra nao criar um segundo arquivo em disco.
+    buffer = indice.pop("_buffer", {}) if isinstance(indice.get("_buffer"), dict) else {}
 
     def ordena(r):
         d = _parse_data_fim(r.get("Data fim Execução"))
@@ -300,6 +314,8 @@ def _atualizar_indice_plc(linhas):
                     "cliente": (r.get("Cliente") or "").strip(),
                     "endereco": (r.get("Endereço") or "").strip(),
                     "municipio": (r.get("Município") or "").strip(),
+                    # O que a ordem ja tinha passado antes da vistoria
+                    "antes": buffer.pop(os_num, []),
                     "eventos": [],
                     "executada_em": None,
                     "eq_exec": None,
@@ -308,6 +324,12 @@ def _atualizar_indice_plc(linhas):
 
         entry = indice.get(os_num)
         if not entry or not entry.get("plc_em"):
+            # Ainda sem PLC: se for OUTSDJ, guarda no buffer -- pode virar o
+            # "antes" quando/se o PLC chegar.
+            if _cod_tipo_servico(r) == PLC_TIPO_SERVICO and quando:
+                hist = buffer.setdefault(os_num, [])
+                if not any(h.get("em") == quando and h.get("cod") == cod for h in hist):
+                    hist.append({"em": quando, "eq": equipe, "cod": cod, "nota": nota})
             continue
         # So interessa o que aconteceu DEPOIS da vistoria com PLC
         dt_ev, dt_plc = _parse_data_fim(quando), _parse_data_fim(entry["plc_em"])
@@ -327,7 +349,18 @@ def _atualizar_indice_plc(linhas):
         if fim and fim < limite:
             indice.pop(os_num, None)
 
-    _salvar_json_idx(PLC_IDX_PATH, indice)
+    # Poda do buffer: ordem que nao recebeu PLC em PLC_BUFFER_DIAS provavelmente
+    # nao vai receber -- sai, pra o arquivo nao crescer sem limite.
+    lim_buf = datetime.now() - timedelta(days=PLC_BUFFER_DIAS)
+    for os_num in list(buffer):
+        hist = buffer[os_num]
+        ultimo = max((_parse_data_fim(h.get("em")) or datetime.min) for h in hist) if hist else datetime.min
+        if ultimo < lim_buf:
+            buffer.pop(os_num, None)
+
+    salvar = dict(indice)
+    salvar["_buffer"] = buffer
+    _salvar_json_idx(PLC_IDX_PATH, salvar)
     return indice
 
 
@@ -1062,6 +1095,7 @@ class EOrderExecucaoBot:
                     "municipio": e.get("municipio"),
                     "executada_em": e.get("executada_em"),
                     "eq_exec": e.get("eq_exec"),
+                    "antes": e.get("antes") or [],
                     "eventos": e.get("eventos") or [],
                 })
             dados.sort(key=lambda x: _parse_data_fim(x["plc_em"]) or datetime.min, reverse=True)

@@ -4844,7 +4844,24 @@ function plcRenderTimeline() {
     '<div style="font-family:var(--font-mono);font-size:11px;color:var(--gray-700);">' + q + '</div>' +
     '<div>' + cod + '</div><div style="font-family:var(--font-mono);">' + eq + '</div><div>' + txt + '</div></div>';
 
-  let html = ev(l.plc_em, plcTag('SDJV04', PLC_WARN[0], PLC_WARN[1]), '<b>' + l.eq_plc + '</b>',
+  let html = '';
+  // "Histórico completo": o que a ordem já tinha passado ANTES da vistoria.
+  // Costuma explicar o PLC -- ex.: duas CASA FECHADA antes de alguém
+  // finalmente constatar que o padrão precisava de PLC.
+  const antes = l.antes || [];
+  if (plcEscopo === 'tudo') {
+    if (antes.length) {
+      html += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin:0 0 4px;">Antes da vistoria com PLC</div>';
+      antes.forEach(e => {
+        html += ev(e.em, plcTag(e.cod, PLC_NEUTRO[0], PLC_NEUTRO[1]), e.eq || '—',
+          (e.nota || '—'), 'opacity:.55;');
+      });
+      html += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin:10px 0 4px;">A vistoria e o que veio depois</div>';
+    } else {
+      html += '<div style="font-size:11.5px;color:var(--gray-400);padding:6px 0 10px;">Sem registro anterior à vistoria para esta ordem — o rastreio começou na baixa do PLC.</div>';
+    }
+  }
+  html += ev(l.plc_em, plcTag('SDJV04', PLC_WARN[0], PLC_WARN[1]), '<b>' + l.eq_plc + '</b>',
     '<b>NPLC-NECESSITA PLC</b> · vistoria com PLC', 'background:#fffbf2;border-radius:6px;');
   (l.eventos || []).forEach(e => {
     const mesma = e.eq === l.eq_plc;
@@ -4863,12 +4880,14 @@ function plcRenderTimeline() {
     '<span style="color:var(--gray-400);">Vistoria PLC: <b style="color:var(--text);">' + l.eq_plc + '</b> em ' + l.plc_em + ' · ' + sit + '</span></div>' +
     html +
     '<div style="font-size:11px;color:var(--gray-400);margin-top:6px;">' + (l.eventos || []).length + ' baixa(s) depois do PLC · ' +
-    new Set((l.eventos || []).map(e => e.eq).filter(Boolean)).size + ' equipe(s) tocaram a ordem</div>';
+    plcEquipes(l) + ' equipe(s) tocaram a ordem' +
+    (antes.length ? ' · ' + antes.length + ' baixa(s) antes da vistoria' : '') + '</div>';
 }
 
 function plcAbrir(os) { plcSel = os; plcRender(); document.getElementById('plc-tl').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 function plcSetFiltro(f) { if (f === 'exec') { plcTrocaExec = 'trocou'; plcRender(); document.getElementById('plc-tb-exec').scrollIntoView({ behavior: 'smooth' }); return; } plcFiltro = f; plcRender(); }
 function plcSetEscopo(e) { plcEscopo = e; plcRenderTimeline(); }
+
 function plcSetPer(p) { plcPerExec = p; plcRender(); }
 function plcSetTroca(t) { plcTrocaExec = t; plcRender(); }
 
