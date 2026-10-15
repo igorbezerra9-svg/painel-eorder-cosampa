@@ -1160,7 +1160,10 @@
       <div style="display:flex;gap:7px;padding:10px 16px 0;align-items:center;flex-wrap:wrap;">
         <button class="pg-tipo-btn" id="plc-esc-depois" onclick="plcSetEscopo('depois')">Só depois do PLC</button>
         <button class="pg-tipo-btn" id="plc-esc-tudo" onclick="plcSetEscopo('tudo')">Histórico completo</button>
-        <button class="pg-tipo-btn" style="margin-left:auto;" onclick="plcCopiarTimeline()">📋 Copiar</button>
+        <span style="margin-left:auto;"></span>
+        <button class="pg-tipo-btn" onclick="plcCopiarTimeline()" title="Texto simples">📋 Texto</button>
+        <button class="pg-tipo-btn" onclick="plcCopiarTimelineZap()" title="Pronto pra mandar no grupo">💬 WhatsApp</button>
+        <button class="pg-tipo-btn" id="plc-btn-img-tl" onclick="plcCopiarImagem('tl')" title="Copia a linha do tempo como imagem">🖼️ Imagem</button>
       </div>
       <div style="padding:12px 16px 16px;" id="plc-tl"></div>
     </div>
@@ -4736,7 +4739,10 @@ function plcRender() {
               ['vencendo', 'Vencendo até 2 dias (' + radar.filter(l => l.dias_venc !== null && l.dias_venc <= 2).length + ')']];
   document.getElementById('plc-filtros').innerHTML =
     fl.map(f => '<button class="pg-tipo-btn' + (plcFiltro === f[0] ? ' active' : '') + '" onclick="plcSetFiltro(\'' + f[0] + '\')">' + f[1] + '</button>').join('') +
-    '<button class="pg-tipo-btn" style="margin-left:auto;" onclick="plcCopiarRadar()">📋 Copiar lista</button>';
+    '<span style="margin-left:auto;"></span>' +
+    '<button class="pg-tipo-btn" onclick="plcCopiarRadar()" title="Formato de planilha, pra colar no Excel">📋 Planilha</button>' +
+    '<button class="pg-tipo-btn" onclick="plcCopiarRadarZap()" title="Texto pronto pra mandar no grupo">💬 WhatsApp</button>' +
+    '<button class="pg-tipo-btn" id="plc-btn-img-radar" onclick="plcCopiarImagem(\'radar\')" title="Copia a tabela como imagem">🖼️ Imagem</button>';
 
   let r = radar;
   if (plcFiltro === 'equipe_errada') r = r.filter(plcErrada);
@@ -4896,6 +4902,117 @@ function plcCopiarRadar() {
   const t = ['ORDEM\tCLIENTE\tPLC EM\tEQUIPE PLC\tHOJE COM\tESTADO\tPRAZO']
     .concat(r.map(l => [l.os, l.cliente, l.plc_em, l.eq_plc, l.eq_hoje || 'sem equipe', l.estado, l.prazo].join('\t'))).join('\n');
   navigator.clipboard.writeText(t).then(() => showToast('✔ Copiado — ' + r.length + ' ordens', 2000));
+}
+
+// ── Copiar em formato WhatsApp ──────────────────────────────────────
+// O WhatsApp usa *asterisco* pra negrito e quebra tabela em qualquer tela de
+// celular -- por isso aqui vai em blocos curtos, uma ordem por bloco, em vez
+// das colunas que a tela mostra.
+function plcCopiarRadarZap() {
+  let r = plcRadarBase();
+  if (plcFiltro === 'equipe_errada') r = r.filter(plcErrada);
+  else if (plcFiltro === 'sem_equipe') r = r.filter(plcSemEquipe);
+  else if (plcFiltro === 'vencendo') r = r.filter(l => l.dias_venc !== null && l.dias_venc <= 2);
+  r = r.slice().sort((a, b) => plcPrio(a).n - plcPrio(b).n);
+  if (!r.length) { showToast('Nada pra copiar nesse filtro', 3000); return; }
+
+  const d = pgReferenciaHoje || hoje;
+  const data = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+  const errada = r.filter(plcErrada), semEq = r.filter(plcSemEquipe);
+
+  const L = ['🔧 *Vistorias PLC — ' + data + '*', ''];
+  L.push('Aptas pra despacho ou execução: *' + r.length + '*');
+  if (errada.length) L.push('  🔴 Em equipe errada: ' + errada.length);
+  if (semEq.length) L.push('  🟠 Aguardando despacho: ' + semEq.length);
+  L.push('');
+  L.push('*Precisa de ação:*');
+  r.forEach(l => {
+    const parada = plcDiasDesde(l.plc_em);
+    if (plcErrada(l)) {
+      const venc = l.dias_venc === null ? '' : (l.dias_venc <= 0 ? ' — vence *HOJE*' : ' — vence em ' + l.dias_venc + 'd');
+      L.push('• *' + l.os + '*' + venc + ' — está com ' + l.eq_hoje + ', deveria ser *' + l.eq_plc + '*');
+    } else if (!l.eq_hoje) {
+      L.push('• *' + l.os + '* — ' + parada + ' dias sem equipe — PLC foi da *' + l.eq_plc + '*');
+    } else {
+      L.push('• ' + l.os + ' — com ' + l.eq_hoje + ' (mesma do PLC) — ' + parada + 'd');
+    }
+  });
+  const espera = plcDados.filter(l => l.situacao === 'limbo');
+  const recentes = espera.filter(l => plcDiasDesde(l.plc_em) <= 3);
+  L.push('');
+  L.push('Aguardando reabertura: ' + espera.length +
+    (recentes.length ? ' (' + recentes.length + ' com PLC nos últimos 3 dias)' : ''));
+  const ontem = plcDados.filter(l => l.executada && plcDiasDesde(l.executada_em) <= 1);
+  if (ontem.length) {
+    const mesma = ontem.filter(l => l.eq_exec === l.eq_plc).length;
+    L.push('Executadas nas últimas 24h: ' + ontem.length + (mesma ? ' (' + mesma + ' na mesma equipe ✅)' : ''));
+  }
+  navigator.clipboard.writeText(L.join('\n')).then(() => showToast('✔ Copiado pro WhatsApp — ' + r.length + ' ordens', 2500));
+}
+
+function plcCopiarTimelineZap() {
+  const l = plcDados.find(x => x.os === plcSel);
+  if (!l) return;
+  const L = ['🔧 *' + l.os + '*', (l.cliente || ''), (l.endereco || ''), ''];
+  L.push('Vistoria PLC: *' + l.eq_plc + '* em ' + l.plc_em);
+  if (l.executada) {
+    const mesma = l.eq_exec === l.eq_plc;
+    L.push('Executada: ' + l.executada_em + ' por *' + l.eq_exec + '*' + (mesma ? ' ✅ mesma equipe' : ' ⚠️ equipe diferente'));
+  } else if (l.aberta) {
+    L.push('Hoje com: *' + (l.eq_hoje || 'sem equipe') + '*' + (plcErrada(l) ? ' ⚠️' : ''));
+    L.push('Estado: ' + l.estado + (l.prazo ? ' · vence ' + l.prazo : ''));
+  } else {
+    L.push('Ainda não voltou ao TdC');
+  }
+  if (plcEscopo === 'tudo' && (l.antes || []).length) {
+    L.push('');
+    L.push('*Antes da vistoria:*');
+    (l.antes || []).forEach(e => L.push('  ' + e.em + ' · ' + e.cod + ' · ' + e.eq + (e.nota ? ' · ' + e.nota : '')));
+  }
+  L.push('');
+  L.push('*Depois da vistoria:*');
+  (l.eventos || []).forEach(e => {
+    L.push('  ' + e.em + ' · ' + (e.cod || '—') + ' · ' + e.eq + (e.nota ? ' · ' + e.nota : '') +
+      (e.eq && e.eq !== l.eq_plc ? '  ⚠️' : ''));
+  });
+  L.push('');
+  L.push((l.eventos || []).length + ' baixa(s) · ' + plcEquipes(l) + ' equipe(s)');
+  navigator.clipboard.writeText(L.join('\n')).then(() => showToast('✔ Copiado pro WhatsApp', 2500));
+}
+
+// ── Copiar como imagem ──────────────────────────────────────────────
+// Mesmo caminho do PNG do Indicador Comercial: html2canvas + clipboard, com
+// download como plano B (nem todo navegador deixa colar imagem).
+async function plcCopiarImagem(qual) {
+  const btn = document.getElementById(qual === 'radar' ? 'plc-btn-img-radar' : 'plc-btn-img-tl');
+  const original = btn ? btn.textContent : '';
+  if (btn) btn.textContent = 'Gerando...';
+  try {
+    const el = qual === 'radar'
+      ? document.getElementById('plc-tb-radar').closest('table')
+      : document.getElementById('plc-tl');
+    // scale 3 pra ficar legível quando ampliarem no celular ou numa TV
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 3, windowWidth: Math.max(el.scrollWidth, 1200) });
+    canvas.toBlob(async (blob) => {
+      if (!blob) { showToast('Não foi possível gerar a imagem', 3000); if (btn) btn.textContent = original; return; }
+      const nome = 'vistorias-plc-' + (qual === 'radar' ? 'radar' : plcSel) + '.png';
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        if (btn) btn.textContent = '✔ Copiado!';
+      } catch (e) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = nome;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        if (btn) btn.textContent = '✔ Baixado!';
+      }
+      setTimeout(() => { if (btn) btn.textContent = original; }, 2200);
+    }, 'image/png');
+  } catch (e) {
+    showToast('Erro ao gerar imagem: ' + e.message, 4000);
+    if (btn) btn.textContent = original;
+  }
 }
 
 function plcCopiarTimeline() {
