@@ -260,6 +260,10 @@
     style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
     ⏱️ Cumprimento de Prazo
   </button>
+  <button id="tab-plc" onclick="setTab('plc')"
+    style="padding:10px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#8097b8;font-size:13px;font-weight:500;cursor:pointer;">
+    🔧 Vistorias PLC
+  </button>
 </div>
 
 <!-- ══ PAINEL GERENCIAL ══ -->
@@ -1116,6 +1120,90 @@
 
 </div>
 
+<!-- ══ VISTORIAS PLC ══ -->
+<div id="plc-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
+
+  <div id="plc-vazio" style="display:none;background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:40px;text-align:center;">
+    <div style="font-size:34px;margin-bottom:10px;">🔧</div>
+    <div style="font-size:14px;color:var(--gray-700);font-weight:600;">Sem rastreio de PLC publicado ainda</div>
+    <div style="font-size:12px;color:var(--gray-400);margin-top:6px;">O bot publica o rastreio ao final de cada rodada da Execução.</div>
+  </div>
+
+  <div id="plc-conteudo" style="display:none;">
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;" id="plc-cards"></div>
+
+    <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:12px;margin-bottom:16px;overflow:hidden;">
+      <div style="padding:14px 16px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);font-weight:700;">⚠ Radar — reabriram depois do PLC e estão aptas pra despacho ou execução</div>
+      <div style="padding:3px 16px 11px;font-size:11.5px;color:var(--gray-400);">Vistoriadas com PLC que voltaram ao TdC e podem ser despachadas ou executadas agora. Clique na linha pra ver a linha do tempo.</div>
+      <div style="display:flex;gap:7px;padding:0 16px 12px;align-items:center;flex-wrap:wrap;" id="plc-filtros"></div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#0d1b2a;color:#fff;">
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Prioridade</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Ordem / Cliente</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">PLC em</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe do PLC</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Hoje com</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Direcionamento</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Estado TdC</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Parada há</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Prazo</th>
+          </tr></thead>
+          <tbody id="plc-tb-radar"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:12px;margin-bottom:16px;overflow:hidden;">
+      <div style="padding:14px 16px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);font-weight:700;">Linha do tempo <span id="plc-tl-os" style="color:var(--accent);"></span></div>
+      <div style="display:flex;gap:7px;padding:10px 16px 0;align-items:center;flex-wrap:wrap;">
+        <button class="pg-tipo-btn" id="plc-esc-depois" onclick="plcSetEscopo('depois')">Só depois do PLC</button>
+        <button class="pg-tipo-btn" id="plc-esc-tudo" onclick="plcSetEscopo('tudo')">Histórico completo</button>
+        <button class="pg-tipo-btn" style="margin-left:auto;" onclick="plcCopiarTimeline()">📋 Copiar</button>
+      </div>
+      <div style="padding:12px 16px 16px;" id="plc-tl"></div>
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:12px;margin-bottom:16px;overflow:hidden;">
+      <div style="padding:14px 16px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);font-weight:700;">Em espera — PLC baixado, ainda não voltou ao TdC</div>
+      <div style="padding:3px 16px 11px;font-size:11.5px;color:var(--gray-400);" id="plc-h-espera"></div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#0d1b2a;color:#fff;">
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Ordem / Cliente</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">PLC em</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe do PLC</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Esperando há</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Baixas depois</th>
+          </tr></thead>
+          <tbody id="plc-tb-espera"></tbody>
+        </table>
+      </div>
+      <div id="plc-espera-mais" style="text-align:center;padding:10px;"></div>
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:12px;overflow:hidden;">
+      <div style="padding:14px 16px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);font-weight:700;">Executadas — caiu na mesma equipe que fez o PLC?</div>
+      <div style="padding:3px 16px 11px;font-size:11.5px;color:var(--gray-400);" id="plc-h-exec"></div>
+      <div style="display:flex;gap:7px;padding:0 16px 12px;align-items:center;flex-wrap:wrap;" id="plc-bar-exec"></div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#0d1b2a;color:#fff;">
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Ordem</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">PLC em</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe do PLC</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Executada em</th>
+            <th style="padding:8px 11px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Equipe que executou</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Direcionamento</th>
+            <th style="padding:8px 11px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Dias</th>
+          </tr></thead>
+          <tbody id="plc-tb-exec"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL DETALHE SERVIÇOS (Indicador Comercial) -->
 <div id="com-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:820px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25);">
@@ -1612,7 +1700,8 @@ function setTab(tab) {
   document.getElementById('operacional-section').style.display = tab === 'operacional' ? 'block' : 'none';
   document.getElementById('comercial-section').style.display = tab === 'comercial' ? 'block' : 'none';
   document.getElementById('prazo-section').style.display = tab === 'prazo' ? 'block' : 'none';
-  ['painel','execucao','operacional','comercial','prazo'].forEach(t => {
+  document.getElementById('plc-section').style.display = tab === 'plc' ? 'block' : 'none';
+  ['painel','execucao','operacional','comercial','prazo','plc'].forEach(t => {
     const on = t === tab;
     const btn = document.getElementById('tab-' + t);
     btn.style.color = on ? '#e8a020' : '#8097b8';
@@ -1624,6 +1713,7 @@ function setTab(tab) {
   if (tab === 'operacional') opCarregar();
   if (tab === 'comercial') comercialCarregar();
   if (tab === 'prazo') prazoCarregar();
+  if (tab === 'plc') plcCarregar();
   atualizarIndicadorTopo();
 }
 
@@ -4502,6 +4592,286 @@ document.addEventListener('click', (e) => {
   if (e.target.id === 'com-modal') comercialFecharModal();
 });
 
+// ══ VISTORIAS PLC ══
+// Acompanha a ordem desde a baixa "NPLC - NECESSITA PLC" até a execução, pra
+// cobrar que ela volte pra MESMA equipe que vistoriou -- quem foi no local
+// sabe o que o padrão precisa, e hoje ela reabre pra qualquer um.
+//
+// O cruzamento vistoria→execução é feito pelo BOT (região PLC_rastreio, ~12 KB
+// com gzip). Fazer aqui exigiria varrer meses de histórico a cada abertura da
+// aba -- uns 7 MB por vez, que é o tipo de gasto que já estourou a cota de
+// egress duas vezes. O estado atual no TdC (com quem está hoje, prazo) sai do
+// pgDados, que a aba Gerencial já carregou: custo zero.
+let plcDados = [];
+let plcCarimbo = null;
+let plcFiltro = 'todas';
+let plcEscopo = 'depois';
+let plcSel = null;
+let plcPerExec = '7d';
+let plcTrocaExec = 'todas';
+
+function plcDiasDesde(txt) {
+  const d = parseDateTimeStr(txt);
+  if (!d) return null;
+  const base = pgReferenciaHoje || hoje;
+  return Math.round((base - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+}
+
+function plcTag(t, bg, cor) {
+  return '<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:9.5px;font-weight:700;background:' + bg + ';color:' + cor + ';">' + t + '</span>';
+}
+const PLC_ERR = ['var(--red-soft)', 'var(--red)'];
+const PLC_WARN = ['#fff3e8', '#bf360c'];
+const PLC_OK = ['#eaf7ef', '#2a9d54'];
+const PLC_NEUTRO = ['var(--gray-200)', 'var(--gray-700)'];
+
+function plcErrada(l) { return !!(l.eq_hoje && l.eq_plc && l.eq_hoje !== l.eq_plc); }
+
+// A prioridade NÃO depende do prazo: uma ordem com 30 dias de prazo mas na
+// equipe errada continua sendo problema e tem que aparecer no topo.
+function plcPrio(l) {
+  const parada = plcDiasDesde(l.plc_em);
+  if (plcErrada(l)) return { n: 1, t: 'EQUIPE ERRADA', c: PLC_ERR };
+  if (l.dias_venc !== null && l.dias_venc <= 0) return { n: 2, t: 'VENCENDO', c: PLC_ERR };
+  if (!l.eq_hoje && parada > 15) return { n: 3, t: 'SEM EQUIPE ' + parada + 'd', c: PLC_ERR };
+  if (l.dias_venc !== null && l.dias_venc <= 2) return { n: 4, t: 'VENCE EM BREVE', c: PLC_WARN };
+  if (!l.eq_hoje) return { n: 5, t: 'DESPACHAR', c: PLC_WARN };
+  if (parada > 15) return { n: 6, t: 'PARADA ' + parada + 'd', c: PLC_WARN };
+  return { n: 7, t: 'acompanhando', c: PLC_OK };
+}
+
+function plcPrazoTag(l) {
+  const v = l.dias_venc;
+  if (v === null) return plcTag('—', PLC_NEUTRO[0], PLC_NEUTRO[1]);
+  if (v < 0) return plcTag('ESTOURADA ' + Math.abs(v) + 'd', PLC_ERR[0], PLC_ERR[1]);
+  if (v === 0) return plcTag('VENCE HOJE', PLC_ERR[0], PLC_ERR[1]);
+  if (v <= 2) return plcTag(v + ' dias', PLC_WARN[0], PLC_WARN[1]);
+  return '<span style="color:var(--gray-700);">' + v + ' dias</span>';
+}
+
+async function plcCarregar() {
+  try {
+    // O Sul precisa estar carregado pro cruzamento -- se a pessoa abriu
+    // direto nesta aba, busca antes.
+    if (!pgDados.length) await pgCarregar();
+    const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.PLC_rastreio&select=dados,atualizado_em', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!rows.length || !rows[0].dados || !rows[0].dados.length) {
+      document.getElementById('plc-vazio').style.display = 'block';
+      document.getElementById('plc-conteudo').style.display = 'none';
+      return;
+    }
+    plcCarimbo = rows[0].atualizado_em;
+    const noTdC = {};
+    pgDados.forEach(r => { const o = (r['Numero de Serviço'] || '').trim(); if (o) noTdC[o] = r; });
+
+    plcDados = rows[0].dados.map(d => {
+      const atual = noTdC[d.os];
+      const prazo = atual ? (atual['Data Prevista Finalização Trabalhos'] || '') : '';
+      const dt = prazo ? parseDateTimeStr(prazo) : null;
+      const base = pgReferenciaHoje || hoje;
+      return Object.assign({}, d, {
+        executada: !!d.executada_em,
+        aberta: !!atual,
+        situacao: d.executada_em ? 'executada' : (atual ? 'no_backlog' : 'limbo'),
+        eq_hoje: atual ? (atual['Código Equipe'] || '') : '',
+        lider_hoje: atual ? (atual['Chefe/Responsável de Equipe'] || '') : '',
+        estado: atual ? (atual['Estado TdC'] || '') : '',
+        prazo: prazo,
+        dias_venc: dt ? Math.round((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()) - base) / 86400000) : null
+      });
+    });
+    document.getElementById('plc-vazio').style.display = 'none';
+    document.getElementById('plc-conteudo').style.display = 'block';
+    if (!plcSel) {
+      const radar = plcDados.filter(l => l.situacao === 'no_backlog');
+      plcSel = (radar.sort((a, b) => plcPrio(a).n - plcPrio(b).n)[0] || plcDados[0] || {}).os || null;
+    }
+    plcRender();
+  } catch (e) {
+    showToast('Erro ao carregar rastreio PLC: ' + e.message, 4000);
+  }
+}
+
+function plcRadarBase() { return plcDados.filter(l => l.situacao === 'no_backlog'); }
+function plcSemEquipe(l) { return l.situacao === 'no_backlog' && !l.eq_hoje; }
+
+function plcRender() {
+  const radar = plcRadarBase();
+  const espera = plcDados.filter(l => l.situacao === 'limbo');
+  const execs = plcDados.filter(l => l.executada);
+  const errada = radar.filter(plcErrada);
+  const semEq = radar.filter(plcSemEquipe);
+
+  const cards = [
+    ['equipe_errada', 'Em equipe errada', errada.length, 'reabriu e foi pra outra equipe', 'var(--red-soft)', 'var(--red)'],
+    ['sem_equipe', 'Aguardando despacho', semEq.length, 'reabriu, sem equipe designada', '#fff3e8', '#bf360c'],
+    ['todas', 'Aptas p/ despacho ou execução', radar.length, 'reabriram depois do PLC', '#eef3fb', '#1565c0'],
+    ['exec', 'Executadas', execs.length, execs.filter(l => l.eq_exec !== l.eq_plc).length + ' por outra equipe', '#eaf7ef', '#2a9d54']
+  ];
+  document.getElementById('plc-cards').innerHTML = cards.map(c =>
+    '<div onclick="plcSetFiltro(\'' + c[0] + '\')" style="flex:1;min-width:150px;background:' + c[4] + ';border-radius:12px;padding:13px 16px;cursor:pointer;border:2px solid ' + (plcFiltro === c[0] ? 'var(--navy)' : 'transparent') + ';">' +
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:5px;color:' + c[5] + ';">' + c[1] + '</div>' +
+    '<div style="font-size:28px;font-weight:700;line-height:1;color:' + c[5] + ';">' + c[2] + '</div>' +
+    '<div style="font-size:11px;margin-top:5px;color:var(--gray-400);">' + c[3] + '</div></div>').join('');
+
+  const fl = [['todas', 'Todas (' + radar.length + ')'],
+              ['equipe_errada', 'Equipe errada (' + errada.length + ')'],
+              ['sem_equipe', 'Aguardando despacho (' + semEq.length + ')'],
+              ['vencendo', 'Vencendo até 2 dias (' + radar.filter(l => l.dias_venc !== null && l.dias_venc <= 2).length + ')']];
+  document.getElementById('plc-filtros').innerHTML =
+    fl.map(f => '<button class="pg-tipo-btn' + (plcFiltro === f[0] ? ' active' : '') + '" onclick="plcSetFiltro(\'' + f[0] + '\')">' + f[1] + '</button>').join('') +
+    '<button class="pg-tipo-btn" style="margin-left:auto;" onclick="plcCopiarRadar()">📋 Copiar lista</button>';
+
+  let r = radar;
+  if (plcFiltro === 'equipe_errada') r = r.filter(plcErrada);
+  else if (plcFiltro === 'sem_equipe') r = r.filter(plcSemEquipe);
+  else if (plcFiltro === 'vencendo') r = r.filter(l => l.dias_venc !== null && l.dias_venc <= 2);
+  r = r.slice().sort((a, b) => plcPrio(a).n - plcPrio(b).n ||
+      ((a.dias_venc === null ? 9999 : a.dias_venc) - (b.dias_venc === null ? 9999 : b.dias_venc)));
+
+  document.getElementById('plc-tb-radar').innerHTML = r.length ? r.map(l => {
+    const p = plcPrio(l);
+    const st = plcErrada(l) ? plcTag('OUTRA EQUIPE', PLC_ERR[0], PLC_ERR[1])
+      : (!l.eq_hoje ? plcTag('SEM EQUIPE', PLC_WARN[0], PLC_WARN[1]) : plcTag('MESMA EQUIPE', PLC_OK[0], PLC_OK[1]));
+    const bord = p.n <= 3 ? 'background:#fff8f7;box-shadow:inset 3px 0 0 var(--red);' : '';
+    return '<tr onclick="plcAbrir(\'' + l.os + '\')" style="cursor:pointer;border-bottom:1px solid var(--gray-200);' + bord + (plcSel === l.os ? 'background:#e3edfb;' : '') + '">' +
+      '<td style="padding:8px 11px;text-align:center;">' + plcTag(p.t, p.c[0], p.c[1]) + '</td>' +
+      '<td style="padding:8px 11px;"><span style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;">' + l.os + '</span><div style="font-size:10.5px;color:var(--gray-400);">' + (l.cliente || '').slice(0, 32) + '</div></td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.plc_em || '').slice(0, 10) + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + l.eq_plc + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.eq_hoje || '— sem equipe —') + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;">' + st + '</td>' +
+      '<td style="padding:8px 11px;font-size:11.5px;">' + (l.estado || '—') + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;">' + plcDiasDesde(l.plc_em) + 'd</td>' +
+      '<td style="padding:8px 11px;text-align:center;">' + plcPrazoTag(l) + '</td></tr>';
+  }).join('') : '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gray-400);font-size:12.5px;">Nenhuma ordem nesse filtro</td></tr>';
+
+  plcRenderTimeline();
+  plcRenderEspera(espera);
+  plcRenderExec(execs);
+}
+
+function plcRenderEspera(espera) {
+  const r = espera.slice().sort((a, b) => (parseDateTimeStr(b.plc_em) || 0) - (parseDateTimeStr(a.plc_em) || 0));
+  const recentes = r.filter(l => plcDiasDesde(l.plc_em) <= 3).length;
+  document.getElementById('plc-h-espera').innerHTML =
+    r.length + ' ordens com PLC que ainda não voltaram ao TdC' +
+    (recentes ? ' · <b>' + recentes + ' com PLC nos últimos 3 dias</b> (a equipe ainda pode executar)' : '');
+  const mostrar = r.slice(0, 15);
+  document.getElementById('plc-tb-espera').innerHTML = mostrar.map(l => {
+    const dd = plcDiasDesde(l.plc_em);
+    const t = dd <= 1 ? plcTag(dd === 0 ? 'PLC HOJE' : 'PLC ONTEM', PLC_ERR[0], PLC_ERR[1])
+      : dd <= 3 ? plcTag(dd + ' dias', PLC_WARN[0], PLC_WARN[1])
+      : '<span style="font-family:var(--font-mono);font-size:11px;">' + dd + 'd</span>';
+    return '<tr onclick="plcAbrir(\'' + l.os + '\')" style="cursor:pointer;border-bottom:1px solid var(--gray-200);' + (plcSel === l.os ? 'background:#e3edfb;' : '') + '">' +
+      '<td style="padding:8px 11px;"><span style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;">' + l.os + '</span><div style="font-size:10.5px;color:var(--gray-400);">' + (l.cliente || '').slice(0, 32) + '</div></td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.plc_em || '').slice(0, 10) + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + l.eq_plc + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;">' + t + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;">' + (l.eventos || []).length + '</td></tr>';
+  }).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma</td></tr>';
+  document.getElementById('plc-espera-mais').innerHTML =
+    r.length > 15 ? '<span style="font-size:11.5px;color:var(--gray-400);">+ ' + (r.length - 15) + ' mais</span>' : '';
+}
+
+function plcRenderExec(execs) {
+  const per = [['hoje', 'Hoje'], ['7d', 'Últimos 7 dias'], ['30d', 'Últimos 30 dias'], ['tudo', 'Todas']];
+  const dentro = (l, p) => {
+    const d = plcDiasDesde(l.executada_em);
+    if (d === null) return false;
+    return p === 'hoje' ? d === 0 : p === '7d' ? d <= 7 : p === '30d' ? d <= 30 : true;
+  };
+  document.getElementById('plc-bar-exec').innerHTML =
+    per.map(p => '<button class="pg-tipo-btn' + (plcPerExec === p[0] ? ' active' : '') + '" onclick="plcSetPer(\'' + p[0] + '\')">' + p[1] + ' (' + execs.filter(l => dentro(l, p[0])).length + ')</button>').join('') +
+    '<span style="width:12px;"></span>' +
+    '<button class="pg-tipo-btn' + (plcTrocaExec === 'todas' ? ' active' : '') + '" onclick="plcSetTroca(\'todas\')">Todas as equipes</button>' +
+    '<button class="pg-tipo-btn' + (plcTrocaExec === 'trocou' ? ' active' : '') + '" onclick="plcSetTroca(\'trocou\')">Só as que trocaram</button>';
+
+  let r = execs.filter(l => dentro(l, plcPerExec));
+  if (plcTrocaExec === 'trocou') r = r.filter(l => l.eq_exec !== l.eq_plc);
+  r = r.slice().sort((a, b) => (parseDateTimeStr(b.executada_em) || 0) - (parseDateTimeStr(a.executada_em) || 0));
+  const trocou = r.filter(l => l.eq_exec !== l.eq_plc).length;
+  const rot = { hoje: 'hoje', '7d': 'nos últimos 7 dias', '30d': 'nos últimos 30 dias', tudo: 'no período' }[plcPerExec];
+  document.getElementById('plc-h-exec').innerHTML = r.length
+    ? '<b>' + r.length + '</b> executadas ' + rot + ' · <b style="color:' + (trocou ? 'var(--red)' : 'var(--green)') + ';">' + trocou + '</b> por equipe diferente da que vistoriou'
+    : 'Nenhuma execução ' + rot;
+
+  document.getElementById('plc-tb-exec').innerHTML = r.slice(0, 40).map(l => {
+    const a = parseDateTimeStr(l.plc_em), b = parseDateTimeStr(l.executada_em);
+    const dias = (a && b) ? Math.round((b - a) / 86400000) : '—';
+    const mesma = l.eq_exec === l.eq_plc;
+    return '<tr onclick="plcAbrir(\'' + l.os + '\')" style="cursor:pointer;border-bottom:1px solid var(--gray-200);' + (mesma ? '' : 'background:#fff8f7;box-shadow:inset 3px 0 0 var(--red);') + (plcSel === l.os ? 'background:#e3edfb;' : '') + '">' +
+      '<td style="padding:8px 11px;"><span style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;">' + l.os + '</span></td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.plc_em || '').slice(0, 10) + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + l.eq_plc + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.executada_em || '').slice(0, 10) + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.eq_exec || '—') + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;">' + (mesma ? plcTag('MESMA', PLC_OK[0], PLC_OK[1]) : plcTag('TROCOU', PLC_ERR[0], PLC_ERR[1])) + '</td>' +
+      '<td style="padding:8px 11px;text-align:center;font-family:var(--font-mono);font-size:11px;">' + dias + '</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--gray-400);">Nenhuma execução nesse recorte</td></tr>';
+}
+
+function plcRenderTimeline() {
+  const l = plcDados.find(x => x.os === plcSel);
+  const el = document.getElementById('plc-tl');
+  document.getElementById('plc-esc-depois').classList.toggle('active', plcEscopo === 'depois');
+  document.getElementById('plc-esc-tudo').classList.toggle('active', plcEscopo === 'tudo');
+  if (!l) { el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:12.5px;">Clique numa ordem pra ver a linha do tempo</div>'; return; }
+  document.getElementById('plc-tl-os').textContent = '— ' + l.os;
+
+  const ev = (q, cod, eq, txt, estilo) =>
+    '<div style="display:grid;grid-template-columns:120px 80px 110px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--gray-200);font-size:12px;align-items:center;' + (estilo || '') + '">' +
+    '<div style="font-family:var(--font-mono);font-size:11px;color:var(--gray-700);">' + q + '</div>' +
+    '<div>' + cod + '</div><div style="font-family:var(--font-mono);">' + eq + '</div><div>' + txt + '</div></div>';
+
+  let html = ev(l.plc_em, plcTag('SDJV04', PLC_WARN[0], PLC_WARN[1]), '<b>' + l.eq_plc + '</b>',
+    '<b>NPLC-NECESSITA PLC</b> · vistoria com PLC', 'background:#fffbf2;border-radius:6px;');
+  (l.eventos || []).forEach(e => {
+    const mesma = e.eq === l.eq_plc;
+    html += ev(e.em, plcTag(e.cod, PLC_NEUTRO[0], PLC_NEUTRO[1]),
+      mesma ? e.eq : '<span style="color:var(--red);font-weight:700;">' + e.eq + '</span>',
+      (e.nota || '—') + (mesma ? '' : ' ' + plcTag('outra equipe', PLC_ERR[0], PLC_ERR[1])));
+  });
+
+  const sit = l.executada
+    ? 'Executada em <b>' + l.executada_em + '</b> por <b style="color:' + (l.eq_exec === l.eq_plc ? 'var(--green)' : 'var(--red)') + ';">' + l.eq_exec + '</b>'
+    : (l.aberta ? 'Hoje com: <b style="color:' + (plcErrada(l) ? 'var(--red)' : 'var(--green)') + ';">' + (l.eq_hoje || 'sem equipe') + '</b> · ' + l.estado + ' · Vence <b>' + (l.prazo || '—') + '</b>'
+       : '<span style="color:var(--gray-400);">Fora do TdC — aguardando reabertura</span>');
+
+  el.innerHTML = '<div style="background:var(--gray-100);border-radius:9px;padding:11px 14px;margin-bottom:11px;font-size:12px;line-height:1.55;">' +
+    '<b style="font-size:13px;">' + (l.cliente || '—') + '</b><br>' + (l.endereco || '').slice(0, 80) + '<br>' +
+    '<span style="color:var(--gray-400);">Vistoria PLC: <b style="color:var(--text);">' + l.eq_plc + '</b> em ' + l.plc_em + ' · ' + sit + '</span></div>' +
+    html +
+    '<div style="font-size:11px;color:var(--gray-400);margin-top:6px;">' + (l.eventos || []).length + ' baixa(s) depois do PLC · ' +
+    new Set((l.eventos || []).map(e => e.eq).filter(Boolean)).size + ' equipe(s) tocaram a ordem</div>';
+}
+
+function plcAbrir(os) { plcSel = os; plcRender(); document.getElementById('plc-tl').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+function plcSetFiltro(f) { if (f === 'exec') { plcTrocaExec = 'trocou'; plcRender(); document.getElementById('plc-tb-exec').scrollIntoView({ behavior: 'smooth' }); return; } plcFiltro = f; plcRender(); }
+function plcSetEscopo(e) { plcEscopo = e; plcRenderTimeline(); }
+function plcSetPer(p) { plcPerExec = p; plcRender(); }
+function plcSetTroca(t) { plcTrocaExec = t; plcRender(); }
+
+function plcCopiarRadar() {
+  const r = plcRadarBase();
+  const t = ['ORDEM\tCLIENTE\tPLC EM\tEQUIPE PLC\tHOJE COM\tESTADO\tPRAZO']
+    .concat(r.map(l => [l.os, l.cliente, l.plc_em, l.eq_plc, l.eq_hoje || 'sem equipe', l.estado, l.prazo].join('\t'))).join('\n');
+  navigator.clipboard.writeText(t).then(() => showToast('✔ Copiado — ' + r.length + ' ordens', 2000));
+}
+
+function plcCopiarTimeline() {
+  const l = plcDados.find(x => x.os === plcSel);
+  if (!l) return;
+  const t = [l.os + ' — ' + (l.cliente || ''), l.endereco || '', '',
+             'Vistoria PLC: ' + l.eq_plc + ' em ' + l.plc_em, '']
+    .concat((l.eventos || []).map(e => e.em + '  ' + e.cod + '  ' + e.eq + '  ' + (e.nota || '-'))).join('\n');
+  navigator.clipboard.writeText(t).then(() => showToast('✔ Linha do tempo copiada', 2000));
+}
+
 // ══ AUTO-REFRESH (TV de sala) — cobre também o recálculo da intensidade do pulsar ══
 // Antes daqui saía um rebaixamento do snapshot INTEIRO a cada 2 minutos, mesmo
 // quando nada tinha mudado: ~1,5 MB no Gerencial e ~3 MB na Execução (que puxa
@@ -6328,6 +6698,12 @@ async function verificarAtualizacoes() {
       const carimbo = await buscarCarimbo(pgRegiao);
       if (carimbo !== pgUltimoCarimbo) pgCarregar();
       else pintarIndicadorTopo(carimbo);
+    } else if (document.getElementById('plc-section').style.display !== 'none') {
+      // Mesma régua das outras abas: pergunta o carimbo (dezenas de bytes) e
+      // só rebaixa os 12 KB do rastreio quando ele muda de verdade.
+      const c = await buscarCarimbo('PLC_rastreio');
+      if (c !== plcCarimbo) plcCarregar();
+      else pintarIndicadorTopo(c);
     } else if (execVisivel) {
       if (execDataView) return;
       const [cExec, cPlan] = await Promise.all([buscarCarimbo('Execucao'), buscarCarimbo('Sul')]);
