@@ -5300,7 +5300,16 @@ function sdjSetDia(d) { sdjDia = d; sdjLimite = 10; sdjAberta = null; sdjRender(
 function sdjSetSit(s) { sdjSit = s; sdjLimite = 10; sdjAberta = null; sdjRender(); }
 function sdjSetBusca(v) { sdjBusca = v; sdjLimite = 10; sdjRender(); }
 function sdjMais(n) { sdjLimite = n === 'todas' ? 100000 : (n === 'menos' ? 10 : sdjLimite + n); sdjRender(); }
-function sdjAbrir(os) { sdjAberta = sdjAberta === os ? null : os; sdjRender(); }
+function sdjAbrir(os) {
+  // Arrastar o mouse pra selecionar texto da linha (nome, endereço...) não abre/fecha o detalhe.
+  const sel = window.getSelection ? String(window.getSelection()) : '';
+  if (sel.length > 0) return;
+  sdjAberta = sdjAberta === os ? null : os; sdjRender();
+}
+// Clicar no número da ordem copia o número (sem abrir/fechar o detalhe da linha).
+function sdjCopiarOs(os) {
+  navigator.clipboard.writeText(os).then(() => showToast('✔ Copiado: ' + os, 1800));
+}
 // Mesma aba: seleciona a ordem na linha do tempo do PLC (mais abaixo) e rola até ela.
 async function sdjAbrirPlc(os) {
   plcSel = os;
@@ -5349,7 +5358,7 @@ function sdjRender() {
       (u.nota ? '<div style="font-size:10.5px;color:var(--gray-400);">' + sdjEsc(u.nota.slice(0, 48)) + '</div>' : '') : '<span style="color:var(--gray-400);">—</span>';
     let html = '<tr onclick="sdjAbrir(\'' + l.os + '\')" style="cursor:pointer;border-bottom:1px solid var(--gray-200);' + bord + (sdjAberta === l.os ? 'background:#e3edfb;' : '') + '">' +
       '<td style="padding:8px 11px;text-align:center;white-space:nowrap;">' + plcTag(s.t, s.c[0], s.c[1]) + '<div>' + extra + '</div></td>' +
-      '<td style="padding:8px 11px;"><span style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;">' + l.os + '</span>' + (l.plc ? ' <span title="Tem vistoria com PLC no rastreio" style="font-size:10px;">🔧</span>' : '') + (l.hist.length ? ' <span title="' + l.hist.length + ' baixa(s) anterior(es) a hoje — clique pra ver" style="font-size:10px;color:var(--gray-400);">📜 ' + l.hist.length + '</span>' : '') +
+      '<td style="padding:8px 11px;"><span onclick="event.stopPropagation();sdjCopiarOs(\'' + l.os + '\')" title="Clique pra copiar o número da ordem" style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;cursor:copy;border-bottom:1px dotted #1565c0;">' + l.os + '</span>' + (l.plc ? ' <span title="Tem vistoria com PLC no rastreio" style="font-size:10px;">🔧</span>' : '') + (l.hist.length ? ' <span title="' + l.hist.length + ' baixa(s) anterior(es) a hoje — clique pra ver" style="font-size:10px;color:var(--gray-400);">📜 ' + l.hist.length + '</span>' : '') +
         '<div style="font-size:10.5px;color:var(--gray-400);">' + sdjEsc(l.cliente.slice(0, 34)) + '</div></td>' +
       '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.equipe || (l.limbo && l.eqUltima ? '<span title="Equipe da última baixa" style="color:var(--gray-400);">' + sdjEsc(l.eqUltima) + '</span>' : '<span style="color:var(--gray-400);">— sem equipe —</span>')) + '</td>' +
       '<td style="padding:8px 11px;font-size:11.5px;">' + sdjEsc(l.municipio) + '</td>' +
@@ -5358,15 +5367,25 @@ function sdjRender() {
     if (sdjAberta === l.os) {
       const baixas = l.baixas.length ? l.baixas.map(b => '<div style="padding:3px 0;border-bottom:1px solid var(--gray-200);"><span style="font-family:var(--font-mono);font-size:11px;">' + sdjQuando(b.em) + '</span> · <b>' + sdjEsc(b.cod || '—') + '</b> · ' +
         '<span style="font-family:var(--font-mono);font-size:11px;">' + sdjEsc(b.eq) + '</span> · ' + sdjEsc(b.txt) + (b.nota ? ' · <i>' + sdjEsc(b.nota) + '</i>' : '') + '</div>').join('') : '<span style="color:var(--gray-400);">Nenhuma baixa hoje</span>';
-      html += '<tr style="background:var(--gray-100);"><td colspan="6" style="padding:12px 16px;font-size:12px;line-height:1.6;">' +
+      // #sdj-det é a área que vira imagem (os botões ficam de fora: classe sdj-nocap). O número e a situação entram aqui
+      // pra a imagem colada no grupo já dizer de que ordem se trata.
+      html += '<tr style="background:var(--gray-100);"><td colspan="6" style="padding:6px 10px;font-size:12px;line-height:1.6;">' +
+        '<div id="sdj-det" style="background:var(--gray-100);padding:8px 10px;">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">' +
+          '<span style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:#1565c0;">' + l.os + '</span>' + plcTag(s.t, s.c[0], s.c[1]) + plcPrazoTag(l) +
+          '<span class="sdj-nocap" style="margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;">' +
+            '<button class="pg-tipo-btn" onclick="sdjCopiarOs(\'' + l.os + '\')" title="Copiar só o número da ordem">📋 Nº</button>' +
+            '<button class="pg-tipo-btn" onclick="sdjCopiarZapOrdem(\'' + l.os + '\')" title="Texto pronto pra mandar no grupo">💬 WhatsApp</button>' +
+            '<button class="pg-tipo-btn" id="sdj-btn-img" onclick="sdjCopiarImagem(\'' + l.os + '\')" title="Copia esta ordem como imagem">🖼 Imagem</button>' +
+          '</span></div>' +
         '<b style="font-size:13px;">' + sdjEsc(l.cliente || '—') + '</b><br>' + sdjEsc(l.endereco || '—') + '<br>' +
         '<span style="color:var(--gray-400);">' + (l.limbo ? 'Equipe da última baixa' : 'Equipe') + ': <b style="color:var(--text);">' + sdjEsc(l.equipe || l.eqUltima || 'sem equipe') + '</b>' + (l.chefe ? ' · Responsável: <b style="color:var(--text);">' + sdjEsc(l.chefe) + '</b>' : '') +
         (l.estado ? ' · Estado TdC: <b style="color:var(--text);">' + sdjEsc(l.estado) + '</b>' : '') + (l.prazo ? ' · Prazo: <b style="color:var(--text);">' + sdjEsc(l.prazo) + '</b>' : '') + '</span>' +
         (l.limbo ? '<div style="margin-top:6px;font-size:11.5px;color:#8a5a00;">⏸ Ordem baixada como <b>' + SDJ_SIT[l.sit].t.toLowerCase() + '</b> (' + sdjQuando(l.ultima.em) + ') e que ainda não voltou ao TdC — o prazo continua correndo.</div>' : '') +
         '<div style="margin-top:8px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);">Baixas de hoje</div>' + baixas +
         '<div style="margin-top:10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);">Histórico anterior (' + l.hist.length + ' baixa(s))</div>' + sdjHistHtml(l) +
-        (l.plc ? '<div style="margin-top:9px;"><button class="pg-tipo-btn" onclick="event.stopPropagation();sdjAbrirPlc(\'' + l.os + '\')">🔧 Ver linha do tempo do PLC</button></div>' : '') +
-        '</td></tr>';
+        (l.plc ? '<div class="sdj-nocap" style="margin-top:9px;"><button class="pg-tipo-btn" onclick="event.stopPropagation();sdjAbrirPlc(\'' + l.os + '\')">🔧 Ver linha do tempo do PLC</button></div>' : '') +
+        '</div></td></tr>';
     }
     return html;
   }).join('') : '<tr><td colspan="6" style="padding:22px;text-align:center;color:var(--gray-400);font-size:12.5px;">Nenhuma ordem nesse filtro' + (sdjBusca ? ' com "' + sdjEsc(sdjBusca) + '"' : '') + '</td></tr>';
@@ -5385,6 +5404,58 @@ function sdjHistHtml(l) {
     '<span style="font-family:var(--font-mono);font-size:11px;">' + sdjQuando(e.em) + '</span><span>' + sdjTagCod(e.cod) + '</span>' +
     '<span style="font-family:var(--font-mono);font-size:11px;">' + sdjEsc(e.eq || '—') + '</span>' +
     '<span style="font-size:11.5px;">' + sdjEsc(sdjDescCod(e.cod)) + (e.nota ? ' · <i>' + sdjEsc(e.nota) + '</i>' : '') + '</span></div>').join('');
+}
+
+// Uma ordem só, em formato WhatsApp (asterisco = negrito), pra colar no grupo.
+function sdjCopiarZapOrdem(os) {
+  const l = sdjLinhas.find(x => x.os === os);
+  if (!l) return;
+  const venc = l.dias_venc === null ? '' : (l.dias_venc < 0 ? ' — *VENCIDA há ' + (-l.dias_venc) + 'd*' : (l.dias_venc === 0 ? ' — vence *HOJE*' : ' — vence em ' + l.dias_venc + 'd'));
+  const linhaBaixa = e => '  ' + sdjQuando(e.em) + ' · ' + (e.cod || '—') + ' · ' + (e.eq || '—') + ' · ' + (e.nota || e.txt || sdjDescCod(e.cod) || '—');
+  const L = ['📅 *' + l.os + '* — acréscimo de carga'];
+  if (l.cliente) L.push(l.cliente);
+  if (l.endereco) L.push(l.endereco);
+  L.push('');
+  L.push('Situação: *' + SDJ_SIT[l.sit].t + '*' + (l.limbo ? ' (baixada, ainda não voltou ao TdC)' : ''));
+  if (l.prazo) L.push('Prazo: *' + l.prazo + '*' + venc);
+  const eq = l.equipe || l.eqUltima;
+  if (eq) L.push((l.limbo ? 'Equipe da última baixa: *' : 'Equipe: *') + eq + '*' + (l.chefe ? ' (' + l.chefe + ')' : ''));
+  if (l.estado) L.push('Estado no TdC: ' + l.estado);
+  if (l.baixas.length) { L.push(''); L.push('*Baixas de hoje:*'); l.baixas.forEach(b => L.push(linhaBaixa(b))); }
+  L.push('');
+  if (l.hist.length) { L.push('*Histórico anterior (' + l.hist.length + '):*'); l.hist.forEach(e => L.push(linhaBaixa(e))); }
+  else L.push('Sem baixas anteriores registradas.');
+  navigator.clipboard.writeText(L.join('\n')).then(() => showToast('✔ Copiado pro WhatsApp — ' + l.os, 2500));
+}
+
+// Mesmo caminho do PNG das outras abas: html2canvas + clipboard, com download como plano B.
+async function sdjCopiarImagem(os) {
+  const btn = document.getElementById('sdj-btn-img'), el = document.getElementById('sdj-det');
+  if (!el) return;
+  const original = btn ? btn.textContent : '';
+  if (btn) btn.textContent = 'Gerando...';
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 3, windowWidth: Math.max(el.scrollWidth, 1000),
+      ignoreElements: n => n.classList && n.classList.contains('sdj-nocap') });
+    canvas.toBlob(async (blob) => {
+      if (!blob) { showToast('Não foi possível gerar a imagem', 3000); if (btn) btn.textContent = original; return; }
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        if (btn) btn.textContent = '✔ Copiado!';
+      } catch (e) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'acrescimo-de-carga-' + os + '.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        if (btn) btn.textContent = '✔ Baixado!';
+      }
+      setTimeout(() => { if (btn) btn.textContent = original; }, 2200);
+    }, 'image/png');
+  } catch (e) {
+    showToast('Erro ao gerar imagem: ' + e.message, 4000);
+    if (btn) btn.textContent = original;
+  }
 }
 
 function sdjLinhaTexto(l) {
