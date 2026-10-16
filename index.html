@@ -4712,11 +4712,30 @@ function plcPrazoTag(l) {
   return '<span style="color:var(--gray-700);">' + v + ' dias</span>';
 }
 
+// O Radar cruza o rastreio com o Sul que o Painel Gerencial guarda em memória (pgDados), e esse Sul só era atualizado com a aba
+// do Painel Gerencial aberta: com a TV parada aqui, a ordem que já voltou ao TdC (ex.: A010489293, "Enviado ao Campo" com a
+// mesma equipe do PLC) continuava de fora do Radar. Rebaixa o Sul só quando o carimbo mudou, sem toast e sem redesenhar o Painel.
+async function plcAtualizarSul() {
+  if (pgRegiao !== 'Sul' || pgDataView) return false;
+  const c = await buscarCarimbo('Sul');
+  if (!c || c === pgUltimoCarimbo) return false;
+  const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.Sul&select=dados,atualizado_em', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  });
+  if (!res.ok) return false;
+  const rows = await res.json();
+  if (!rows.length || !rows[0].dados) return false;
+  pgDados = rows[0].dados;
+  pgUltimoCarimbo = rows[0].atualizado_em;
+  return true;
+}
+
 async function plcCarregar() {
   try {
     // O Sul precisa estar carregado pro cruzamento -- se a pessoa abriu
-    // direto nesta aba, busca antes.
+    // direto nesta aba, busca antes; se já estava, confere se ficou velho.
     if (!pgDados.length) await pgCarregar();
+    else await plcAtualizarSul();
     const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.PLC_rastreio&select=dados,atualizado_em', {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
@@ -7376,8 +7395,9 @@ async function verificarAtualizacoes() {
     } else if (document.getElementById('plc-section').style.display !== 'none') {
       // Mesma régua das outras abas: pergunta o carimbo (dezenas de bytes) e
       // só rebaixa os 12 KB do rastreio quando ele muda de verdade.
+      const sulMudou = await plcAtualizarSul();   // o Radar depende do Sul: se ele mudou, redesenha mesmo sem PLC novo
       const c = await buscarCarimbo('PLC_rastreio');
-      if (c !== plcCarimbo) plcCarregar();
+      if (c !== plcCarimbo || sulMudou) plcCarregar();
       else pintarIndicadorTopo(c);
       sdjCarregar();   // bloco de prazos: compara os carimbos (Sul, Execucao, PLC) e só rebaixa o que mudou
     } else if (execVisivel) {
