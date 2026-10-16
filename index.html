@@ -5089,6 +5089,30 @@ let sdjSul = [], sdjExec = [], sdjPlc = {}, sdjHist = {}, sdjMeta = {}, sdjLinha
 let sdjCarimbos = { sul: null, exec: null, plc: null, hist: null };
 let sdjHoraSul = null, sdjHoraExec = null;
 let sdjDia = 'hoje', sdjSit = 'todas', sdjBusca = '', sdjLimite = 10, sdjAberta = null;
+// C. Serviço (CS): não existe coluna pra isso nos dados. Vem do prefixo do código da equipe (JZ.. = Juazeiro, ML.. = Milagres,
+// CP.. = C. Sales); ordem sem equipe usa o município, aprendido das ordens que JÁ têm equipe (ex.: Barbalha e Crato -> Juazeiro).
+let sdjCs = '', sdjCsTab = { sul: {}, exec: {} }, sdjCsMun = {};
+const SDJ_CS_PREFIXO = { JZ: 'Juazeiro', ML: 'Milagres', CP: 'C. Sales' };
+function sdjCsDoCodigo(cod) { return SDJ_CS_PREFIXO[String(cod || '').trim().toUpperCase().slice(0, 2)] || ''; }
+function sdjAprenderCS(rows, campoEquipe, destino) {
+  const tab = {};
+  rows.forEach(r => {
+    const cs = sdjCsDoCodigo(r[campoEquipe]), m = sdjNorm(r['Município']).trim();
+    if (cs && m) { (tab[m] = tab[m] || {})[cs] = (tab[m][cs] || 0) + 1; }
+  });
+  sdjCsTab[destino] = tab;
+}
+function sdjMontarMapaMun() {
+  const soma = {};
+  ['sul', 'exec'].forEach(k => Object.keys(sdjCsTab[k]).forEach(m => Object.keys(sdjCsTab[k][m]).forEach(cs => {
+    (soma[m] = soma[m] || {})[cs] = (soma[m][cs] || 0) + sdjCsTab[k][m][cs];
+  })));
+  sdjCsMun = {};
+  Object.keys(soma).forEach(m => { sdjCsMun[m] = Object.keys(soma[m]).sort((a, b) => soma[m][b] - soma[m][a])[0]; });
+}
+function sdjCentro(l) {
+  return sdjCsDoCodigo(l.equipe) || sdjCsDoCodigo(l.eqUltima) || sdjCsMun[sdjNorm(l.municipio).trim()] || 'Outros';
+}
 
 const SDJ_SIT = {
   despacho:    { n: 1, t: 'AGUARDANDO DESPACHO', c: ['#fff3e8', '#bf360c'] },
@@ -5184,12 +5208,15 @@ async function sdjCarregar() {
     }
     if (cSul !== sdjCarimbos.sul) {
       // Se o Painel Gerencial já tem o Sul de hoje na memória, reaproveita (zero requisição); senão baixa.
-      if (pgRegiao === 'Sul' && !pgDataView && pgDados.length && pgUltimoCarimbo === cSul) sdjSul = pgDados.filter(sdjEhTipo);
-      else sdjSul = (await sdjBuscar('Sul')).dados.filter(sdjEhTipo);
+      const sulCompleto = (pgRegiao === 'Sul' && !pgDataView && pgDados.length && pgUltimoCarimbo === cSul) ? pgDados : (await sdjBuscar('Sul')).dados;
+      sdjAprenderCS(sulCompleto, 'Código Equipe', 'sul');       // município -> CS, de todas as ordens que já têm equipe
+      sdjSul = sulCompleto.filter(sdjEhTipo);
       sdjCarimbos.sul = cSul; sdjHoraSul = cSul; mudou = true;
     }
     if (cExec !== sdjCarimbos.exec) {
-      sdjExec = (await sdjBuscar('Execucao')).dados.filter(sdjEhTipo);
+      const execCompleto = (await sdjBuscar('Execucao')).dados;
+      sdjAprenderCS(execCompleto, 'Recurso/Equipe', 'exec');
+      sdjExec = execCompleto.filter(sdjEhTipo);
       sdjCarimbos.exec = cExec; sdjHoraExec = cExec; mudou = true;
     }
     if (cPlc !== sdjCarimbos.plc) {
@@ -5260,7 +5287,9 @@ function sdjMontar() {
     };
   });
   sdjLinhas = Object.values(mapa);
+  sdjMontarMapaMun();
   sdjLinhas.forEach(l => {
+    l.cs = sdjCentro(l);
     l.baixas.sort((a, b) => (parseDateTimeStr(a.em) || 0) - (parseDateTimeStr(b.em) || 0));
     l.dias_venc = sdjDiasVenc(l.prazo);
     l.sit = sdjSituacao(l);
@@ -5290,12 +5319,14 @@ function sdjBuscaOk(l, q) {
 }
 function sdjFiltrado() {
   const q = sdjNorm(sdjBusca.trim());
-  return sdjLinhas.filter(l => sdjDiaOk(l, sdjDia) && sdjSitOk(l, sdjSit) && sdjBuscaOk(l, q))
+  return sdjLinhas.filter(l => sdjCsOk(l) && sdjDiaOk(l, sdjDia) && sdjSitOk(l, sdjSit) && sdjBuscaOk(l, q))
     .sort((a, b) => SDJ_SIT[a.sit].n - SDJ_SIT[b.sit].n ||
       ((a.dias_venc === null ? 9999 : a.dias_venc) - (b.dias_venc === null ? 9999 : b.dias_venc)) ||
       a.equipe.localeCompare(b.equipe) || a.os.localeCompare(b.os));
 }
 
+function sdjCsOk(l) { return !sdjCs || l.cs === sdjCs; }
+function sdjSetCs(c) { sdjCs = (sdjCs === c) ? '' : c; sdjLimite = 10; sdjAberta = null; sdjRender(); }
 function sdjSetDia(d) { sdjDia = d; sdjLimite = 10; sdjAberta = null; sdjRender(); }
 function sdjSetSit(s) { sdjSit = s; sdjLimite = 10; sdjAberta = null; sdjRender(); }
 function sdjSetBusca(v) { sdjBusca = v; sdjLimite = 10; sdjRender(); }
@@ -5322,9 +5353,13 @@ function sdjRender() {
   const dias = [['hoje', 'Vencem hoje'], ['amanha', 'Amanhã'], ['vencidas', 'Vencidas'], ['semana', 'Próx. 7 dias'], ['todas', 'Todas']];
   document.getElementById('sdj-dias').innerHTML =
     '<span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-right:4px;">Prazo:</span>' +
-    dias.map(d => '<button class="pg-tipo-btn' + (sdjDia === d[0] ? ' active' : '') + '" onclick="sdjSetDia(\'' + d[0] + '\')">' + d[1] + ' (' + sdjLinhas.filter(l => sdjDiaOk(l, d[0])).length + ')</button>').join('');
+    dias.map(d => '<button class="pg-tipo-btn' + (sdjDia === d[0] ? ' active' : '') + '" onclick="sdjSetDia(\'' + d[0] + '\')">' + d[1] + ' (' + sdjLinhas.filter(l => sdjCsOk(l) && sdjDiaOk(l, d[0])).length + ')</button>').join('') +
+    // C. Serviço: filtra o bloco todo (contagens dos prazos, cards e lista). Os números dos CS seguem o prazo escolhido.
+    '<span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 4px 0 14px;">C. Serviço:</span>' +
+    ['Juazeiro', 'Milagres', 'C. Sales', 'Outros'].filter(c => c !== 'Outros' || sdjLinhas.some(l => l.cs === 'Outros') || sdjCs === 'Outros')
+      .map(c => '<button class="pg-tipo-btn' + (sdjCs === c ? ' active' : '') + '" onclick="sdjSetCs(\'' + c + '\')">' + c + ' (' + sdjLinhas.filter(l => l.cs === c && sdjDiaOk(l, sdjDia)).length + ')</button>').join('');
 
-  const doDia = sdjLinhas.filter(l => sdjDiaOk(l, sdjDia));
+  const doDia = sdjLinhas.filter(l => sdjCsOk(l) && sdjDiaOk(l, sdjDia));
   const n = s => doDia.filter(l => sdjSitOk(l, s)).length;
   const cards = [
     ['todas', 'No prazo escolhido', doDia.length, 'ordens de acréscimo de carga', '#eef3fb', '#1565c0'],
@@ -5380,6 +5415,7 @@ function sdjRender() {
           '</span></div>' +
         '<b style="font-size:13px;">' + sdjEsc(l.cliente || '—') + '</b><br>' + sdjEsc(l.endereco || '—') + '<br>' +
         '<span style="color:var(--gray-400);">' + (l.limbo ? 'Equipe da última baixa' : 'Equipe') + ': <b style="color:var(--text);">' + sdjEsc(l.equipe || l.eqUltima || 'sem equipe') + '</b>' + (l.chefe ? ' · Responsável: <b style="color:var(--text);">' + sdjEsc(l.chefe) + '</b>' : '') +
+        (l.cs && l.cs !== 'Outros' ? ' · C. Serviço: <b style="color:var(--text);">' + sdjEsc(l.cs) + '</b>' : '') +
         (l.estado ? ' · Estado TdC: <b style="color:var(--text);">' + sdjEsc(l.estado) + '</b>' : '') + (l.prazo ? ' · Prazo: <b style="color:var(--text);">' + sdjEsc(l.prazo) + '</b>' : '') + '</span>' +
         (l.limbo ? '<div style="margin-top:6px;font-size:11.5px;color:#8a5a00;">⏸ Ordem baixada como <b>' + SDJ_SIT[l.sit].t.toLowerCase() + '</b> (' + sdjQuando(l.ultima.em) + ') e que ainda não voltou ao TdC — o prazo continua correndo.</div>' : '') +
         '<div style="margin-top:8px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);">Baixas de hoje</div>' + baixas +
@@ -5421,6 +5457,7 @@ function sdjCopiarZapOrdem(os) {
   const eq = l.equipe || l.eqUltima;
   if (eq) L.push((l.limbo ? 'Equipe da última baixa: *' : 'Equipe: *') + eq + '*' + (l.chefe ? ' (' + l.chefe + ')' : ''));
   if (l.estado) L.push('Estado no TdC: ' + l.estado);
+  if (l.cs && l.cs !== 'Outros') L.push('C. Serviço: ' + l.cs);
   if (l.baixas.length) { L.push(''); L.push('*Baixas de hoje:*'); l.baixas.forEach(b => L.push(linhaBaixa(b))); }
   L.push('');
   if (l.hist.length) { L.push('*Histórico anterior (' + l.hist.length + '):*'); l.hist.forEach(e => L.push(linhaBaixa(e))); }
@@ -5428,43 +5465,63 @@ function sdjCopiarZapOrdem(os) {
   navigator.clipboard.writeText(L.join('\n')).then(() => showToast('✔ Copiado pro WhatsApp — ' + l.os, 2500));
 }
 
-// Mesmo caminho do PNG das outras abas: html2canvas + clipboard, com download como plano B.
+// Copia a ordem como imagem. O clipboard.write() precisa ser chamado NO CLIQUE, com a imagem ainda sendo gerada (Promise dentro
+// do ClipboardItem): se esperar o html2canvas terminar antes de pedir, o navegador já considera que o gesto do usuário passou
+// e recusa a cópia. Nunca baixa o arquivo: se o navegador recusar mesmo assim, mostra a imagem pra copiar com o botão direito.
 async function sdjCopiarImagem(os) {
   const btn = document.getElementById('sdj-btn-img'), el = document.getElementById('sdj-det');
   if (!el) return;
   const original = btn ? btn.textContent : '';
-  if (btn) btn.textContent = 'Gerando...';
+  const rotulo = t => { if (btn) btn.textContent = t; };
+  rotulo('Gerando...');
+  // O pedido de cópia é a PRIMEIRA coisa que roda no clique (o html2canvas gasta quase 1s só clonando a página, e na TV/PC
+  // mais lento isso passava da janela do gesto do usuário); a imagem entra no ClipboardItem quando ficar pronta.
+  let entrega, falha;
+  const blobPromise = new Promise((ok, erro) => { entrega = ok; falha = erro; });
+  blobPromise.catch(() => {});
+  let escrita;
+  try { escrita = navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]); }
+  catch (e) { escrita = Promise.reject(e); }      // navegador sem ClipboardItem/clipboard.write: cai no plano B abaixo
+  escrita.catch(() => {});
+  html2canvas(el, { backgroundColor: '#ffffff', scale: 2, windowWidth: Math.max(el.scrollWidth, 1000),
+    ignoreElements: n => n.classList && n.classList.contains('sdj-nocap') })
+    .then(canvas => canvas.toBlob(b => b ? entrega(b) : falha(new Error('imagem vazia')), 'image/png'))
+    .catch(falha);
   try {
-    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 3, windowWidth: Math.max(el.scrollWidth, 1000),
-      ignoreElements: n => n.classList && n.classList.contains('sdj-nocap') });
-    canvas.toBlob(async (blob) => {
-      if (!blob) { showToast('Não foi possível gerar a imagem', 3000); if (btn) btn.textContent = original; return; }
-      try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        if (btn) btn.textContent = '✔ Copiado!';
-      } catch (e) {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'acrescimo-de-carga-' + os + '.png';
-        a.click();
-        URL.revokeObjectURL(a.href);
-        if (btn) btn.textContent = '✔ Baixado!';
-      }
-      setTimeout(() => { if (btn) btn.textContent = original; }, 2200);
-    }, 'image/png');
+    await escrita;
+    rotulo('✔ Copiado!');
+    showToast('✔ Imagem copiada — é só colar (Ctrl+V)', 2500);
   } catch (e) {
-    showToast('Erro ao gerar imagem: ' + e.message, 4000);
-    if (btn) btn.textContent = original;
+    try {
+      sdjMostrarImagem(await blobPromise, os);
+      showToast('O navegador não deixou copiar sozinho — copie pela imagem (botão direito)', 4500);
+    } catch (e2) {
+      showToast('Erro ao gerar imagem: ' + e2.message, 4000);
+    }
   }
+  setTimeout(() => rotulo(original), 2200);
+}
+function sdjMostrarImagem(blob, os) {
+  const url = URL.createObjectURL(blob);
+  const ov = document.createElement('div');
+  const fechar = () => { ov.remove(); URL.revokeObjectURL(url); };
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,27,42,.72);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.onclick = ev => { if (ev.target === ov) fechar(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:min(1100px,96vw);max-height:92vh;overflow:auto;padding:14px 16px;">' +
+    '<div style="font-size:12.5px;margin-bottom:10px;">Clique com o <b>botão direito na imagem → Copiar imagem</b> (ordem ' + sdjEsc(os) + '). ' +
+    '<button class="pg-tipo-btn" style="margin-left:8px;" id="sdj-img-fechar">Fechar</button></div>' +
+    '<img src="' + url + '" style="max-width:100%;border:1px solid var(--gray-200);border-radius:8px;"></div>';
+  document.body.appendChild(ov);
+  document.getElementById('sdj-img-fechar').onclick = fechar;
 }
 
 function sdjLinhaTexto(l) {
   const u = l.baixas[l.baixas.length - 1] || l.ultima;
-  return [SDJ_SIT[l.sit].t + (l.limbo ? ' (fora do TdC)' : ''), l.os, l.cliente, l.equipe || (l.limbo && l.eqUltima ? l.eqUltima + ' (última baixa)' : 'sem equipe'), l.municipio, l.prazo, u ? (sdjQuando(u.em) + ' ' + (u.txt || u.cod)) : ''];
+  return [SDJ_SIT[l.sit].t + (l.limbo ? ' (fora do TdC)' : ''), l.os, l.cliente, l.equipe || (l.limbo && l.eqUltima ? l.eqUltima + ' (última baixa)' : 'sem equipe'), l.municipio, l.cs, l.prazo, u ? (sdjQuando(u.em) + ' ' + (u.txt || u.cod)) : ''];
 }
 function sdjCopiarPlanilha() {
   const r = sdjFiltrado();
-  const t = ['SITUACAO\tORDEM\tCLIENTE\tEQUIPE\tMUNICIPIO\tPRAZO\tULTIMA BAIXA'].concat(r.map(l => sdjLinhaTexto(l).join('\t'))).join('\n');
+  const t = ['SITUACAO\tORDEM\tCLIENTE\tEQUIPE\tMUNICIPIO\tC. SERVICO\tPRAZO\tULTIMA BAIXA'].concat(r.map(l => sdjLinhaTexto(l).join('\t'))).join('\n');
   navigator.clipboard.writeText(t).then(() => showToast('✔ Copiado — ' + r.length + ' ordens', 2000));
 }
 function sdjCopiarZap() {
@@ -5474,7 +5531,7 @@ function sdjCopiarZap() {
   const data = String(b.getDate()).padStart(2, '0') + '/' + String(b.getMonth() + 1).padStart(2, '0');
   const rot = { hoje: 'vencem hoje', amanha: 'vencem amanhã', vencidas: 'vencidas', semana: 'próximos 7 dias', todas: 'todas' }[sdjDia];
   const c = s => r.filter(l => l.sit === s).length;
-  const L = ['📅 *Acréscimo de carga — ' + rot + ' (' + data + ')*', '', 'Total: *' + r.length + '*',
+  const L = ['📅 *Acréscimo de carga — ' + rot + (sdjCs ? ' — ' + sdjCs : '') + ' (' + data + ')*', '', 'Total: *' + r.length + '*',
     '  ⏳ Abertas: ' + r.filter(l => SDJ_ABERTAS.indexOf(l.sit) >= 0).length, '  ✅ Executadas: ' + c('executada'), '  🔧 Necessitam PLC: ' + c('plc'), '  ✖ Improdutivas: ' + c('improdutiva')];
   const abertas = r.filter(l => SDJ_ABERTAS.indexOf(l.sit) >= 0);
   if (abertas.length) {
