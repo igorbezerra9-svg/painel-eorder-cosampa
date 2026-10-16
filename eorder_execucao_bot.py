@@ -6,6 +6,7 @@ import os
 import sys
 import re
 import glob
+import hashlib
 import json
 import unicodedata
 import urllib.error
@@ -173,6 +174,22 @@ PLC_COD_VISTORIA = "SDJV04"
 PLC_BUFFER_DIAS = 90
 PLC_TIPO_SERVICO = "OUTSDJ"
 PLC_COD_EXECUTADO = ("SDJE01", "SDJV02")
+# Histórico anterior das ordens OUTSDJ (acréscimo de carga) que ainda NÃO têm PLC: é o mesmo buffer que vira o "antes"
+# do PLC, só que publicado como região própria (~20 KB com gzip) pra aba "Acréscimo de Carga" do painel mostrar as baixas
+# anteriores de qualquer ordem aberta sem varrer o histórico no navegador (mesmo cuidado com o egress do rastreio PLC).
+SDJ_HIST_REGIAO = "SDJ_historico"
+SDJ_HIST_DIAS = 90
+_BUFFER_SDJ = {}      # preenchido por _atualizar_indice_plc() a cada rodada da Execução
+SDJ_HIST_MAX_POR_ORDEM = 10      # uma ordem com dezenas de baixas não ganha nada de mais; segura o tamanho da linha
+# Ordem OUTSDJ baixada como improdutiva/devolvida (CASA FECHADA, fim de jornada...) some do TdC até alguém reabrir: não está
+# aberta no Sul e também não está na Execução de hoje, então a aba "Acréscimo de Carga" não a enxergava. Pra mostrar essas
+# ordens (e o prazo delas) o robô publica, junto do histórico, cliente/município/endereço/prazo -- só das que a ÚLTIMA baixa
+# foi improdutiva/devolvida e tem até SDJ_LIMBO_DIAS dias (mais velha que isso quase sempre foi cancelada/encerrada por fora).
+SDJ_LIMBO_DIAS = 15
+_META_SDJ = {}        # os -> {"cli","mun","end","pz"}; vem do mesmo índice em disco ("_meta"), preenchido a cada linha OUTSDJ lida
+SDJ_HIST_HASH_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sdj_historico_hash.txt")
+# O robô roda por cron (processo novo a cada rodada), então o hash do último envio fica em disco: o painel só rebaixa
+# a região quando o carimbo muda, e sem esta trava o carimbo mudaria a cada 30 min mesmo sem baixa nova.
 
 
 def _plc_eh_execucao(cod, nota):
@@ -334,6 +351,8 @@ def _atualizar_indice_plc(linhas):
     # O buffer mora numa chave reservada do proprio indice (prefixo "_" nao
     # colide com numero de ordem) pra nao criar um segundo arquivo em disco.
     buffer = indice.pop("_buffer", {}) if isinstance(indice.get("_buffer"), dict) else {}
+    # Dados da ordem (cliente, município, endereço, prazo) pra mostrar ordens que saíram do TdC -- ver SDJ_LIMBO_DIAS.
+    meta = indice.pop("_meta", {}) if isinstance(indice.get("_meta"), dict) else {}
 
     def ordena(r):
         d = _parse_data_fim(r.get("Data fim Execução"))
@@ -347,6 +366,11 @@ def _atualizar_indice_plc(linhas):
         quando = (r.get("Data fim Execução") or "").strip()
         equipe = (r.get("Recurso/Equipe") or "").strip()
         nota = (r.get("Nota Codificada") or "").strip()
+        if _cod_tipo_servico(r) == PLC_TIPO_SERVICO:
+            dados_os = {"cli": (r.get("Cliente") or "").strip(), "mun": (r.get("Município") or "").strip(),
+                        "end": (r.get("Endereço") or "").strip()[:90],
+                        "pz": (r.get("Data Prevista Finalização Trabalhos") or "").strip()}
+            meta.setdefault(os_num, {}).update({k: v for k, v in dados_os.items() if v})
 
         if cod == PLC_COD_VISTORIA:
             # Uma ordem pode receber PLC mais de uma vez; vale o primeiro,
@@ -403,10 +427,45 @@ def _atualizar_indice_plc(linhas):
         if ultimo < lim_buf:
             buffer.pop(os_num, None)
 
+    # O dado da ordem só serve enquanto ela está no buffer (ordem que virou PLC sai do buffer e tem rastreio próprio)
+    meta = {o: m for o, m in meta.items() if o in buffer}
+
     salvar = dict(indice)
     salvar["_buffer"] = buffer
+    salvar["_meta"] = meta
     _salvar_json_idx(PLC_IDX_PATH, salvar)
+    global _BUFFER_SDJ, _META_SDJ
+    _BUFFER_SDJ = buffer          # a publicação do histórico (SDJ_historico) lê daqui
+    _META_SDJ = meta
     return indice
+
+
+def montar_historico_sdj(buffer, dias=SDJ_HIST_DIAS, meta=None, limbo_dias=SDJ_LIMBO_DIAS):
+    """Converte o buffer (ordens OUTSDJ que ainda não receberam PLC) na lista que vai pro Supabase:
+    [{"os": "A0104...", "ev": [{"em", "eq", "cod", "nota"}, ...]}]. Só baixas dos últimos `dias` dias.
+    Se a ÚLTIMA baixa foi improdutiva/devolvida e tem até `limbo_dias` dias, a ordem leva também cli/mun/end/pz
+    (o painel mostra a ordem mesmo que ela não esteja mais no TdC, com o prazo)."""
+    agora = datetime.now()
+    limite = agora - timedelta(days=dias)
+    lim_limbo = agora - timedelta(days=limbo_dias)
+    dados = []
+    for os_num, hist in (buffer or {}).items():
+        ev = []
+        for h in hist or []:
+            dt = _parse_data_fim(h.get("em"))
+            if dt and dt >= limite:
+                ev.append({"em": h.get("em"), "eq": h.get("eq") or "", "cod": h.get("cod") or "", "nota": h.get("nota") or ""})
+        if ev:
+            ev.sort(key=lambda x: _parse_data_fim(x["em"]) or datetime.min)
+            item = {"os": os_num, "ev": ev[-SDJ_HIST_MAX_POR_ORDEM:]}
+            u = ev[-1]
+            m = (meta or {}).get(os_num)
+            if (m and m.get("pz") and (_parse_data_fim(u["em"]) or datetime.min) >= lim_limbo
+                    and _classificar_resultado({"Código Resultado": u["cod"], "Nota Codificada": u["nota"]}) in ("IMPRODUTIVO", "DEVOLVIDO")):
+                item.update({k: m[k] for k in ("cli", "mun", "end", "pz") if m.get(k)})
+            dados.append(item)
+    dados.sort(key=lambda d: d["os"])
+    return dados
 
 
 def _eh_reincidente_hoje(entry):
@@ -1084,6 +1143,7 @@ class EOrderExecucaoBot:
                 self._publicar_reincidentes(regiao, reincidentes, contagem or {}, clientes_hoje)
             if plc_indice is not None:
                 self._publicar_plc(plc_indice)
+                self._publicar_historico_sdj()
         self._publicar_historico(regiao, linhas, data_alvo=data_alvo)
         return caminho
 
@@ -1142,6 +1202,33 @@ class EOrderExecucaoBot:
             self._plog(f"⚠️  Falha ao publicar rastreio PLC: {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
         except Exception as e:
             self._plog(f"⚠️  Falha ao publicar rastreio PLC: {e}")
+
+    def _publicar_historico_sdj(self):
+        """Publica o histórico anterior das ordens OUTSDJ (região SDJ_historico). Falha aqui nunca derruba o resto."""
+        try:
+            dados = montar_historico_sdj(_BUFFER_SDJ, meta=_META_SDJ)
+            assinatura = hashlib.sha256(json.dumps(dados, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+            try:
+                with open(SDJ_HIST_HASH_PATH, encoding="utf-8") as f:
+                    anterior = f.read().strip()
+            except OSError:
+                anterior = ""
+            if assinatura == anterior:
+                self._plog(f"☁ Histórico OUTSDJ sem mudança ({len(dados)} ordem(ns)) — não republicado")
+                return
+            corpo = json.dumps({
+                "regiao": SDJ_HIST_REGIAO,
+                "dados": dados,
+                "atualizado_em": datetime.now(timezone.utc).isoformat(),
+            }, default=str).encode("utf-8")
+            status = self._post_supabase(SB_URL + "/rest/v1/snapshots", corpo)
+            with open(SDJ_HIST_HASH_PATH, "w", encoding="utf-8") as f:
+                f.write(assinatura)       # só grava depois do POST dar certo: falha = tenta de novo na próxima rodada
+            self._plog(f"☁ Histórico OUTSDJ publicado:{len(dados)} ordem(ns), {sum(len(d['ev']) for d in dados)} baixa(s), {len(corpo) / 1024:.0f} KB — status {status}")
+        except urllib.error.HTTPError as e:
+            self._plog(f"⚠️  Falha ao publicar histórico OUTSDJ: {e.code} {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            self._plog(f"⚠️  Falha ao publicar histórico OUTSDJ: {e}")
 
     def _publicar_nuvem_completo(self, regiao, caminho):
         """Publica TODAS as colunas do arquivo original numa região
