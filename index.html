@@ -5085,7 +5085,7 @@ function plcCopiarTimeline() {
 //   • PLC_rastreio -> quem já passou por vistoria com PLC (abre a linha do tempo da aba Vistorias PLC).
 // Só rebaixa o que mudou de verdade (compara o carimbo antes), igual às outras abas.
 const SDJ_TIPO = 'OUTSDJ';
-let sdjSul = [], sdjExec = [], sdjPlc = {}, sdjHist = {}, sdjLinhas = [];
+let sdjSul = [], sdjExec = [], sdjPlc = {}, sdjHist = {}, sdjMeta = {}, sdjLinhas = [];
 let sdjCarimbos = { sul: null, exec: null, plc: null, hist: null };
 let sdjHoraSul = null, sdjHoraExec = null;
 let sdjDia = 'hoje', sdjSit = 'todas', sdjBusca = '', sdjLimite = 10, sdjAberta = null;
@@ -5174,8 +5174,12 @@ async function sdjCarregar() {
     const [cSul, cExec, cPlc, cHist] = await Promise.all([buscarCarimbo('Sul'), buscarCarimbo('Execucao'), buscarCarimbo('PLC_rastreio'), buscarCarimbo('SDJ_historico')]);
     let mudou = false;
     if (cHist !== sdjCarimbos.hist) {                // histórico anterior publicado pelo robô (região pequena; pode não existir ainda)
-      sdjHist = {};
-      if (cHist) (await sdjBuscar('SDJ_historico')).dados.forEach(d => { sdjHist[d.os] = d.ev || []; });
+      sdjHist = {}; sdjMeta = {};
+      // Ordem com cli/mun/end/pz = baixada como improdutiva/devolvida há pouco (o robô decide): se não está mais no TdC, a aba ainda mostra.
+      if (cHist) (await sdjBuscar('SDJ_historico')).dados.forEach(d => {
+        sdjHist[d.os] = d.ev || [];
+        if (d.pz) sdjMeta[d.os] = { cli: d.cli || '', mun: d.mun || '', end: d.end || '', pz: d.pz };
+      });
       sdjCarimbos.hist = cHist; mudou = true;
     }
     if (cSul !== sdjCarimbos.sul) {
@@ -5201,7 +5205,7 @@ async function sdjCarregar() {
 }
 
 function sdjSituacao(l) {
-  const u = l.baixas[l.baixas.length - 1];
+  const u = l.baixas[l.baixas.length - 1] || l.ultima;
   if (l.noTdc) {                                   // ainda está no painel (aberta)
     if (/reprogramar/i.test(l.estado)) return 'reprogramar';
     return l.equipe ? 'campo' : 'despacho';
@@ -5241,6 +5245,20 @@ function sdjMontar() {
       nota: (r['Nota Codificada'] || '').trim(), cls: execGetProdutividade(r)
     });
   });
+  // Ordem baixada como improdutiva/devolvida (CASA FECHADA, fim de jornada...) sai do TdC até alguém reabrir: não está no Sul nem na
+  // Execução de hoje, mas o prazo dela continua correndo. O robô manda os dados dela junto do histórico (sdjMeta).
+  Object.keys(sdjMeta).forEach(os => {
+    if (mapa[os]) return;
+    const m = sdjMeta[os], ev = (sdjHist[os] || []).slice().sort((a, b) => (parseDateTimeStr(a.em) || 0) - (parseDateTimeStr(b.em) || 0));
+    const u = ev[ev.length - 1];
+    if (!u) return;
+    mapa[os] = {
+      os, cliente: m.cli, equipe: '', eqUltima: u.eq || '', chefe: '', municipio: m.mun, endereco: m.end, estado: '', prazo: m.pz,
+      noTdc: false, limbo: true, baixas: [],
+      ultima: { em: u.em, eq: u.eq || '', cod: (u.cod || '').toUpperCase(), txt: sdjDescCod((u.cod || '').toUpperCase()) || u.cod || '', nota: u.nota || '',
+        cls: execGetProdutividade({ 'Código Resultado': u.cod, 'Nota Codificada': u.nota }) }
+    };
+  });
   sdjLinhas = Object.values(mapa);
   sdjLinhas.forEach(l => {
     l.baixas.sort((a, b) => (parseDateTimeStr(a.em) || 0) - (parseDateTimeStr(b.em) || 0));
@@ -5268,7 +5286,7 @@ function sdjSitOk(l, sit) {
 }
 function sdjBuscaOk(l, q) {
   if (!q) return true;
-  return sdjNorm([l.os, l.cliente, l.equipe, l.chefe, l.municipio, l.endereco].join(' ')).indexOf(q) >= 0;
+  return sdjNorm([l.os, l.cliente, l.equipe, l.eqUltima, l.chefe, l.municipio, l.endereco].join(' ')).indexOf(q) >= 0;
 }
 function sdjFiltrado() {
   const q = sdjNorm(sdjBusca.trim());
@@ -5318,12 +5336,14 @@ function sdjRender() {
   const lista = sdjFiltrado();
   const mostrar = lista.slice(0, sdjLimite);
   const fmt = c => c ? new Date(c).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
-  document.getElementById('sdj-sub').innerHTML = '<b>' + lista.length + '</b> ordem(ns) neste filtro · Painel (TdC) das ' + fmt(sdjHoraSul) + ' · Execução das ' + fmt(sdjHoraExec) +
-    ' · clique numa ordem pra ver os detalhes';
+  const fora = lista.filter(l => l.limbo).length;
+  document.getElementById('sdj-sub').innerHTML = '<b>' + lista.length + '</b> ordem(ns) neste filtro' + (fora ? ' (<b>' + fora + '</b> baixada(s) que ainda não voltaram ao TdC)' : '') +
+    ' · Painel (TdC) das ' + fmt(sdjHoraSul) + ' · Execução das ' + fmt(sdjHoraExec) + ' · clique numa ordem pra ver os detalhes';
 
   document.getElementById('sdj-tb').innerHTML = mostrar.length ? mostrar.map(l => {
-    const s = SDJ_SIT[l.sit], u = l.baixas[l.baixas.length - 1];
-    const extra = (l.noTdc && l.baixas.length) ? ' <span title="Já teve baixa hoje e voltou ao painel" style="font-size:10px;color:var(--gray-400);">↩ ' + l.baixas.length + ' baixa(s) hoje</span>' : '';
+    const s = SDJ_SIT[l.sit], u = l.baixas[l.baixas.length - 1] || l.ultima;
+    const extra = l.limbo ? ' <span title="Já foi baixada e ainda não voltou ao painel (TdC): o prazo continua correndo" style="font-size:10px;color:#8a5a00;">⏸ fora do TdC</span>'
+      : (l.noTdc && l.baixas.length) ? ' <span title="Já teve baixa hoje e voltou ao painel" style="font-size:10px;color:var(--gray-400);">↩ ' + l.baixas.length + ' baixa(s) hoje</span>' : '';
     const bord = (SDJ_ABERTAS.indexOf(l.sit) >= 0 && l.dias_venc !== null && l.dias_venc <= 0) ? 'background:#fff8f7;box-shadow:inset 3px 0 0 var(--red);' : '';
     const ult = u ? '<span style="font-family:var(--font-mono);font-size:11px;">' + sdjQuando(u.em) + '</span> <span style="font-size:11.5px;">' + sdjEsc((u.txt || u.cod || '').slice(0, 44)) + '</span>' +
       (u.nota ? '<div style="font-size:10.5px;color:var(--gray-400);">' + sdjEsc(u.nota.slice(0, 48)) + '</div>' : '') : '<span style="color:var(--gray-400);">—</span>';
@@ -5331,7 +5351,7 @@ function sdjRender() {
       '<td style="padding:8px 11px;text-align:center;white-space:nowrap;">' + plcTag(s.t, s.c[0], s.c[1]) + '<div>' + extra + '</div></td>' +
       '<td style="padding:8px 11px;"><span style="font-family:var(--font-mono);font-size:11px;color:#1565c0;font-weight:700;">' + l.os + '</span>' + (l.plc ? ' <span title="Tem vistoria com PLC no rastreio" style="font-size:10px;">🔧</span>' : '') + (l.hist.length ? ' <span title="' + l.hist.length + ' baixa(s) anterior(es) a hoje — clique pra ver" style="font-size:10px;color:var(--gray-400);">📜 ' + l.hist.length + '</span>' : '') +
         '<div style="font-size:10.5px;color:var(--gray-400);">' + sdjEsc(l.cliente.slice(0, 34)) + '</div></td>' +
-      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.equipe || '<span style="color:var(--gray-400);">— sem equipe —</span>') + '</td>' +
+      '<td style="padding:8px 11px;font-family:var(--font-mono);font-size:11px;">' + (l.equipe || (l.limbo && l.eqUltima ? '<span title="Equipe da última baixa" style="color:var(--gray-400);">' + sdjEsc(l.eqUltima) + '</span>' : '<span style="color:var(--gray-400);">— sem equipe —</span>')) + '</td>' +
       '<td style="padding:8px 11px;font-size:11.5px;">' + sdjEsc(l.municipio) + '</td>' +
       '<td style="padding:8px 11px;text-align:center;">' + plcPrazoTag(l) + '<div style="font-size:10px;color:var(--gray-400);">' + sdjDataCurta(l.prazo) + '</div></td>' +
       '<td style="padding:8px 11px;">' + ult + '</td></tr>';
@@ -5340,8 +5360,9 @@ function sdjRender() {
         '<span style="font-family:var(--font-mono);font-size:11px;">' + sdjEsc(b.eq) + '</span> · ' + sdjEsc(b.txt) + (b.nota ? ' · <i>' + sdjEsc(b.nota) + '</i>' : '') + '</div>').join('') : '<span style="color:var(--gray-400);">Nenhuma baixa hoje</span>';
       html += '<tr style="background:var(--gray-100);"><td colspan="6" style="padding:12px 16px;font-size:12px;line-height:1.6;">' +
         '<b style="font-size:13px;">' + sdjEsc(l.cliente || '—') + '</b><br>' + sdjEsc(l.endereco || '—') + '<br>' +
-        '<span style="color:var(--gray-400);">Equipe: <b style="color:var(--text);">' + sdjEsc(l.equipe || 'sem equipe') + '</b>' + (l.chefe ? ' · Responsável: <b style="color:var(--text);">' + sdjEsc(l.chefe) + '</b>' : '') +
+        '<span style="color:var(--gray-400);">' + (l.limbo ? 'Equipe da última baixa' : 'Equipe') + ': <b style="color:var(--text);">' + sdjEsc(l.equipe || l.eqUltima || 'sem equipe') + '</b>' + (l.chefe ? ' · Responsável: <b style="color:var(--text);">' + sdjEsc(l.chefe) + '</b>' : '') +
         (l.estado ? ' · Estado TdC: <b style="color:var(--text);">' + sdjEsc(l.estado) + '</b>' : '') + (l.prazo ? ' · Prazo: <b style="color:var(--text);">' + sdjEsc(l.prazo) + '</b>' : '') + '</span>' +
+        (l.limbo ? '<div style="margin-top:6px;font-size:11.5px;color:#8a5a00;">⏸ Ordem baixada como <b>' + SDJ_SIT[l.sit].t.toLowerCase() + '</b> (' + sdjQuando(l.ultima.em) + ') e que ainda não voltou ao TdC — o prazo continua correndo.</div>' : '') +
         '<div style="margin-top:8px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);">Baixas de hoje</div>' + baixas +
         '<div style="margin-top:10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);">Histórico anterior (' + l.hist.length + ' baixa(s))</div>' + sdjHistHtml(l) +
         (l.plc ? '<div style="margin-top:9px;"><button class="pg-tipo-btn" onclick="event.stopPropagation();sdjAbrirPlc(\'' + l.os + '\')">🔧 Ver linha do tempo do PLC</button></div>' : '') +
@@ -5367,8 +5388,8 @@ function sdjHistHtml(l) {
 }
 
 function sdjLinhaTexto(l) {
-  const u = l.baixas[l.baixas.length - 1];
-  return [SDJ_SIT[l.sit].t, l.os, l.cliente, l.equipe || 'sem equipe', l.municipio, l.prazo, u ? (sdjQuando(u.em) + ' ' + (u.txt || u.cod)) : ''];
+  const u = l.baixas[l.baixas.length - 1] || l.ultima;
+  return [SDJ_SIT[l.sit].t + (l.limbo ? ' (fora do TdC)' : ''), l.os, l.cliente, l.equipe || (l.limbo && l.eqUltima ? l.eqUltima + ' (última baixa)' : 'sem equipe'), l.municipio, l.prazo, u ? (sdjQuando(u.em) + ' ' + (u.txt || u.cod)) : ''];
 }
 function sdjCopiarPlanilha() {
   const r = sdjFiltrado();
