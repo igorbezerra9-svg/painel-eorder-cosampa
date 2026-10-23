@@ -656,6 +656,11 @@
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="op-chips-tipo"></div>
     </div>
     <div class="pg-multisel">
+      <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Município</div>
+      <button class="pg-multisel-btn" id="op-municipio-btn" onclick="opToggleMenuMunicipio()">Todos</button>
+      <div class="pg-multisel-menu" id="op-municipio-menu" style="display:none;max-height:320px;overflow-y:auto;min-width:230px;"></div>
+    </div>
+    <div class="pg-multisel">
       <div style="font-size:10px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Local do Corte</div>
       <button class="pg-multisel-btn" id="op-local-corte-btn" onclick="opToggleMenuLocalCorte()">Todos</button>
       <div class="pg-multisel-menu" id="op-local-corte-menu" style="display:none;"></div>
@@ -3439,6 +3444,7 @@ const op = {
   classificacao: '',
   tipo: '',
   localCorteSelecionados: new Set(),
+  municipiosSelecionados: new Set(),
   servicosSelecionados: new Set(),
   supervisor: '',
   busca: '',
@@ -3544,6 +3550,7 @@ async function _opCarregarExec() {
 
   opPopularServicos();
   opPopularLocalCorte();
+  opPopularMunicipios();
   opPopularDias();
   document.getElementById('op-loading').style.display = 'none';
   document.getElementById('op-conteudo').style.display = 'block';
@@ -3646,7 +3653,8 @@ function opRenderChipsEstaticos() {
 
 function opSetVeiculo(v) { op.veiculo = (op.veiculo === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
 
-function opSetCentro(v) { op.centro = (op.centro === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
+// Trocar o Centro de Serviço muda a lista de municípios (só os daquele CS); o que estava marcado e saiu da lista é desmarcado.
+function opSetCentro(v) { op.centro = (op.centro === v) ? '' : v; opRenderChipsEstaticos(); opPopularMunicipios(); opRenderAll(); }
 function opSetClassificacao(v) { op.classificacao = (op.classificacao === v) ? '' : v; opRenderChipsEstaticos(); opRenderAll(); }
 function opSetTipo(v) {
   op.tipo = (op.tipo === v) ? '' : v;
@@ -3663,6 +3671,72 @@ function opSetTipo(v) {
 function opSetSupervisor(v) { op.supervisor = v; opRenderAll(); }
 function opSetBusca(v) { op.busca = v; opRenderAll(); }
 function opSetMinOs(v) { const n = parseInt(v, 10); op.minOs = Number.isNaN(n) ? 10 : n; opRenderEquipes(); }
+
+// ── Filtro de Município (multisseleção, ligado ao Centro de Serviço) ──
+// O mesmo município chega escrito de formas diferentes (ASSARE/ASSARÉ, CARIRIACU/CARIRIAÇU, MISSAO VELHA/MISSÃO VELHA): a chave
+// ignora acento, caixa e espaço duplo, e o nome mostrado é a grafia mais frequente.
+function opMunicipioKey(r) {
+  return String(r['Município'] || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+const opMunicipioNome = {};
+function opNomeMunicipio(k) {
+  const base = opMunicipioNome[k] || k;
+  return base.toLowerCase().split(' ').map((p, i) => (i > 0 && ['de', 'do', 'da', 'dos', 'das'].includes(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+// Municípios do período carregado; com um Centro de Serviço escolhido, só os que têm ordem daquele CS.
+function opMunicipiosDisponiveis() {
+  const cont = {}, variantes = {};
+  opRegistrosBase().forEach(r => {
+    const k = opMunicipioKey(r);
+    if (!k) return;
+    const v = String(r['Município'] || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    (variantes[k] = variantes[k] || {})[v] = (variantes[k][v] || 0) + 1;       // nomes: contados no período todo, independente do CS
+    if (op.centro && execGetCentro(r) !== op.centro) return;
+    cont[k] = (cont[k] || 0) + 1;
+  });
+  Object.keys(variantes).forEach(k => { opMunicipioNome[k] = Object.keys(variantes[k]).sort((a, b) => variantes[k][b] - variantes[k][a])[0]; });
+  return Object.keys(cont).sort((a, b) => opNomeMunicipio(a).localeCompare(opNomeMunicipio(b), 'pt-BR')).map(k => ({ k, n: cont[k] }));
+}
+function opPopularMunicipios() {
+  const lista = opMunicipiosDisponiveis(), validos = new Set(lista.map(x => x.k));
+  Array.from(op.municipiosSelecionados).forEach(k => { if (!validos.has(k)) op.municipiosSelecionados.delete(k); });
+  let html = '<div class="pg-multisel-actions" style="border-top:none;margin-top:0;"><a onclick="opMunicipioSelAll()">Marcar todos</a><a onclick="opMunicipioSelNone()">Limpar</a></div>';
+  lista.forEach(({ k, n }) => {
+    const checked = op.municipiosSelecionados.has(k) ? 'checked' : '';
+    html += `<label><input type="checkbox" value="${k}" ${checked} onchange="opToggleMunicipio('${opEscJs(k)}')"><span style="flex:1;">${opNomeMunicipio(k)}</span><span style="font-size:10.5px;color:var(--gray-400);font-weight:600;">${n}</span></label>`;
+  });
+  if (!lista.length) html += '<div style="padding:8px;font-size:12px;color:var(--gray-400);">Nenhum município no período</div>';
+  document.getElementById('op-municipio-menu').innerHTML = html;
+  opAtualizaLabelMunicipio();
+}
+function opToggleMunicipio(k) {
+  if (op.municipiosSelecionados.has(k)) op.municipiosSelecionados.delete(k);
+  else op.municipiosSelecionados.add(k);
+  opAtualizaLabelMunicipio();
+  opRenderAll();
+}
+function opMunicipioSelAll() {
+  opMunicipiosDisponiveis().forEach(x => op.municipiosSelecionados.add(x.k));
+  opPopularMunicipios(); opRenderAll();
+}
+function opMunicipioSelNone() {
+  op.municipiosSelecionados.clear();
+  opPopularMunicipios(); opRenderAll();
+}
+function opAtualizaLabelMunicipio() {
+  const n = op.municipiosSelecionados.size, btn = document.getElementById('op-municipio-btn');
+  btn.textContent = n === 0 ? 'Todos' : (n === 1 ? opNomeMunicipio(Array.from(op.municipiosSelecionados)[0]) : n + ' selecionados');
+  btn.classList.toggle('active', n > 0);
+}
+function opToggleMenuMunicipio() {
+  const m = document.getElementById('op-municipio-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('op-municipio-menu');
+  const btn = document.getElementById('op-municipio-btn');
+  if (menu && btn && !menu.contains(e.target) && e.target !== btn) menu.style.display = 'none';
+});
 
 function opPopularLocalCorte() {
   const menu = document.getElementById('op-local-corte-menu');
@@ -3707,10 +3781,12 @@ function opLimparFiltros() {
   op.causaRaizFiltro = ''; op.motivoFiltro = '';
   op.servicosSelecionados.clear();
   op.localCorteSelecionados.clear();
+  op.municipiosSelecionados.clear();
   op.diasSelecionados.clear();
   document.getElementById('op-busca-cliente').value = '';
   document.getElementById('op-select-supervisor').value = '';
   opPopularLocalCorte();
+  opPopularMunicipios();
   opRenderChipsEstaticos();
   opPopularServicos();
   opPopularDias();
@@ -3915,6 +3991,7 @@ async function opToggleHojeAoVivo() {
     btn.textContent = '🔴 Hoje (ao vivo)';
   }
   opPopularServicos();
+  opPopularMunicipios();
   opRenderAll();
 }
 
@@ -3923,6 +4000,7 @@ function opRegistrosFiltrados(opcoes) {
   let out = opRegistrosBase();
   if (op.diasSelecionados.size) out = out.filter(r => op.diasSelecionados.has(r.__data));
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
+  if (op.municipiosSelecionados.size) out = out.filter(r => op.municipiosSelecionados.has(opMunicipioKey(r)));
   if (op.classificacao && !opcoes.semClassificacao) out = out.filter(r => opClassificar(r) === op.classificacao);
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
   if (op.localCorteSelecionados.size) out = out.filter(r => op.localCorteSelecionados.has(opLocalCorte(r)));
@@ -4300,6 +4378,7 @@ function opMesAnterior(mesKey) {
 function opFiltrarGenerico(regs) {
   let out = regs;
   if (op.centro) out = out.filter(r => execGetCentro(r) === op.centro);
+  if (op.municipiosSelecionados.size) out = out.filter(r => op.municipiosSelecionados.has(opMunicipioKey(r)));
   if (op.tipo) out = out.filter(r => opCategoriaServico(r) === op.tipo);
   if (op.localCorteSelecionados.size) out = out.filter(r => op.localCorteSelecionados.has(opLocalCorte(r)));
   if (op.servicosSelecionados.size) out = out.filter(r => op.servicosSelecionados.has(opCodigoServico(r)));
