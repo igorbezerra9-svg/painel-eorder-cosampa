@@ -1131,7 +1131,7 @@
 
 <!-- ══ CONTROLE DE ORDENS NO PRAZO (Gerência Sul): Ligações Novas e Religações por Centro de Serviço ══ -->
 <div id="controle-section" class="tab-section" style="display:none;width:100%;box-sizing:border-box;">
-  <div id="ctrl-barra" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;"></div>
+  <div id="ctrl-barra" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:1040px;margin:0 auto 14px;"></div>
   <div id="ctrl-conteudo"></div>
 </div>
 
@@ -5722,32 +5722,35 @@ function ctrlTitulo(p) {
 function ctrlAtraso(h) { return h >= 24 ? Math.floor(h / 24) + 'd ' + Math.round(h % 24) + 'h' : String(Math.round(h * 10) / 10).replace('.', ',') + 'h'; }
 
 function ctrlTabela(p, G) {
-  const th = 'padding:9px 10px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.3px;color:#fff;background:#757171;border:1px solid #fff;';
+  const th = 'padding:10px 6px;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #e5e7eb;';
   const linhas = ctrlLinhas(p, G.id), meta = p.meta;
-  let html = '<div style="background:#000;color:#fff;text-align:center;font-weight:800;font-size:17px;padding:9px 6px;letter-spacing:.3px;">' + G.titulo + '</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:6px;"><thead><tr>' +
-    '<th style="' + th + '">CENTRO DE SERVIÇO</th><th style="' + th + '">' + G.col + '</th><th style="' + th + '">EXECUTADA FORA DO PRAZO</th>' +
+  const colunas = ['24%', '17%', '17%', '14%', '15%', '13%'].map(w => '<col style="width:' + w + '">').join('');   // mesma grade nas duas tabelas
+  let html = '<div style="border:1px solid #e5e7eb;border-radius:10px;overflow-x:auto;"><div style="min-width:620px;">' +   // no celular rola de lado em vez de espremer as colunas
+    '<div style="background:#14213d;color:#fff;text-align:center;font-weight:800;font-size:14px;padding:11px 6px;letter-spacing:.9px;">' + G.titulo + '</div>' +
+    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums;"><colgroup>' + colunas + '</colgroup><thead><tr>' +
+    '<th style="' + th + 'text-align:left;padding-left:16px;">CENTRO DE SERVIÇO</th><th style="' + th + '">' + G.col + '</th><th style="' + th + '">EXECUTADA FORA DO PRAZO</th>' +
     '<th style="' + th + '">META (%)</th><th style="' + th + '">REALIZADO (%)</th><th style="' + th + '">AVANÇO (%)</th></tr></thead><tbody>';
   linhas.forEach((l, i) => {
     const total = i === linhas.length - 1, vazio = l.real === null, bate = !vazio && l.real >= meta;
-    const td = 'padding:8px 10px;text-align:center;border:1px solid #d9d9d9;' + (total ? 'background:#bfbfbf;font-weight:800;' : 'background:#fff;');
+    const td = 'padding:11px 6px;text-align:center;color:#111827;' + (total ? 'background:#f9fafb;font-weight:800;border-top:2px solid #d1d5db;' : 'border-bottom:1px solid #eef0f2;');
     const chave = G.id + '|' + l.cs, aberto = ctrlAberto === chave;
     const fora = (l.f > 0 && !total)
       ? '<span onclick="ctrlAbrir(\'' + chave + '\')" title="Clique pra ver quais ordens" style="cursor:pointer;border-bottom:1px dotted #c0392b;color:#c0392b;font-weight:800;">' + l.f + (aberto ? ' ▴' : ' ▾') + '</span>'
       : String(l.f);
-    html += '<tr><td style="' + td + 'text-align:left;">' + l.cs + '</td><td style="' + td + '">' + l.e.toLocaleString('pt-BR') + '</td><td style="' + td + '">' + fora + '</td>' +
-      '<td style="' + td + '">' + ctrlPct(meta) + '</td>' +
-      (vazio ? '<td style="' + td + 'color:#999;">—</td><td style="' + td + 'color:#999;">—</td></tr>'
-        : '<td style="' + td + 'font-weight:700;background:' + (bate ? '#c6efce' : '#ffc7ce') + ';color:' + (bate ? '#006100' : '#9c0006') + ';">' + ctrlPct(l.real) + '</td>' +
-          '<td style="' + td + '">' + ctrlPct(meta ? l.real / meta : 0) + '</td></tr>');
+    const pilula = (txt, cor, fundo) => '<span style="display:inline-block;min-width:74px;padding:3px 10px;border-radius:999px;font-weight:700;background:' + fundo + ';color:' + cor + ';">' + txt + '</span>';
+    html += '<tr><td style="' + td + 'text-align:left;padding-left:16px;' + (total ? '' : 'font-weight:600;') + '">' + (total ? 'CENTRO SUL' : l.cs) + '</td><td style="' + td + '">' + l.e.toLocaleString('pt-BR') + '</td><td style="' + td + '">' + fora + '</td>' +
+      '<td style="' + td + 'color:#6b7280;">' + ctrlPct(meta) + '</td>' +
+      (vazio ? '<td style="' + td + 'color:#9ca3af;">—</td><td style="' + td + 'color:#9ca3af;">—</td></tr>'
+        : '<td style="' + td + '">' + pilula(ctrlPct(l.real), bate ? '#166534' : '#991b1b', bate ? '#dcfce7' : '#fee2e2') + '</td>' +
+          '<td style="' + td + 'font-weight:700;">' + ctrlPct(meta ? l.real / meta : 0) + '</td></tr>');
     if (aberto) {
       const os = ctrlForaNoIntervalo(p).filter(x => x.grupo === G.id && x.cs === l.cs);
-      html += '<tr class="ctrl-nocap"><td colspan="6" style="padding:8px 14px;background:#fff6f6;border:1px solid #f0c9c9;font-size:12px;">' +
+      html += '<tr class="ctrl-nocap"><td colspan="6" style="padding:8px 14px;background:#fff6f6;border-bottom:1px solid #f0c9c9;font-size:12px;">' +
         os.map(x => '<div style="padding:3px 0;border-bottom:1px solid #f4dede;"><b style="font-family:var(--font-mono);color:#1565c0;cursor:copy;" title="Clique pra copiar" onclick="sdjCopiarOs(\'' + sdjEsc(x.os) + '\')">' + sdjEsc(x.os) + '</b> · ' + sdjEsc(x.municipio) +
           ' · prazo <b>' + sdjEsc(x.prazo) + '</b> · 1ª baixa <b>' + sdjEsc(x.baixa) + '</b> · atraso ' + ctrlAtraso(x.atraso_h) + '</div>').join('') + '</td></tr>';
     }
   });
-  return html + '</tbody></table>';
+  return html + '</tbody></table></div></div>';
 }
 
 function controleRender() {
@@ -5778,10 +5781,13 @@ function controleRender() {
     '<button class="pg-tipo-btn" id="ctrl-btn-img" onclick="ctrlCopiarImagem()" title="Copia as duas tabelas como imagem">🖼 Imagem</button>';
   const av = p.avisos || {}, semCs = Object.keys(av.municipios_sem_cs || {});
   el.innerHTML =
-    '<div id="ctrl-imagem" style="background:#fff;padding:12px;border-radius:10px;border:1px solid var(--gray-200);">' +
-    '<div style="background:#000;color:#fff;text-align:center;font-weight:800;font-size:21px;padding:12px 8px;margin-bottom:12px;">CONTROLE DE ORDENS NO PRAZO - GERENCIA SUL - ' + sdjEsc(ctrlTitulo(p)) + '</div>' +
-    CTRL_GRUPOS.map(G => ctrlTabela(p, G)).join('<div style="height:14px;"></div>') + '</div>' +
-    '<div style="margin-top:10px;font-size:11.5px;color:var(--gray-400);line-height:1.6;">' +
+    '<div id="ctrl-imagem" style="background:#fff;padding:22px 24px 24px;border-radius:14px;border:1px solid var(--gray-200);max-width:1040px;margin:0 auto;">' +
+    '<div style="text-align:center;padding-bottom:16px;line-height:1.25;">' +
+    '<div style="font-size:11px;font-weight:700;letter-spacing:1.8px;color:#6b7280;">CONTROLE DE ORDENS NO PRAZO</div>' +
+    '<div style="font-size:26px;font-weight:800;color:#111827;">GERÊNCIA SUL</div>' +
+    '<div style="font-size:13px;color:#6b7280;margin-top:3px;">' + sdjEsc(ctrlTitulo(p)) + ' · ' + ctrlRotuloMes(p) + '</div></div>' +
+    CTRL_GRUPOS.map(G => ctrlTabela(p, G)).join('<div style="height:18px;"></div>') + '</div>' +
+    '<div style="max-width:1040px;margin:12px auto 0;font-size:11.5px;color:var(--gray-400);line-height:1.6;">' +
     'Período: <b>' + ctrlData(iv.de) + ' a ' + ctrlData(iv.ate) + '</b> (dia do resultado' + (iv.cheio ? '' : ' · filtrado no calendário; o mês publicado vai de ' + ctrlData(p.periodo.de) + ' a ' + ctrlData(p.periodo.ate)) + ') · gerado em ' + new Date(p.gerado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) +
     '<br>Cada ordem conta uma vez · Fora do prazo = a <b>primeira baixa</b> da ordem (produtiva ou improdutiva) foi depois do prazo previsto de finalização · Realizado = (executadas − fora do prazo) ÷ executadas · Avanço = realizado ÷ meta.' +
     (semCs.length ? '<br><span style="color:#c0392b;">⚠️ Município sem Centro de Serviço no mapa (fora da conta): ' + semCs.map(sdjEsc).join(', ') + '</span>' : '') + '</div>';
