@@ -5719,6 +5719,11 @@ function ctrlTitulo(p) {
   if (iv.cheio) return p.titulo_data;
   return iv.de === iv.ate ? ctrlTituloData(iv.de) : ctrlData(iv.de) + ' a ' + ctrlData(iv.ate);
 }
+// Hora da última leitura do eOrder (gerado_em vem sem fuso, já no horário da VPS = Brasília: lê o texto em vez de converter).
+function ctrlAtualizado(p) {
+  const m = String(p.gerado_em || '').match(/\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  return m ? m[2] + '/' + m[1] + ' às ' + m[3] + ':' + m[4] : '—';
+}
 function ctrlAtraso(h) { return h >= 24 ? Math.floor(h / 24) + 'd ' + Math.round(h % 24) + 'h' : String(Math.round(h * 10) / 10).replace('.', ',') + 'h'; }
 
 function ctrlTabela(p, G) {
@@ -5738,7 +5743,7 @@ function ctrlTabela(p, G) {
       ? '<span onclick="ctrlAbrir(\'' + chave + '\')" title="Clique pra ver quais ordens" style="cursor:pointer;border-bottom:1px dotted #c0392b;color:#c0392b;font-weight:800;">' + l.f + (aberto ? ' ▴' : ' ▾') + '</span>'
       : String(l.f);
     const pilula = (txt, cor, fundo) => '<span style="display:inline-block;min-width:74px;padding:3px 10px;border-radius:999px;font-weight:700;background:' + fundo + ';color:' + cor + ';">' + txt + '</span>';
-    html += '<tr><td style="' + td + 'text-align:left;padding-left:16px;' + (total ? '' : 'font-weight:600;') + '">' + (total ? 'CENTRO SUL' : l.cs) + '</td><td style="' + td + '">' + l.e.toLocaleString('pt-BR') + '</td><td style="' + td + '">' + fora + '</td>' +
+    html += '<tr><td style="' + td + 'text-align:left;padding-left:16px;' + (total ? '' : 'font-weight:600;') + '">' + (total ? 'SUL' : l.cs) + '</td><td style="' + td + '">' + l.e.toLocaleString('pt-BR') + '</td><td style="' + td + '">' + fora + '</td>' +
       '<td style="' + td + 'color:#6b7280;">' + ctrlPct(meta) + '</td>' +
       (vazio ? '<td style="' + td + 'color:#9ca3af;">—</td><td style="' + td + 'color:#9ca3af;">—</td></tr>'
         : '<td style="' + td + '">' + pilula(ctrlPct(l.real), bate ? '#166534' : '#991b1b', bate ? '#dcfce7' : '#fee2e2') + '</td>' +
@@ -5785,7 +5790,8 @@ function controleRender() {
     '<div style="text-align:center;padding-bottom:16px;line-height:1.25;">' +
     '<div style="font-size:11px;font-weight:700;letter-spacing:1.8px;color:#6b7280;">CONTROLE DE ORDENS NO PRAZO</div>' +
     '<div style="font-size:26px;font-weight:800;color:#111827;">GERÊNCIA SUL</div>' +
-    '<div style="font-size:13px;color:#6b7280;margin-top:3px;">' + sdjEsc(ctrlTitulo(p)) + ' · ' + ctrlRotuloMes(p) + '</div></div>' +
+    '<div style="font-size:13px;color:#6b7280;margin-top:3px;">' + sdjEsc(ctrlTitulo(p)) + ' · ' + ctrlRotuloMes(p) + '</div>' +
+    '<div style="margin-top:9px;"><span style="display:inline-block;padding:3px 12px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:700;">🕒 Atualizado em ' + ctrlAtualizado(p) + '</span></div></div>' +
     CTRL_GRUPOS.map(G => ctrlTabela(p, G)).join('<div style="height:18px;"></div>') + '</div>' +
     '<div style="max-width:1040px;margin:12px auto 0;font-size:11.5px;color:var(--gray-400);line-height:1.6;">' +
     'Período: <b>' + ctrlData(iv.de) + ' a ' + ctrlData(iv.ate) + '</b> (dia do resultado' + (iv.cheio ? '' : ' · filtrado no calendário; o mês publicado vai de ' + ctrlData(p.periodo.de) + ' a ' + ctrlData(p.periodo.ate)) + ') · gerado em ' + new Date(p.gerado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) +
@@ -5819,7 +5825,7 @@ function ctrlCopiarZap() {
     L.push('*' + G.nome + '* (meta ' + ctrlPct(p.meta) + ')');
     ctrlLinhas(p, G.id).forEach((l, i, a) => {
       const t = i === a.length - 1;
-      L.push((t ? '▪️ *Centro Sul*: ' : '• ' + l.cs.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ': ') + l.e.toLocaleString('pt-BR') + ' executadas · ' + l.f + ' fora do prazo' +
+      L.push((t ? '▪️ *Sul*: ' : '• ' + l.cs.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ': ') + l.e.toLocaleString('pt-BR') + ' executadas · ' + l.f + ' fora do prazo' +
         (l.real === null ? '' : ' · ' + (l.real >= p.meta ? '✅ ' : '⚠️ ') + ctrlPct(l.real)));
     });
     L.push('');
