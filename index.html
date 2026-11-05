@@ -912,7 +912,16 @@
     <input type="date" id="com-av-ate" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
     <button onclick="comercialAvancoPreset('padrao')" class="pg-tipo-btn">Padrão (mês até ontem)</button>
     <button onclick="comercialAvancoPreset('ontem')" id="com-av-bt-ontem" class="pg-tipo-btn">Ontem</button>
-    <button onclick="comercialAvancoPreset('hoje')" id="com-av-bt-hoje" class="pg-tipo-btn">Hoje (parcial)</button>
+    <button onclick="comercialAvancoPreset('hoje')" id="com-av-bt-hoje" class="pg-tipo-btn" title="Acumulado do dia 1 até hoje, com o dia de hoje ainda em andamento">Até hoje (parcial)</button>
+    <span data-com-sub="moto" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Supervisor:</span>
+      <select id="com-filtro-sup-moto" onchange="comercialFiltroSupMoto(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+        <option value="">Todos</option>
+        <option value="Jorge Luis">Jorge Luis (Juazeiro)</option>
+        <option value="Helenilton Silva">Helenilton Silva (Milagres)</option>
+        <option value="Cirllek Nepomuceno">Cirllek Nepomuceno (Campos Sales)</option>
+      </select>
+    </span>
   </div>
 
   <div data-com-sub="resumo" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
@@ -6063,6 +6072,7 @@ const com = {
   sub: null,            // sub-aba ativa do Indicador Comercial (resumo|avanco|moto|ranking|config)
   metaDiaChave: null,   // dia escolhido na "Meta do dia" ('YYYY-MM-DD'); null = hoje/próximo dia útil
   metaDiaCalc: null,    // último cálculo da Meta do dia (usado pra montar a mensagem)
+  filtroSupMoto: '',    // filtro por supervisor na sub-aba Meta por moto ('' = todos)
   mediaHistPorSupervisor: {}, // { supervisor: média cortes/equipe/dia, meses passados completos } -- sempre relativa a HOJE de verdade, não muda ao navegar mês
   mesReferencia: '',     // 'YYYY-MM' do mês sendo visto -- pode ser qualquer mês, não só o atual
   dadosMesAtual: [],     // linhas de Corte (categoria + equipe MM) do mês sendo visto (com.mesReferencia)
@@ -6928,8 +6938,14 @@ function comercialAvancoPreset(p) {
     const d = p === 'ontem' ? new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1) : hoje;
     const k = comercialChaveData(d);
     if (k.slice(0, 7) !== com.mesReferencia) { showToast('Esse dia é de outro mês — troque o mês lá em cima', 3000); return; }
-    com.avancoDe = k; com.avancoAte = k;
+    // "Até hoje (parcial)" = ACUMULADO do dia 1 até hoje (hoje ainda em andamento); "Ontem" = só o dia de ontem.
+    if (p === 'hoje') { com.avancoDe = null; com.avancoAte = k; }
+    else { com.avancoDe = k; com.avancoAte = k; }
   }
+  comercialRender();
+}
+function comercialFiltroSupMoto(v) {
+  com.filtroSupMoto = v || '';
   comercialRender();
 }
 
@@ -7305,14 +7321,16 @@ function comercialRenderMoto(ano, mesIdx, diasUteis) {
     return `<td style="${C}${bg || ''}color:${g > 0 ? '#1a7a40' : g < 0 ? '#c0392b' : '#222'};font-weight:700;">${(g > 0 ? '+' : '') + g}</td>`;
   };
 
-  // ── tabela 1: por região
-  let h = titulo(`META POR MOTO · CORTE · ${rotMes} · ${dm}${incluiHoje ? ' (parcial)' : ''}`) +
+  // ── tabela 1: por região (com o filtro de supervisor, mostra só a região dele e sem a linha de total)
+  const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
+  const filtro = com.filtroSupMoto || '';
+  const regsVis = calc.regioes.filter(r => !filtro || supDe[r.chave] === filtro);
+  let h = titulo(`META POR MOTO · CORTE · ${rotMes} · ${dm}${incluiHoje ? ' (parcial)' : ''}${filtro ? ' · ' + filtro : ''}`) +
     `<table style="border-collapse:collapse;width:100%;min-width:760px;"><thead><tr>` +
     ['Região', 'Supervisor', 'Motos ativas', 'Meta/moto/dia', 'Meta (período)', 'Realizado (motos)', 'Avanço', 'Gap', 'Extra'].map(x => `<th style="${H}">${x}</th>`).join('') +
     `</tr></thead><tbody>`;
-  const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
   const tot = { ativas: 0, cad: 0, meta: 0, real: 0, extra: calc.extraSemBase };
-  calc.regioes.forEach(r => {
+  regsVis.forEach(r => {
     tot.ativas += r.ativasUltimo; tot.cad += r.equipes.length; tot.meta += r.metaPeriodo; tot.real += r.real; tot.extra += r.extra;
     h += `<tr><td style="${C}font-weight:700;text-align:left;">${r.rot}</td><td style="${C}">${supDe[r.chave] || '—'}</td>` +
       `<td style="${C}">${r.ativasUltimo} de ${r.equipes.length}</td><td style="${C}">${r.metaDiaMoto === null ? '—' : comercialFmt1(r.metaDiaMoto)}</td>` +
@@ -7320,22 +7338,25 @@ function comercialRenderMoto(ano, mesIdx, diasUteis) {
       celAv(r.real, r.metaPeriodo) + gapTd(r.real, r.metaPeriodo) + `<td style="${C}color:#666;">${r.extra}</td></tr>`;
   });
   const bgT = 'background:#e7e6e6;font-weight:800;';
-  h += `<tr style="${bgT}"><td style="${C}${bgT}text-align:left;">SUL</td><td style="${C}${bgT}">TOTAL</td><td style="${C}${bgT}">${tot.ativas} de ${tot.cad}</td><td style="${C}${bgT}">—</td>` +
-    `<td style="${C}${bgT}">${Math.round(tot.meta)}</td><td style="${C}${bgT}">${tot.real}</td>` + celAv(tot.real, tot.meta) + gapTd(tot.real, tot.meta, bgT) +
-    `<td style="${C}${bgT}color:#666;">${tot.extra}</td></tr></tbody></table>`;
+  if (!filtro) {
+    h += `<tr style="${bgT}"><td style="${C}${bgT}text-align:left;">SUL</td><td style="${C}${bgT}">TOTAL</td><td style="${C}${bgT}">${tot.ativas} de ${tot.cad}</td><td style="${C}${bgT}">—</td>` +
+      `<td style="${C}${bgT}">${Math.round(tot.meta)}</td><td style="${C}${bgT}">${tot.real}</td>` + celAv(tot.real, tot.meta) + gapTd(tot.real, tot.meta, bgT) +
+      `<td style="${C}${bgT}color:#666;">${tot.extra}</td></tr>`;
+  }
+  h += `</tbody></table>`;
 
-  // ── tabela 2: por equipe (todas as motos cadastradas dos 3 supervisores, mesmo as sem produção)
-  h += `<div style="height:14px;"></div>` + titulo('POR EQUIPE DE MOTO') +
+  // ── tabela 2: por equipe. Moto desligada em TODOS os dias do período nem aparece (só aparece quem tem meta no período);
+  // moto desligada só em parte do período aparece com a etiqueta "⏸ desligada" e os dias ativos.
+  h += `<div style="height:14px;"></div>` + titulo('POR EQUIPE DE MOTO' + (filtro ? ' · ' + filtro : '')) +
     `<table style="border-collapse:collapse;width:100%;min-width:760px;"><thead><tr>` +
     ['Equipe', 'Região', 'Dias ativa', 'Meta', 'Realizado', 'Avanço', 'Gap'].map(x => `<th style="${H}">${x}</th>`).join('') + `</tr></thead><tbody>`;
-  calc.regioes.forEach(r => {
-    [...r.equipes].sort((a, b) => b.real - a.real || a.cod.localeCompare(b.cod)).forEach(e => {
+  regsVis.forEach(r => {
+    [...r.equipes].filter(e => !(calc.diasPer.length && e.diasAtiva === 0)).sort((a, b) => b.real - a.real || a.cod.localeCompare(b.cod)).forEach(e => {
       const desl = (com.desligadas || []).filter(d => d.equipe === e.cod && !per.vazio && d.de <= kAte && (!d.ate || d.ate >= kDe));
       const tag = desl.length ? ` <span title="${desl.map(d => 'desligada ' + d.de.split('-').reverse().slice(0, 2).join('/') + (d.ate ? ' a ' + d.ate.split('-').reverse().slice(0, 2).join('/') : ' em diante') + (d.motivo ? ' — ' + pzEsc(d.motivo) : '')).join('; ')}" style="background:#fff3e8;color:#bf360c;border-radius:3px;padding:0 5px;font-size:10px;font-weight:700;">⏸ desligada</span>` : '';
-      const cinza = e.diasAtiva === 0 ? 'color:#999;' : '';
-      h += `<tr><td style="${C}font-family:monospace;font-weight:700;text-align:left;${cinza}">${e.cod}${tag}</td><td style="${C}${cinza}">${r.rot}</td>` +
-        `<td style="${C}${cinza}">${e.diasAtiva} de ${calc.diasPer.length}</td><td style="${C}${cinza}">${e.diasAtiva ? comercialFmt1(e.meta) : '—'}</td>` +
-        `<td style="${C}font-weight:700;${cinza}">${e.real}</td>` + celAv(e.real, e.meta) + gapTd(e.real, e.meta) + `</tr>`;
+      h += `<tr><td style="${C}font-family:monospace;font-weight:700;text-align:left;">${e.cod}${tag}</td><td style="${C}">${r.rot}</td>` +
+        `<td style="${C}">${e.diasAtiva} de ${calc.diasPer.length}</td><td style="${C}">${e.diasAtiva ? comercialFmt1(e.meta) : '—'}</td>` +
+        `<td style="${C}font-weight:700;">${e.real}</td>` + celAv(e.real, e.meta) + gapTd(e.real, e.meta) + `</tr>`;
     });
   });
   h += `</tbody></table>`;
@@ -7433,11 +7454,12 @@ function comercialRenderMetaDia(ano, mesIdx, diasUteis) {
   const C = 'padding:9px 10px;text-align:center;border:1px solid #d9d9d9;font-size:13px;';
   const H = 'padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#fff;background:#3b3b3b;border:1px solid #fff;text-transform:uppercase;letter-spacing:.4px;';
   const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
-  let h = titulo(`META DO DIA · ${rotDia} · CORTE E RECORTE DUNNING`) +
+  const filtro = com.filtroSupMoto || '';
+  let h = titulo(`META DO DIA · ${rotDia} · CORTE E RECORTE DUNNING${filtro ? ' · ' + filtro : ''}`) +
     `<table style="border-collapse:collapse;width:100%;min-width:700px;"><thead><tr>` +
     ['Região', 'Supervisor', 'Motos ativas', 'Meta da região', 'Meta por moto', 'PASSAR (por moto)', 'Pra fechar o mês (por moto/dia)'].map(x => `<th style="${H}">${x}</th>`).join('') + `</tr></thead><tbody>`;
   let totDia = 0, totN = 0;
-  calc.regioes.forEach(r => {
+  calc.regioes.filter(r => !filtro || supDe[r.chave] === filtro).forEach(r => {
     totDia += r.metaDia; totN += r.n;
     let fechar = '—';
     if (r.passarFechar !== null) {
@@ -7446,11 +7468,11 @@ function comercialRenderMetaDia(ano, mesIdx, diasUteis) {
     }
     h += `<tr><td style="${C}font-weight:700;text-align:left;">${r.longo}</td><td style="${C}">${supDe[r.chave] || '—'}</td><td style="${C}">${r.n}</td>` +
       `<td style="${C}">${Math.round(r.metaDia)}</td><td style="${C}">${r.porMoto === null ? '—' : comercialFmt1(r.porMoto)}</td>` +
-      `<td style="${C}background:#14213d;color:#f5a623;font-size:22px;font-weight:900;">${r.passar === null ? '—' : r.passar}</td><td style="${C}">${fechar}</td></tr>` +
-      `<tr><td colspan="7" style="padding:4px 10px 8px;border:1px solid #d9d9d9;border-top:none;font-size:10.5px;color:#777;font-family:monospace;text-align:left;">${r.n ? r.ativas.join(' · ') : 'nenhuma moto ativa'}</td></tr>`;
+      `<td style="${C}background:#14213d;color:#f5a623;font-size:22px;font-weight:900;">${r.passar === null ? '—' : r.passar}</td><td style="${C}">${fechar}</td></tr>`;
   });
   const bgT = 'background:#e7e6e6;font-weight:800;';
-  h += `<tr style="${bgT}"><td style="${C}${bgT}text-align:left;">SUL</td><td style="${C}${bgT}">TOTAL</td><td style="${C}${bgT}">${totN}</td><td style="${C}${bgT}">${Math.round(totDia)}</td><td style="${C}${bgT}">—</td><td style="${C}${bgT}">—</td><td style="${C}${bgT}">—</td></tr></tbody></table>`;
+  if (!filtro) h += `<tr style="${bgT}"><td style="${C}${bgT}text-align:left;">SUL</td><td style="${C}${bgT}">TOTAL</td><td style="${C}${bgT}">${totN}</td><td style="${C}${bgT}">${Math.round(totDia)}</td><td style="${C}${bgT}">—</td><td style="${C}${bgT}">—</td><td style="${C}${bgT}">—</td></tr>`;
+  h += `</tbody></table>`;
   h += `<div style="margin-top:8px;font-size:11px;color:#888;">Meta da região no dia ÷ motos ativas no dia. "Passar" arredonda pra cima. Carros (LB) e outras equipes não entram: o que fizerem é extra.</div>`;
   box.innerHTML = h;
 }
@@ -7459,16 +7481,18 @@ function comercialMetaDiaTexto() {
   if (!c || !c.util) return '';
   const rotDia = COMERCIAL_SEMANA[c.dia.getDay()] + ' ' + comercialDM(c.dia);
   const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
+  const filtro = com.filtroSupMoto || '';
   const linhas = [`🎯 *Meta do dia — ${rotDia}*`, '_Corte e Recorte Dunning_', ''];
   let tot = 0;
-  c.regioes.forEach(r => {
+  c.regioes.filter(r => !filtro || supDe[r.chave] === filtro).forEach(r => {
     tot += r.metaDia;
     linhas.push(`*${r.longo}* · ${supDe[r.chave] || ''} · ${r.n} moto${r.n === 1 ? '' : 's'}`);
     linhas.push(`Meta da região: ${Math.round(r.metaDia)} → *${r.passar === null ? '—' : r.passar} cortes por moto*`);
     if (r.passarFechar !== null && r.passarFechar > r.passar) linhas.push(`Pra fechar o mês: ${r.passarFechar} por moto por dia`);
     linhas.push('');
   });
-  linhas.push(`_Meta total do dia: ${Math.round(tot)}_`);
+  if (!filtro) linhas.push(`_Meta total do dia: ${Math.round(tot)}_`);
+  else linhas.pop();   // tira a linha em branco do fim (sem total quando é só um supervisor)
   return linhas.join('\n');
 }
 function comercialCopiarMetaDiaTexto() {
