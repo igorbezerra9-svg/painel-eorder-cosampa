@@ -871,7 +871,7 @@
       </div>
       <div style="display:flex;gap:28px;">
         <div>
-          <div style="font-size:10.5px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;">Dias úteis (seg-qui, s/feriado)</div>
+          <div style="font-size:10.5px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.6px;">Dias úteis (seg-qui, s/feriado e véspera)</div>
           <div style="font-size:26px;font-weight:800;" id="com-dias-uteis">—</div>
         </div>
         <div>
@@ -916,7 +916,7 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div>
         <h3>Realizado × Meta por dia <span id="com-grafico-meta-label" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></h3>
-        <div class="op-sub">Segunda a quinta tem meta do dia (linha tracejada, com o valor da meta anotado). Sexta/sábado/domingo/feriado é só extra — soma no mês, mas não tem cobrança diária.</div>
+        <div class="op-sub">Segunda a quinta tem meta do dia (linha tracejada, com o valor da meta anotado). Sexta/sábado/domingo/feriado e véspera de feriado é só extra — soma no mês, mas não tem cobrança diária.</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button onclick="comercialCopiarGrafico()" id="btn-copiar-com-grafico" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
@@ -6023,7 +6023,12 @@ function comercialFeriados(ano) {
 function comercialEhDiaUtilCorte(data, feriadosSet) {
   const dia = data.getDay(); // 0=dom .. 6=sáb
   if (dia < 1 || dia > 4) return false; // só segunda(1) a quinta(4) conta pra Corte
-  return !feriadosSet.has(comercialChaveData(data));
+  if (feriadosSet.has(comercialChaveData(data))) return false;
+  // VÉSPERA de feriado também não tem corte (regra do Igor, 05/11/2026: 20/11 é feriado nacional,
+  // então 19/11 não conta -- Nov/26 tem 15 dias úteis, não 16). Dia 31/12 olha 01/01 do ano seguinte.
+  const amanha = new Date(data.getFullYear(), data.getMonth(), data.getDate() + 1);
+  const feriadosAmanha = amanha.getFullYear() === data.getFullYear() ? feriadosSet : comercialFeriados(amanha.getFullYear());
+  return !feriadosAmanha.has(comercialChaveData(amanha));
 }
 function comercialDiasUteisNoMes(ano, mesIdx) {
   const feriados = comercialFeriados(ano);
