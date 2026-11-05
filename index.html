@@ -6856,13 +6856,15 @@ const COMERCIAL_TIPOS_CORTE = [
 ];
 // Avanço >= 100% = "Meta atingida"; de 90% a 99,9% = "Próximo da meta"; abaixo = "Abaixo da meta" (limite de 90% é padrão meu, ajustável aqui).
 const COMERCIAL_LIMITE_PROXIMO = 0.90;
-// Município -> base da Enel no Corte. Diferente do Controle no Prazo em UM ponto: Santana do Cariri é Campos Sales aqui
-// (conferido contra a planilha do Igor de 03/11: só assim dá C. Sales 38 / Juazeiro 117 / Milagres 66).
+// Município -> base da Enel no Corte. Diferente do Controle no Prazo: Santana do Cariri, Altaneira, Farias Brito (e Nova Olinda) são
+// Campos Sales aqui. Conferido contra a planilha/relatório da Enel do Igor: 03/11 (38/117/66) e 04/11 (acumulado 67/211/109: Altaneira 5 +
+// Farias Brito 5 + Arneiroz 1 + Jucás 2 eram os cortes que faltavam em Campos Sales). Nova Olinda NÃO foi confirmada pela planilha (só 1 corte em
+// nov), mas todos os cortes dela (55 em out) são de equipes de Campos Sales (CP) -- igual Altaneira e Farias Brito.
 const COMERCIAL_MUNICIPIO_BASE = (() => {
   const m = {};
   const add = (base, lista) => lista.forEach(x => { m[x] = base; });
-  add('Campos Sales', ['AIUABA', 'ANTONINA DO NORTE', 'ARARIPE', 'ASSARE', 'CAMPOS SALES', 'POTENGI', 'SABOEIRO', 'SALITRE', 'SANTANA DO CARIRI', 'TARRAFAS']);
-  add('Juazeiro', ['ALTANEIRA', 'BARBALHA', 'CARIRIACU', 'CRATO', 'FARIAS BRITO', 'GRANJEIRO', 'JARDIM', 'JUAZEIRO DO NORTE', 'NOVA OLINDA']);
+  add('Campos Sales', ['AIUABA', 'ALTANEIRA', 'ANTONINA DO NORTE', 'ARARIPE', 'ARNEIROZ', 'ASSARE', 'CAMPOS SALES', 'FARIAS BRITO', 'JUCAS', 'NOVA OLINDA', 'POTENGI', 'SABOEIRO', 'SALITRE', 'SANTANA DO CARIRI', 'TARRAFAS']);
+  add('Juazeiro', ['BARBALHA', 'CARIRIACU', 'CRATO', 'GRANJEIRO', 'JARDIM', 'JUAZEIRO DO NORTE']);
   add('Milagres', ['ABAIARA', 'AURORA', 'BARRO', 'BREJO SANTO', 'JATI', 'MAURITI', 'MILAGRES', 'MISSAO VELHA', 'PENAFORTE', 'PORTEIRAS']);
   return m;
 })();
