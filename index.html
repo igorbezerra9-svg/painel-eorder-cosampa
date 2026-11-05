@@ -913,15 +913,6 @@
     <button onclick="comercialAvancoPreset('padrao')" class="pg-tipo-btn">Padrão (mês até ontem)</button>
     <button onclick="comercialAvancoPreset('ontem')" id="com-av-bt-ontem" class="pg-tipo-btn">Ontem</button>
     <button onclick="comercialAvancoPreset('hoje')" id="com-av-bt-hoje" class="pg-tipo-btn" title="Acumulado do dia 1 até hoje, com o dia de hoje ainda em andamento">Até hoje (parcial)</button>
-    <span data-com-sub="moto" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
-      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Supervisor:</span>
-      <select id="com-filtro-sup-moto" onchange="comercialFiltroSupMoto(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
-        <option value="">Todos</option>
-        <option value="Jorge Luis">Jorge Luis (Juazeiro)</option>
-        <option value="Helenilton Silva">Helenilton Silva (Milagres)</option>
-        <option value="Cirllek Nepomuceno">Cirllek Nepomuceno (Campos Sales)</option>
-      </select>
-    </span>
   </div>
 
   <div data-com-sub="resumo" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
@@ -975,6 +966,13 @@
         <div class="op-sub">Meta da região no dia ÷ motos ativas no dia. <b>Passar</b> = arredondado pra cima (pra região bater a meta). <b>Pra fechar o mês</b> = quanto cada moto precisa fazer por dia, daqui até o fim do mês, pra região fechar a meta do mês só com as motos (o extra de carros não entra).</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Supervisor:</span>
+        <select id="com-filtro-sup-moto-dia" onchange="comercialFiltroSupMoto(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+          <option value="">Todos</option>
+          <option value="Jorge Luis">Jorge Luis (Juazeiro)</option>
+          <option value="Helenilton Silva">Helenilton Silva (Milagres)</option>
+          <option value="Cirllek Nepomuceno">Cirllek Nepomuceno (Campos Sales)</option>
+        </select>
         <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Dia:</span>
         <input type="date" id="com-dia-meta" onchange="comercialMetaDiaSet()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
         <button onclick="comercialCopiarMetaDiaTexto()" id="btn-com-dia-txt" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar mensagem</button>
@@ -1011,7 +1009,16 @@
         <h3>Meta por moto no período</h3>
         <div class="op-sub">A meta de cada região (tabela da Enel) é dividida, dia útil a dia útil, entre as <b>equipes de moto (MM)</b> do supervisor: Juazeiro = Jorge Luis, Milagres = Helenilton Silva, Campos Sales = Cirllek Nepomuceno. Equipe desligada não entra na divisão. Carros (LB) e outras equipes ficam fora da meta e aparecem como <b>extra</b>. Segue o período do calendário acima.</div>
       </div>
-      <button onclick="comercialCopiarPngEl('com-moto-img','btn-com-moto-png','meta-por-moto')" id="btn-com-moto-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Supervisor:</span>
+        <select id="com-filtro-sup-moto-per" onchange="comercialFiltroSupMoto(this.value)" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+          <option value="">Todos</option>
+          <option value="Jorge Luis">Jorge Luis (Juazeiro)</option>
+          <option value="Helenilton Silva">Helenilton Silva (Milagres)</option>
+          <option value="Cirllek Nepomuceno">Cirllek Nepomuceno (Campos Sales)</option>
+        </select>
+        <button onclick="comercialCopiarPngEl('com-moto-img','btn-com-moto-png','meta-por-moto')" id="btn-com-moto-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+      </div>
     </div>
     <div id="com-moto-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
   </div>
@@ -6944,8 +6951,13 @@ function comercialAvancoPreset(p) {
   }
   comercialRender();
 }
+// Filtro por supervisor: dois seletores (na Meta do dia e na Meta por moto no período) ligados ao mesmo estado.
+function comercialSincronizarFiltroSup() {
+  ['com-filtro-sup-moto-dia', 'com-filtro-sup-moto-per'].forEach(id => { const e = document.getElementById(id); if (e) e.value = com.filtroSupMoto || ''; });
+}
 function comercialFiltroSupMoto(v) {
   com.filtroSupMoto = v || '';
+  comercialSincronizarFiltroSup();
   comercialRender();
 }
 
@@ -7296,6 +7308,7 @@ function comercialCalcularMoto(dados, bases, per, diasUteisMes, ano, mesIdx) {
 
 function comercialRenderMoto(ano, mesIdx, diasUteis) {
   comercialRenderDesligadas();
+  comercialSincronizarFiltroSup();
   const box = document.getElementById('com-moto-img');
   const mesKey = com.mesReferencia;
   const bases = com.detalhePorMes[mesKey] || null;
