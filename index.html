@@ -102,6 +102,9 @@
     background:var(--white);color:var(--gray-700);font-size:11px;font-weight:700;cursor:pointer;
   }
   .pg-tipo-btn.active { background:var(--navy);color:var(--accent);border-color:var(--navy); }
+  /* Indicador Comercial: sub-abas (cada bloco leva data-com-sub="nome [nome2]"; a classe esconde o que não é da sub-aba ativa) */
+  .com-oculto { display:none !important; }
+  .com-subaba { padding:8px 16px;font-size:12.5px; }
 
   .pg-multisel { position:relative; display:inline-block; }
   .pg-multisel-btn {
@@ -892,7 +895,27 @@
     <span id="com-dia-referencia-aviso" style="font-size:12px;color:#b8860b;font-weight:600;"></span>
   </div>
 
-  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+  <!-- Sub-abas do Indicador Comercial -->
+  <div id="com-subabas" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+    <button class="pg-tipo-btn com-subaba" data-sub="resumo" onclick="comercialSubAba('resumo')">📊 Resumo</button>
+    <button class="pg-tipo-btn com-subaba" data-sub="avanco" onclick="comercialSubAba('avanco')">🏢 Avanço por base</button>
+    <button class="pg-tipo-btn com-subaba" data-sub="moto" onclick="comercialSubAba('moto')">🏍️ Meta por moto</button>
+    <button class="pg-tipo-btn com-subaba" data-sub="ranking" onclick="comercialSubAba('ranking')">🏆 Rankings</button>
+    <button class="pg-tipo-btn com-subaba" data-sub="config" onclick="comercialSubAba('config')">⚙ Configurar</button>
+  </div>
+
+  <!-- Calendário único (Avanço por base e Meta por moto usam o mesmo período) -->
+  <div data-com-sub="avanco moto" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:12px;background:var(--white);border:0.5px solid var(--gray-200);border-radius:12px;padding:10px 14px;">
+    <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">📅 Período:</span>
+    <input type="date" id="com-av-de" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+    <span style="color:var(--gray-400);">até</span>
+    <input type="date" id="com-av-ate" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+    <button onclick="comercialAvancoPreset('padrao')" class="pg-tipo-btn">Padrão (mês até ontem)</button>
+    <button onclick="comercialAvancoPreset('ontem')" id="com-av-bt-ontem" class="pg-tipo-btn">Ontem</button>
+    <button onclick="comercialAvancoPreset('hoje')" id="com-av-bt-hoje" class="pg-tipo-btn">Hoje (parcial)</button>
+  </div>
+
+  <div data-com-sub="resumo" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
     <div style="flex:1;min-width:160px;background:#eef3fb;border-radius:12px;padding:14px 16px;">
       <div style="font-size:10px;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px;">✓ Executado (mês)</div>
       <div style="font-size:30px;font-weight:700;color:#1565c0;line-height:1;" id="com-executado">0</div>
@@ -913,7 +936,7 @@
   </div>
 
   <!-- Avanço por base (Corte: Medidor / Poste / Ramal) — meta da Enel por base × tipo, meta proporcional acumulada por dia útil -->
-  <div class="op-panel">
+  <div class="op-panel" data-com-sub="avanco">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div>
         <h3>Avanço por base</h3>
@@ -921,20 +944,10 @@
       </div>
       <button onclick="comercialCopiarPngEl('com-avanco-img','btn-com-avanco-png','avanco-por-base')" id="btn-com-avanco-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
     </div>
-    <!-- Calendário: período do Avanço por base (vale também pra tabela "Realizado × Meta proporcional" logo abaixo) -->
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;font-size:12px;">
-      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">📅 Período:</span>
-      <input type="date" id="com-av-de" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
-      <span style="color:var(--gray-400);">até</span>
-      <input type="date" id="com-av-ate" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
-      <button onclick="comercialAvancoPreset('padrao')" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:5px 10px;font-size:11.5px;cursor:pointer;">Padrão</button>
-      <button onclick="comercialAvancoPreset('ontem')" id="com-av-bt-ontem" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:5px 10px;font-size:11.5px;cursor:pointer;">Ontem</button>
-      <button onclick="comercialAvancoPreset('hoje')" id="com-av-bt-hoje" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:5px 10px;font-size:11.5px;cursor:pointer;">Hoje (parcial)</button>
-    </div>
     <div id="com-avanco-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
   </div>
 
-  <div class="op-panel">
+  <div class="op-panel" data-com-sub="avanco">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div>
         <h3>Realizado × Meta proporcional</h3>
@@ -945,7 +958,56 @@
     <div id="com-prop-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
   </div>
 
-  <div class="op-panel">
+  <!-- Meta do dia: o número que o Igor passa pras equipes (meta da região no dia ÷ motos ativas no dia) -->
+  <div class="op-panel" data-com-sub="moto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+      <div style="max-width:640px;">
+        <h3>🎯 Meta do dia — pra passar pras equipes</h3>
+        <div class="op-sub">Meta da região no dia ÷ motos ativas no dia. <b>Passar</b> = arredondado pra cima (pra região bater a meta). <b>Pra fechar o mês</b> = quanto cada moto precisa fazer por dia, daqui até o fim do mês, pra região fechar a meta do mês só com as motos (o extra de carros não entra).</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Dia:</span>
+        <input type="date" id="com-dia-meta" onchange="comercialMetaDiaSet()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+        <button onclick="comercialCopiarMetaDiaTexto()" id="btn-com-dia-txt" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar mensagem</button>
+        <button onclick="comercialCopiarPngEl('com-dia-img','btn-com-dia-png','meta-do-dia')" id="btn-com-dia-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+      </div>
+    </div>
+    <div id="com-dia-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
+  </div>
+
+  <!-- Equipes desligadas (logo abaixo da Meta do dia, pra ficar à mão): equipe desligada sai da divisão da meta -->
+  <div class="op-panel" data-com-sub="moto">
+    <div id="com-desl-sug" style="margin-bottom:8px;font-size:12px;"></div>
+    <details id="com-desl-det" open>
+      <summary style="cursor:pointer;font-size:14px;font-weight:700;">⏸ Equipes desligadas <span id="com-desl-resumo" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></summary>
+      <div class="op-sub" style="margin-top:6px;">Equipe desligada deixa de entrar na divisão da meta nos dias do período (férias, moto parada, afastamento). Se produzir nesses dias, o que fez vira extra. Deixe "até" em branco pra ficar desligada até você religar.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px;">
+        <select id="com-desl-equipe" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);"></select>
+        <span style="color:var(--gray-400);">de</span>
+        <input type="date" id="com-desl-de" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+        <span style="color:var(--gray-400);">até</span>
+        <input type="date" id="com-desl-ate" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+        <input type="text" id="com-desl-motivo" placeholder="Motivo (opcional)" maxlength="60" style="font-size:12px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;width:170px;">
+        <button onclick="comercialDesligarEquipe()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;">Desligar</button>
+        <span id="com-desl-status" style="font-size:12px;color:var(--gray-400);"></span>
+      </div>
+      <div id="com-desl-lista" style="margin-top:10px;overflow-x:auto;"></div>
+    </details>
+  </div>
+
+  <!-- Meta por moto: a meta de cada região (tabela da Enel) dividida entre as equipes de moto (MM) do supervisor -->
+  <div class="op-panel" data-com-sub="moto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+      <div>
+        <h3>Meta por moto no período</h3>
+        <div class="op-sub">A meta de cada região (tabela da Enel) é dividida, dia útil a dia útil, entre as <b>equipes de moto (MM)</b> do supervisor: Juazeiro = Jorge Luis, Milagres = Helenilton Silva, Campos Sales = Cirllek Nepomuceno. Equipe desligada não entra na divisão. Carros (LB) e outras equipes ficam fora da meta e aparecem como <b>extra</b>. Segue o período do calendário acima.</div>
+      </div>
+      <button onclick="comercialCopiarPngEl('com-moto-img','btn-com-moto-png','meta-por-moto')" id="btn-com-moto-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+    </div>
+    <div id="com-moto-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
+  </div>
+
+  <div class="op-panel" data-com-sub="config">
     <details id="com-enel-det">
       <summary style="cursor:pointer;font-size:14px;font-weight:700;">Meta do mês por base — tabela da Enel <span id="com-enel-resumo" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></summary>
       <div class="op-sub" style="margin-top:6px;">Preencha uma vez por mês com a tabela que a Enel manda (Unidade Operativa × Medidor / Poste / Ramal). A meta do mês lá em cima não muda se já estiver preenchida; se o mês ainda não tem meta, a soma vira a meta.</div>
@@ -958,7 +1020,7 @@
     </details>
   </div>
 
-  <div class="op-panel">
+  <div class="op-panel" data-com-sub="resumo">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div>
         <h3>Realizado × Meta por dia <span id="com-grafico-meta-label" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></h3>
@@ -972,7 +1034,7 @@
     <div id="com-grafico-dias" style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-top:22px;"></div>
   </div>
 
-  <div class="op-panel">
+  <div class="op-panel" data-com-sub="ranking">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div>
         <h3>Ranking por Supervisor</h3>
@@ -992,7 +1054,7 @@
     </div>
   </div>
 
-  <div class="op-panel">
+  <div class="op-panel" data-com-sub="ranking">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;">
       <div>
         <h3>Ranking por Equipe</h3>
@@ -5994,9 +6056,13 @@ const com = {
   metasPorMes: {},      // { 'YYYY-MM': numero } -- vem do Supabase
   detalhePorMes: {},    // { 'YYYY-MM': { 'Campos Sales': {medidor,poste,ramal}, 'Juazeiro': {...}, 'Milagres': {...} } } -- tabela da Enel; meta = soma
   detalheAnterior: {},  // { 'YYYY-MM': {meta, bases} } -- pro "Desfazer" da tabela da Enel
+  desligadas: [],       // [{equipe, de:'YYYY-MM-DD', ate:'YYYY-MM-DD'|null, motivo}] -- equipes de moto fora da divisão da meta (Supabase: Cortes_Equipes)
   enelGridChave: '',    // só reconstrói a grade de digitação quando o dado muda (não apaga o que a pessoa está digitando)
   avancoDe: null,       // calendário do Avanço por base: 'YYYY-MM-DD' ou null (= padrão)
   avancoAte: null,
+  sub: null,            // sub-aba ativa do Indicador Comercial (resumo|avanco|moto|ranking|config)
+  metaDiaChave: null,   // dia escolhido na "Meta do dia" ('YYYY-MM-DD'); null = hoje/próximo dia útil
+  metaDiaCalc: null,    // último cálculo da Meta do dia (usado pra montar a mensagem)
   mediaHistPorSupervisor: {}, // { supervisor: média cortes/equipe/dia, meses passados completos } -- sempre relativa a HOJE de verdade, não muda ao navegar mês
   mesReferencia: '',     // 'YYYY-MM' do mês sendo visto -- pode ser qualquer mês, não só o atual
   dadosMesAtual: [],     // linhas de Corte (categoria + equipe MM) do mês sendo visto (com.mesReferencia)
@@ -6036,6 +6102,7 @@ async function comercialSetMesReferencia(valor) {
   com.mesReferencia = valor;
   com.diaReferencia = null; // trocar de mês reseta o "até o dia" (só se aplica ao mês atual)
   com.avancoDe = null; com.avancoAte = null; // e o calendário do Avanço por base
+  com.metaDiaChave = null;                   // e o dia da Meta do dia
   document.getElementById('com-meta-status').textContent = ''; // mensagem de Salvar/Desfazer era de outro mês
   await comercialCarregarDadosDoMesReferencia();
   comercialRender();
@@ -6312,8 +6379,11 @@ async function comercialCarregar() {
   showToast('⏳ Carregando Indicador Comercial...');
   try {
     if (!com.mesReferencia) com.mesReferencia = comercialMesAtualKey();
+    if (!com.sub) { let s = null; try { s = localStorage.getItem('com_subaba'); } catch (e) { /* ok */ } com.sub = ['resumo', 'avanco', 'moto', 'ranking', 'config'].includes(s) ? s : 'resumo'; }
+    comercialSubAba(com.sub);
     comercialPopularMesReferencia();
     await comercialCarregarMetas();
+    await comercialCarregarEquipes();
     await comercialCarregarDadosDoMesReferencia();
     const cache = comercialCarregarMediaHistoricaCache();
     if (cache) {
@@ -6955,7 +7025,7 @@ function comercialRenderAvanco(ano, mesIdx, diaRef, dadosTodos, diasUteis, trava
     : '· ainda não preenchida pra ' + rotMes;
 
   if (!bases) {
-    const msg = `<div style="padding:18px;text-align:center;color:var(--gray-400);font-size:13px;">Preencha a <b>Meta da Enel</b> de ${rotMes} (tabela no fim desta seção) pra ver o avanço por base.</div>`;
+    const msg = `<div style="padding:18px;text-align:center;color:var(--gray-400);font-size:13px;">Preencha a <b>Meta da Enel</b> de ${rotMes} (${COMERCIAL_LINK_CONFIG}) pra ver o avanço por base.</div>`;
     imgA.innerHTML = msg; imgP.innerHTML = msg;
     nota.textContent = 'Falta a meta da Enel por base e tipo.';
     return;
@@ -7138,6 +7208,396 @@ async function comercialCopiarPngEl(elId, btnId, nomeArq) {
   setTimeout(() => { btn.textContent = original; }, 2200);
 }
 
+// ══ META POR MOTO ══
+// Pedido do Igor (05/11/2026): a meta de cada REGIÃO (tabela da Enel) é dividida entre as equipes de MOTO (MM) do supervisor
+// da região -- Juazeiro = Jorge Luis, Milagres = Helenilton Silva, Campos Sales = Cirllek Nepomuceno. A região de uma moto é a
+// do SUPERVISOR dela (não a cidade onde cortou). Equipe de carro (LB), moto de outro supervisor e moto desligada que produziu
+// ficam FORA da meta e viram "extra". Divisão por dia útil: meta do dia da região ÷ motos ATIVAS naquele dia.
+const COMERCIAL_SUP_BASE = { 'Jorge Luis': 'Juazeiro', 'Helenilton Silva': 'Milagres', 'Cirllek Nepomuceno': 'Campos Sales' };
+
+function comercialMotosPorBase() {
+  const out = {};
+  COMERCIAL_BASES.forEach(b => { out[b.chave] = []; });
+  Object.keys(SUPERVISOR_MAP).forEach(cod => {
+    const base = COMERCIAL_SUP_BASE[SUPERVISOR_MAP[cod]];
+    if (base && getTipoEquipe(cod) === 'MM') out[base].push(cod);
+  });
+  Object.keys(out).forEach(b => out[b].sort());
+  return out;
+}
+function comercialEquipeAtivaEm(cod, kDia) {
+  return !(com.desligadas || []).some(d => d.equipe === cod && d.de <= kDia && (!d.ate || kDia <= d.ate));
+}
+function comercialFmt1(v) { return v.toFixed(1).replace('.', ','); }
+
+function comercialCalcularMoto(dados, bases, per, diasUteisMes, ano, mesIdx) {
+  const motos = comercialMotosPorBase();
+  const feriados = comercialFeriados(ano);
+  const diasPer = [];   // chaves dos dias úteis do período
+  if (!per.vazio) {
+    for (let d = per.de.getDate(); d <= per.ate.getDate(); d++) {
+      const dt = new Date(ano, mesIdx, d);
+      if (comercialEhDiaUtilCorte(dt, feriados)) diasPer.push(comercialChaveData(dt));
+    }
+  }
+  const kDe = comercialChaveData(per.de), kAte = comercialChaveData(per.ate);
+  const ultimoK = diasPer.length ? diasPer[diasPer.length - 1] : kAte;
+  const regioes = COMERCIAL_BASES.map(b => {
+    const metaMes = bases ? COMERCIAL_TIPOS_CORTE.reduce((s, t) => s + (Number(bases[b.chave] && bases[b.chave][t.k]) || 0), 0) : 0;
+    const metaDia = diasUteisMes ? metaMes / diasUteisMes : 0;
+    const equipes = motos[b.chave].map(cod => ({ cod, base: b.chave, meta: 0, diasAtiva: 0, real: 0 }));
+    let diasSemMoto = 0;
+    diasPer.forEach(k => {
+      const ativas = equipes.filter(e => comercialEquipeAtivaEm(e.cod, k));
+      if (!ativas.length) { diasSemMoto++; return; }
+      ativas.forEach(e => { e.meta += metaDia / ativas.length; e.diasAtiva++; });
+    });
+    const ativasUltimo = equipes.filter(e => comercialEquipeAtivaEm(e.cod, ultimoK)).length;
+    return {
+      ...b, metaMes, metaDia, equipes, diasSemMoto, ativasUltimo,
+      metaDiaMoto: ativasUltimo ? metaDia / ativasUltimo : null,
+      metaPeriodo: diasUteisMes ? metaMes * diasPer.length / diasUteisMes : 0,
+      real: 0, extra: 0,
+    };
+  });
+  const porBase = {}; regioes.forEach(r => { porBase[r.chave] = r; });
+  const porEquipe = {}; regioes.forEach(r => r.equipes.forEach(e => { porEquipe[e.cod] = e; }));
+  let extraSemBase = 0;
+  (dados || []).forEach(r => {
+    if (!r.__data || r.__data < kDe || r.__data > kAte) return;
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    const cod = r['Recurso/Equipe'] || '';
+    const e = porEquipe[cod];
+    if (e && comercialEquipeAtivaEm(cod, r.__data)) { e.real++; porBase[e.base].real++; return; }
+    // fora da meta: carro (LB), moto de outro supervisor/sem cadastro, ou moto desligada que produziu
+    const alvo = e ? e.base : comercialBaseDoCorte(r).base;
+    if (alvo) porBase[alvo].extra++; else extraSemBase++;
+  });
+  return { regioes, extraSemBase, diasPer, ultimoK };
+}
+
+function comercialRenderMoto(ano, mesIdx, diasUteis) {
+  comercialRenderDesligadas();
+  const box = document.getElementById('com-moto-img');
+  const mesKey = com.mesReferencia;
+  const bases = com.detalhePorMes[mesKey] || null;
+  const rotMes = OP_MESES_LABEL[mesIdx] + '/' + String(ano).slice(2);
+  if (!bases) {
+    box.innerHTML = `<div style="padding:18px;text-align:center;color:var(--gray-400);font-size:13px;">Preencha a <b>Meta da Enel</b> de ${rotMes} (${COMERCIAL_LINK_CONFIG}) pra dividir a meta entre as motos.</div>`;
+    return;
+  }
+  const ehMesAtual = mesKey === comercialMesAtualKey();
+  const per = comercialAvancoPeriodo(ano, mesIdx, ehMesAtual);
+  const kDe = comercialChaveData(per.de), kAte = comercialChaveData(per.ate);
+  const dm = per.vazio ? '—' : (kDe === kAte ? comercialDM(per.de) : (per.de.getDate() === 1 ? 'até ' + comercialDM(per.ate) : comercialDM(per.de) + ' a ' + comercialDM(per.ate)));
+  const incluiHoje = ehMesAtual && !per.vazio && kAte === comercialChaveData(hoje);
+  const calc = comercialCalcularMoto(com.dadosMesAtualTodos || [], bases, per, diasUteis, ano, mesIdx);
+
+  const C = 'padding:8px 10px;text-align:center;border:1px solid #d9d9d9;font-size:12.5px;';
+  const H = 'padding:8px 10px;text-align:center;font-size:11px;font-weight:700;color:#fff;background:#3b3b3b;border:1px solid #fff;text-transform:uppercase;letter-spacing:.4px;';
+  const titulo = (txt) => `<div style="font-size:13px;font-weight:800;color:#14213d;margin:2px 0 8px;">${txt}</div>`;
+  const celAv = (real, meta) => { const p = comercialPct(real, meta); return `<td style="${C}background:${comercialCorAvanco(p)};">${comercialPctTxt(p)}</td>`; };
+  const gapTd = (real, meta, bg) => {
+    if (!(meta > 0)) return `<td style="${C}${bg || ''}">—</td>`;
+    const g = Math.round(real - meta);
+    return `<td style="${C}${bg || ''}color:${g > 0 ? '#1a7a40' : g < 0 ? '#c0392b' : '#222'};font-weight:700;">${(g > 0 ? '+' : '') + g}</td>`;
+  };
+
+  // ── tabela 1: por região
+  let h = titulo(`META POR MOTO · CORTE · ${rotMes} · ${dm}${incluiHoje ? ' (parcial)' : ''}`) +
+    `<table style="border-collapse:collapse;width:100%;min-width:760px;"><thead><tr>` +
+    ['Região', 'Supervisor', 'Motos ativas', 'Meta/moto/dia', 'Meta (período)', 'Realizado (motos)', 'Avanço', 'Gap', 'Extra'].map(x => `<th style="${H}">${x}</th>`).join('') +
+    `</tr></thead><tbody>`;
+  const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
+  const tot = { ativas: 0, cad: 0, meta: 0, real: 0, extra: calc.extraSemBase };
+  calc.regioes.forEach(r => {
+    tot.ativas += r.ativasUltimo; tot.cad += r.equipes.length; tot.meta += r.metaPeriodo; tot.real += r.real; tot.extra += r.extra;
+    h += `<tr><td style="${C}font-weight:700;text-align:left;">${r.rot}</td><td style="${C}">${supDe[r.chave] || '—'}</td>` +
+      `<td style="${C}">${r.ativasUltimo} de ${r.equipes.length}</td><td style="${C}">${r.metaDiaMoto === null ? '—' : comercialFmt1(r.metaDiaMoto)}</td>` +
+      `<td style="${C}">${Math.round(r.metaPeriodo)}</td><td style="${C}font-weight:700;">${r.real}</td>` +
+      celAv(r.real, r.metaPeriodo) + gapTd(r.real, r.metaPeriodo) + `<td style="${C}color:#666;">${r.extra}</td></tr>`;
+  });
+  const bgT = 'background:#e7e6e6;font-weight:800;';
+  h += `<tr style="${bgT}"><td style="${C}${bgT}text-align:left;">SUL</td><td style="${C}${bgT}">TOTAL</td><td style="${C}${bgT}">${tot.ativas} de ${tot.cad}</td><td style="${C}${bgT}">—</td>` +
+    `<td style="${C}${bgT}">${Math.round(tot.meta)}</td><td style="${C}${bgT}">${tot.real}</td>` + celAv(tot.real, tot.meta) + gapTd(tot.real, tot.meta, bgT) +
+    `<td style="${C}${bgT}color:#666;">${tot.extra}</td></tr></tbody></table>`;
+
+  // ── tabela 2: por equipe (todas as motos cadastradas dos 3 supervisores, mesmo as sem produção)
+  h += `<div style="height:14px;"></div>` + titulo('POR EQUIPE DE MOTO') +
+    `<table style="border-collapse:collapse;width:100%;min-width:760px;"><thead><tr>` +
+    ['Equipe', 'Região', 'Dias ativa', 'Meta', 'Realizado', 'Avanço', 'Gap'].map(x => `<th style="${H}">${x}</th>`).join('') + `</tr></thead><tbody>`;
+  calc.regioes.forEach(r => {
+    [...r.equipes].sort((a, b) => b.real - a.real || a.cod.localeCompare(b.cod)).forEach(e => {
+      const desl = (com.desligadas || []).filter(d => d.equipe === e.cod && !per.vazio && d.de <= kAte && (!d.ate || d.ate >= kDe));
+      const tag = desl.length ? ` <span title="${desl.map(d => 'desligada ' + d.de.split('-').reverse().slice(0, 2).join('/') + (d.ate ? ' a ' + d.ate.split('-').reverse().slice(0, 2).join('/') : ' em diante') + (d.motivo ? ' — ' + pzEsc(d.motivo) : '')).join('; ')}" style="background:#fff3e8;color:#bf360c;border-radius:3px;padding:0 5px;font-size:10px;font-weight:700;">⏸ desligada</span>` : '';
+      const cinza = e.diasAtiva === 0 ? 'color:#999;' : '';
+      h += `<tr><td style="${C}font-family:monospace;font-weight:700;text-align:left;${cinza}">${e.cod}${tag}</td><td style="${C}${cinza}">${r.rot}</td>` +
+        `<td style="${C}${cinza}">${e.diasAtiva} de ${calc.diasPer.length}</td><td style="${C}${cinza}">${e.diasAtiva ? comercialFmt1(e.meta) : '—'}</td>` +
+        `<td style="${C}font-weight:700;${cinza}">${e.real}</td>` + celAv(e.real, e.meta) + gapTd(e.real, e.meta) + `</tr>`;
+    });
+  });
+  h += `</tbody></table>`;
+  h += `<div style="margin-top:8px;font-size:11px;color:#888;">Meta de cada região ÷ motos ativas em cada dia útil. Extra = carros (LB), motos de outro supervisor e motos desligadas que produziram: não entram na meta.</div>`;
+  box.innerHTML = h;
+
+  const avisos = [];
+  calc.regioes.forEach(r => { if (r.diasSemMoto) avisos.push(r.longo + ': ' + r.diasSemMoto + ' dia(s) sem nenhuma moto ativa — a meta desses dias não foi dividida'); });
+  if (calc.extraSemBase) avisos.push(calc.extraSemBase + ' corte(s) extra sem região identificada');
+  if (avisos.length) box.innerHTML += `<div class="ctrl-nocap" style="margin-top:6px;font-size:11px;color:#b8860b;">⚠ ${avisos.join(' · ')}</div>`;
+}
+
+// ── Sub-abas do Indicador Comercial (Resumo / Avanço por base / Meta por moto / Rankings / Configurar)
+function comercialSubAba(nome) {
+  com.sub = nome;
+  try { localStorage.setItem('com_subaba', nome); } catch (e) { /* sem localStorage: só não lembra a última */ }
+  document.querySelectorAll('#com-subabas [data-sub]').forEach(b => b.classList.toggle('active', b.dataset.sub === nome));
+  document.querySelectorAll('#comercial-section [data-com-sub]').forEach(el => el.classList.toggle('com-oculto', !el.dataset.comSub.split(' ').includes(nome)));
+}
+const COMERCIAL_LINK_CONFIG = `<a onclick="comercialSubAba('config')" style="cursor:pointer;color:#1565c0;text-decoration:underline;">abrir ⚙ Configurar</a>`;
+const COMERCIAL_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+
+// ── Meta do dia: o número que o Igor passa pras equipes.
+// Meta da região no dia (meta do mês ÷ dias úteis) ÷ motos ATIVAS naquele dia. "Passar" = arredondado pra cima (pra região bater a meta).
+// "Pra fechar o mês" = (meta do mês − realizado das motos até o dia anterior) ÷ dias úteis que restam (incluindo o dia) ÷ motos ativas.
+function comercialMetaDiaPadrao(ano, mesIdx, ehMesAtual) {
+  const feriados = comercialFeriados(ano);
+  const ultimo = new Date(ano, mesIdx + 1, 0).getDate();
+  const util = d => comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados);
+  if (ehMesAtual) { for (let d = hoje.getDate(); d <= ultimo; d++) if (util(d)) return comercialChaveData(new Date(ano, mesIdx, d)); }
+  else { for (let d = ultimo; d >= 1; d--) if (util(d)) return comercialChaveData(new Date(ano, mesIdx, d)); }
+  return comercialChaveData(new Date(ano, mesIdx, ultimo));
+}
+function comercialCalcularMetaDia(kDia, bases, diasUteisMes, ano, mesIdx) {
+  const motos = comercialMotosPorBase();
+  const feriados = comercialFeriados(ano);
+  const dia = comercialParseChave(kDia);
+  const util = comercialEhDiaUtilCorte(dia, feriados);
+  const ultimo = new Date(ano, mesIdx + 1, 0).getDate();
+  let restantes = 0;
+  for (let d = dia.getDate(); d <= ultimo; d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) restantes++;
+  const baseDe = {}; COMERCIAL_BASES.forEach(b => motos[b.chave].forEach(c => { baseDe[c] = b.chave; }));
+  const real = {}; COMERCIAL_BASES.forEach(b => { real[b.chave] = 0; });
+  (com.dadosMesAtualTodos || []).forEach(r => {
+    if (!r.__data || r.__data >= kDia || opClassificar(r) !== 'PRODUTIVO') return;
+    const cod = r['Recurso/Equipe'] || '';
+    if (baseDe[cod] && comercialEquipeAtivaEm(cod, r.__data)) real[baseDe[cod]]++;
+  });
+  const teto = v => Math.ceil(v - 1e-9);
+  const regioes = COMERCIAL_BASES.map(b => {
+    const metaMes = COMERCIAL_TIPOS_CORTE.reduce((s, t) => s + (Number(bases[b.chave] && bases[b.chave][t.k]) || 0), 0);
+    const metaDia = diasUteisMes ? metaMes / diasUteisMes : 0;
+    const ativas = motos[b.chave].filter(c => comercialEquipeAtivaEm(c, kDia));
+    const n = ativas.length;
+    const porMoto = util && n ? metaDia / n : null;
+    const falta = Math.max(metaMes - real[b.chave], 0);
+    const fechar = util && n && restantes ? falta / restantes / n : null;
+    return { ...b, metaMes, metaDia: util ? metaDia : 0, ativas, n, porMoto, passar: porMoto === null ? null : teto(porMoto),
+      real: real[b.chave], falta, fechar, passarFechar: fechar === null ? null : teto(fechar) };
+  });
+  return { util, dia, kDia, regioes, restantes };
+}
+function comercialMetaDiaSet() {
+  com.metaDiaChave = document.getElementById('com-dia-meta').value || null;
+  comercialRender();
+}
+function comercialRenderMetaDia(ano, mesIdx, diasUteis) {
+  const box = document.getElementById('com-dia-img');
+  const inp = document.getElementById('com-dia-meta');
+  const mesKey = com.mesReferencia;
+  const bases = com.detalhePorMes[mesKey] || null;
+  const ehMesAtual = mesKey === comercialMesAtualKey();
+  const rotMes = OP_MESES_LABEL[mesIdx] + '/' + String(ano).slice(2);
+  inp.min = comercialChaveData(new Date(ano, mesIdx, 1));
+  inp.max = comercialChaveData(new Date(ano, mesIdx + 1, 0));
+  let k = com.metaDiaChave && com.metaDiaChave.slice(0, 7) === mesKey ? com.metaDiaChave : comercialMetaDiaPadrao(ano, mesIdx, ehMesAtual);
+  inp.value = k;
+  com.metaDiaCalc = null;
+  if (!bases) {
+    box.innerHTML = `<div style="padding:18px;text-align:center;color:var(--gray-400);font-size:13px;">Preencha a <b>Meta da Enel</b> de ${rotMes} (${COMERCIAL_LINK_CONFIG}) pra calcular a meta por moto.</div>`;
+    return;
+  }
+  const calc = comercialCalcularMetaDia(k, bases, diasUteis, ano, mesIdx);
+  com.metaDiaCalc = calc;
+  const rotDia = COMERCIAL_SEMANA[calc.dia.getDay()] + ' ' + comercialDM(calc.dia);
+  const titulo = (txt) => `<div style="font-size:13px;font-weight:800;color:#14213d;margin:2px 0 8px;">${txt}</div>`;
+  if (!calc.util) {
+    let prox = null;
+    const feriados = comercialFeriados(ano);
+    for (let d = calc.dia.getDate() + 1, u = new Date(ano, mesIdx + 1, 0).getDate(); d <= u; d++) { if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) { prox = new Date(ano, mesIdx, d); break; } }
+    box.innerHTML = titulo('META DO DIA · ' + rotDia) +
+      `<div style="padding:14px 4px;font-size:13px;color:#555;">Esse dia <b>não tem meta de Corte</b> (só segunda a quinta; fora feriado e véspera de feriado — o que for feito vira extra).${prox ? ` Próximo dia com meta: <b>${COMERCIAL_SEMANA[prox.getDay()]} ${comercialDM(prox)}</b>.` : ''}</div>`;
+    return;
+  }
+  const C = 'padding:9px 10px;text-align:center;border:1px solid #d9d9d9;font-size:13px;';
+  const H = 'padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#fff;background:#3b3b3b;border:1px solid #fff;text-transform:uppercase;letter-spacing:.4px;';
+  const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
+  let h = titulo(`META DO DIA · ${rotDia} · CORTE E RECORTE DUNNING`) +
+    `<table style="border-collapse:collapse;width:100%;min-width:700px;"><thead><tr>` +
+    ['Região', 'Supervisor', 'Motos ativas', 'Meta da região', 'Meta por moto', 'PASSAR (por moto)', 'Pra fechar o mês (por moto/dia)'].map(x => `<th style="${H}">${x}</th>`).join('') + `</tr></thead><tbody>`;
+  let totDia = 0, totN = 0;
+  calc.regioes.forEach(r => {
+    totDia += r.metaDia; totN += r.n;
+    let fechar = '—';
+    if (r.passarFechar !== null) {
+      const atras = r.passarFechar > r.passar;
+      fechar = `<span style="font-weight:800;color:${atras ? '#b8860b' : '#1a7a40'};">${r.passarFechar}</span> <span style="font-size:10.5px;color:#888;">(${comercialFmt1(r.fechar)})${atras ? ' ↑ acima da meta do dia' : ' ✓ no ritmo'}</span>`;
+    }
+    h += `<tr><td style="${C}font-weight:700;text-align:left;">${r.longo}</td><td style="${C}">${supDe[r.chave] || '—'}</td><td style="${C}">${r.n}</td>` +
+      `<td style="${C}">${Math.round(r.metaDia)}</td><td style="${C}">${r.porMoto === null ? '—' : comercialFmt1(r.porMoto)}</td>` +
+      `<td style="${C}background:#14213d;color:#f5a623;font-size:22px;font-weight:900;">${r.passar === null ? '—' : r.passar}</td><td style="${C}">${fechar}</td></tr>` +
+      `<tr><td colspan="7" style="padding:4px 10px 8px;border:1px solid #d9d9d9;border-top:none;font-size:10.5px;color:#777;font-family:monospace;text-align:left;">${r.n ? r.ativas.join(' · ') : 'nenhuma moto ativa'}</td></tr>`;
+  });
+  const bgT = 'background:#e7e6e6;font-weight:800;';
+  h += `<tr style="${bgT}"><td style="${C}${bgT}text-align:left;">SUL</td><td style="${C}${bgT}">TOTAL</td><td style="${C}${bgT}">${totN}</td><td style="${C}${bgT}">${Math.round(totDia)}</td><td style="${C}${bgT}">—</td><td style="${C}${bgT}">—</td><td style="${C}${bgT}">—</td></tr></tbody></table>`;
+  h += `<div style="margin-top:8px;font-size:11px;color:#888;">Meta da região no dia ÷ motos ativas no dia. "Passar" arredonda pra cima. Carros (LB) e outras equipes não entram: o que fizerem é extra.</div>`;
+  box.innerHTML = h;
+}
+function comercialMetaDiaTexto() {
+  const c = com.metaDiaCalc;
+  if (!c || !c.util) return '';
+  const rotDia = COMERCIAL_SEMANA[c.dia.getDay()] + ' ' + comercialDM(c.dia);
+  const supDe = {}; Object.keys(COMERCIAL_SUP_BASE).forEach(s => { supDe[COMERCIAL_SUP_BASE[s]] = s; });
+  const linhas = [`🎯 *Meta do dia — ${rotDia}*`, '_Corte e Recorte Dunning_', ''];
+  let tot = 0;
+  c.regioes.forEach(r => {
+    tot += r.metaDia;
+    linhas.push(`*${r.longo}* · ${supDe[r.chave] || ''} · ${r.n} moto${r.n === 1 ? '' : 's'}`);
+    linhas.push(`Meta da região: ${Math.round(r.metaDia)} → *${r.passar === null ? '—' : r.passar} cortes por moto*`);
+    if (r.passarFechar !== null && r.passarFechar > r.passar) linhas.push(`Pra fechar o mês: ${r.passarFechar} por moto por dia`);
+    linhas.push('');
+  });
+  linhas.push(`_Meta total do dia: ${Math.round(tot)}_`);
+  return linhas.join('\n');
+}
+function comercialCopiarMetaDiaTexto() {
+  const btn = document.getElementById('btn-com-dia-txt');
+  const txt = comercialMetaDiaTexto();
+  if (!txt) { showToast('Esse dia não tem meta de Corte — escolha um dia útil (seg a qui)', 3500); return; }
+  navigator.clipboard.writeText(txt).then(() => {
+    const original = btn.textContent;
+    btn.textContent = '✔ Copiado!';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }).catch(() => showToast('Não foi possível copiar', 3000));
+}
+
+// ── equipes desligadas (Supabase: snapshots, regiao 'Cortes_Equipes')
+async function comercialCarregarEquipes() {
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      const res = await fetch(SB_URL + '/rest/v1/snapshots?regiao=eq.Cortes_Equipes&select=dados', { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const rows = await res.json();
+      if (!Array.isArray(rows)) throw new Error('resposta inesperada');
+      const lista = (rows[0] && rows[0].dados) || [];
+      com.desligadas = Array.isArray(lista) ? lista.filter(d => d && d.equipe && d.de) : [];
+      return;
+    } catch (e) {
+      if (tentativa < 3) await new Promise(r => setTimeout(r, 800));
+    }
+  }
+  showToast('⚠️ Não deu pra carregar as equipes desligadas (falha no Supabase) -- tenta recarregar', 5000);
+}
+async function comercialGravarEquipes(status, msgOk, listaAntes) {
+  try {
+    const corpo = JSON.stringify({ regiao: 'Cortes_Equipes', dados: com.desligadas, atualizado_em: new Date().toISOString() });
+    const res = await fetch(SB_URL + '/rest/v1/snapshots', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: corpo,
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    status.textContent = msgOk; status.style.color = '#1a7a40';
+    comercialRender();
+    return true;
+  } catch (e) {
+    com.desligadas = listaAntes;                      // não deixa a tela mostrar o que não foi salvo
+    status.textContent = 'Erro ao salvar -- tenta de novo'; status.style.color = '#c0392b';
+    comercialRender();
+    return false;
+  }
+}
+function comercialRenderDesligadas() {
+  const sel = document.getElementById('com-desl-equipe');
+  if (!sel.options.length) {
+    const motos = comercialMotosPorBase();
+    sel.innerHTML = COMERCIAL_BASES.map(b => `<optgroup label="${b.longo}">` + motos[b.chave].map(c => `<option value="${c}">${c}</option>`).join('') + `</optgroup>`).join('');
+  }
+  const deEl = document.getElementById('com-desl-de');
+  if (!deEl.value) deEl.value = comercialChaveData(hoje);
+  const lista = com.desligadas || [];
+  const dmy = k => k.split('-').reverse().join('/');
+  const sug = comercialSugestoesDesligar();
+  document.getElementById('com-desl-resumo').textContent = (lista.length ? '· ' + lista.length + ' registro(s)' : '· nenhuma') + (sug.length ? ' · ⚠ ' + sug.length + ' sugestão(ões)' : '');
+  const [anoS, mesS] = com.mesReferencia.split('-').map(Number);
+  document.getElementById('com-desl-sug').innerHTML = sug.length
+    ? `<div style="background:#fff8e6;border:1px solid #f0d58c;border-radius:8px;padding:8px 12px;">⚠ <b>Sem nenhum corte em ${OP_MESES_LABEL[mesS - 1]}/${String(anoS).slice(2)}:</b> <span style="font-family:monospace;">${sug.join(' · ')}</span> ` +
+      `<button onclick="comercialDesligarSugeridas()" style="margin-left:8px;background:var(--navy);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;">Desligar essas ${sug.length} (desde o dia 1, até religar)</button></div>`
+    : '';
+  document.getElementById('com-desl-lista').innerHTML = lista.length
+    ? `<table class="op-table"><thead><tr><th>Equipe</th><th>De</th><th>Até</th><th>Motivo</th><th></th></tr></thead><tbody>` +
+      lista.map((d, i) => `<tr><td class="op-eqcode">${pzEsc(d.equipe)}</td><td>${dmy(d.de)}</td><td>${d.ate ? dmy(d.ate) : '<i>em aberto</i>'}</td><td>${pzEsc(d.motivo || '')}</td>` +
+        `<td style="white-space:nowrap;">${!d.ate ? `<a onclick="comercialReligarEquipe(${i})" style="cursor:pointer;color:#1565c0;text-decoration:underline;margin-right:10px;">▶ Religar</a>` : ''}<a onclick="comercialRemoverDesligamento(${i})" style="cursor:pointer;color:#c0392b;text-decoration:underline;">Remover</a></td></tr>`).join('') +
+      `</tbody></table>`
+    : '<div style="font-size:12px;color:var(--gray-400);">Nenhuma equipe desligada.</div>';
+}
+// Motos (dos 3 supervisores) com ZERO corte produtivo no mês visto e ainda não desligadas -- candidatas a desligar (moto parada, férias,
+// equipe que não existe mais). Só sugere com pelo menos 3 dias de produção no mês: no começo do mês todo mundo está zerado.
+function comercialSugestoesDesligar() {
+  if (com.mesReferencia !== comercialMesAtualKey()) return [];
+  const dias = new Set(), porEq = {};
+  (com.dadosMesAtualTodos || []).forEach(r => {
+    if (!r.__data || opClassificar(r) !== 'PRODUTIVO') return;
+    dias.add(r.__data);
+    const c = r['Recurso/Equipe']; if (c) porEq[c] = (porEq[c] || 0) + 1;
+  });
+  if (dias.size < 3) return [];
+  const kHoje = comercialChaveData(hoje);
+  const motos = comercialMotosPorBase();
+  return COMERCIAL_BASES.flatMap(b => motos[b.chave]).filter(c => !porEq[c] && comercialEquipeAtivaEm(c, kHoje));
+}
+async function comercialDesligarSugeridas() {
+  const sug = comercialSugestoesDesligar();
+  if (!sug.length) return;
+  const status = document.getElementById('com-desl-status');
+  const antes = (com.desligadas || []).slice();
+  const de = com.mesReferencia + '-01';
+  com.desligadas = [...antes, ...sug.map(equipe => ({ equipe, de, ate: null, motivo: 'sem corte no mês (sugestão do painel)' }))];
+  status.textContent = 'Salvando...'; status.style.color = 'var(--gray-400)';
+  await comercialGravarEquipes(status, '✔ ' + sug.length + ' equipe(s) desligada(s): ' + sug.join(', '), antes);
+}
+async function comercialDesligarEquipe() {
+  const status = document.getElementById('com-desl-status');
+  const equipe = document.getElementById('com-desl-equipe').value;
+  const de = document.getElementById('com-desl-de').value;
+  const ate = document.getElementById('com-desl-ate').value || null;
+  const motivo = document.getElementById('com-desl-motivo').value.trim();
+  if (!equipe || !de) { status.textContent = 'Escolha a equipe e a data inicial'; status.style.color = '#c0392b'; return; }
+  if (ate && ate < de) { status.textContent = '"Até" não pode ser antes de "De"'; status.style.color = '#c0392b'; return; }
+  const antes = (com.desligadas || []).slice();
+  com.desligadas = [...antes, { equipe, de, ate, motivo }];
+  status.textContent = 'Salvando...'; status.style.color = 'var(--gray-400)';
+  if (await comercialGravarEquipes(status, '✔ ' + equipe + ' desligada', antes)) document.getElementById('com-desl-motivo').value = '';
+}
+async function comercialRemoverDesligamento(i) {
+  const status = document.getElementById('com-desl-status');
+  const antes = (com.desligadas || []).slice();
+  if (!antes[i]) return;
+  com.desligadas = antes.filter((_, j) => j !== i);
+  status.textContent = 'Salvando...'; status.style.color = 'var(--gray-400)';
+  await comercialGravarEquipes(status, '✔ Registro removido', antes);
+}
+// Religar = fecha o período em aberto ontem (guarda o histórico: os dias já passados continuam sem essa equipe).
+async function comercialReligarEquipe(i) {
+  const status = document.getElementById('com-desl-status');
+  const antes = (com.desligadas || []).slice();
+  const d = antes[i];
+  if (!d) return;
+  const ontemK = comercialChaveData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1));
+  com.desligadas = ontemK < d.de ? antes.filter((_, j) => j !== i) : antes.map((x, j) => j === i ? { ...x, ate: ontemK } : x);
+  status.textContent = 'Salvando...'; status.style.color = 'var(--gray-400)';
+  await comercialGravarEquipes(status, '✔ ' + d.equipe + ' religada a partir de hoje', antes);
+}
+
 function comercialRender() {
   const [ano, mesNum] = com.mesReferencia.split('-').map(Number);
   const mesIdx = mesNum - 1;
@@ -7217,6 +7677,8 @@ function comercialRender() {
   // calculada só com MM.
   com.rateio = comercialCalcularRateio(dadosAteRef, meta, falta, diasRestantes, metaDefinida);
   comercialRenderAvanco(ano, mesIdx, diaRef, dadosAteRefTodos, diasUteis, vendoDiaPassado);
+  comercialRenderMoto(ano, mesIdx, diasUteis);
+  comercialRenderMetaDia(ano, mesIdx, diasUteis);
   comercialRenderGrafico(ano, mesIdx, metaDia, diaRef, dadosAteRefTodos);
   comercialRenderTabelaSupervisor(com.rateio);
   comercialRenderTabelaEquipe(dadosAteRef);
