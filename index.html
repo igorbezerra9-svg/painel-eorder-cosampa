@@ -912,6 +912,52 @@
     </div>
   </div>
 
+  <!-- Avanço por base (Corte: Medidor / Poste / Ramal) — meta da Enel por base × tipo, meta proporcional acumulada por dia útil -->
+  <div class="op-panel">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+      <div>
+        <h3>Avanço por base</h3>
+        <div class="op-sub" id="com-avanco-nota">—</div>
+      </div>
+      <button onclick="comercialCopiarPngEl('com-avanco-img','btn-com-avanco-png','avanco-por-base')" id="btn-com-avanco-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+    </div>
+    <!-- Calendário: período do Avanço por base (vale também pra tabela "Realizado × Meta proporcional" logo abaixo) -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;font-size:12px;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">📅 Período:</span>
+      <input type="date" id="com-av-de" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+      <span style="color:var(--gray-400);">até</span>
+      <input type="date" id="com-av-ate" onchange="comercialAvancoSetPeriodo()" style="font-size:12px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);">
+      <button onclick="comercialAvancoPreset('padrao')" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:5px 10px;font-size:11.5px;cursor:pointer;">Padrão</button>
+      <button onclick="comercialAvancoPreset('ontem')" id="com-av-bt-ontem" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:5px 10px;font-size:11.5px;cursor:pointer;">Ontem</button>
+      <button onclick="comercialAvancoPreset('hoje')" id="com-av-bt-hoje" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:5px 10px;font-size:11.5px;cursor:pointer;">Hoje (parcial)</button>
+    </div>
+    <div id="com-avanco-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
+  </div>
+
+  <div class="op-panel">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+      <div>
+        <h3>Realizado × Meta proporcional</h3>
+        <div class="op-sub">Por base e tipo de corte (Medidor, Poste, Ramal). Meta proporcional = meta da Enel ÷ dias úteis do mês × dias úteis até o dia escolhido.</div>
+      </div>
+      <button onclick="comercialCopiarPngEl('com-prop-img','btn-com-prop-png','realizado-x-meta-proporcional')" id="btn-com-prop-png" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">🖼️ Copiar PNG</button>
+    </div>
+    <div id="com-prop-img" style="background:#fff;padding:8px 0;overflow-x:auto;"></div>
+  </div>
+
+  <div class="op-panel">
+    <details id="com-enel-det">
+      <summary style="cursor:pointer;font-size:14px;font-weight:700;">Meta do mês por base — tabela da Enel <span id="com-enel-resumo" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></summary>
+      <div class="op-sub" style="margin-top:6px;">Preencha uma vez por mês com a tabela que a Enel manda (Unidade Operativa × Medidor / Poste / Ramal). A meta do mês lá em cima não muda se já estiver preenchida; se o mês ainda não tem meta, a soma vira a meta.</div>
+      <div id="com-enel-grid" style="margin-top:10px;overflow-x:auto;"></div>
+      <div id="com-enel-dif" style="font-size:12px;margin-top:8px;"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+        <button onclick="comercialSalvarEnel()" id="com-enel-salvar-btn" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">Salvar meta da Enel</button>
+        <span id="com-enel-status" style="font-size:12px;color:var(--gray-400);"></span>
+      </div>
+    </details>
+  </div>
+
   <div class="op-panel">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div>
@@ -5946,6 +5992,11 @@ async function ctrlCopiarImagem() {
 // Supabase (mesma chave pública já usada em todo o painel).
 const com = {
   metasPorMes: {},      // { 'YYYY-MM': numero } -- vem do Supabase
+  detalhePorMes: {},    // { 'YYYY-MM': { 'Campos Sales': {medidor,poste,ramal}, 'Juazeiro': {...}, 'Milagres': {...} } } -- tabela da Enel; meta = soma
+  detalheAnterior: {},  // { 'YYYY-MM': {meta, bases} } -- pro "Desfazer" da tabela da Enel
+  enelGridChave: '',    // só reconstrói a grade de digitação quando o dado muda (não apaga o que a pessoa está digitando)
+  avancoDe: null,       // calendário do Avanço por base: 'YYYY-MM-DD' ou null (= padrão)
+  avancoAte: null,
   mediaHistPorSupervisor: {}, // { supervisor: média cortes/equipe/dia, meses passados completos } -- sempre relativa a HOJE de verdade, não muda ao navegar mês
   mesReferencia: '',     // 'YYYY-MM' do mês sendo visto -- pode ser qualquer mês, não só o atual
   dadosMesAtual: [],     // linhas de Corte (categoria + equipe MM) do mês sendo visto (com.mesReferencia)
@@ -5984,6 +6035,7 @@ function comercialPopularMesReferencia() {
 async function comercialSetMesReferencia(valor) {
   com.mesReferencia = valor;
   com.diaReferencia = null; // trocar de mês reseta o "até o dia" (só se aplica ao mês atual)
+  com.avancoDe = null; com.avancoAte = null; // e o calendário do Avanço por base
   document.getElementById('com-meta-status').textContent = ''; // mensagem de Salvar/Desfazer era de outro mês
   await comercialCarregarDadosDoMesReferencia();
   comercialRender();
@@ -6072,7 +6124,12 @@ async function comercialCarregarMetas() {
       if (!Array.isArray(rows)) throw new Error('resposta inesperada');
       const lista = (rows[0] && rows[0].dados) || [];
       com.metasPorMes = {};
-      lista.forEach(item => { if (item && item.mes) com.metasPorMes[item.mes] = Number(item.meta) || 0; });
+      com.detalhePorMes = {};
+      lista.forEach(item => {
+        if (!item || !item.mes) return;
+        com.metasPorMes[item.mes] = Number(item.meta) || 0;
+        if (item.bases && typeof item.bases === 'object') com.detalhePorMes[item.mes] = item.bases;
+      });
       return;
     } catch (e) {
       if (tentativa < 3) await new Promise(r => setTimeout(r, 800));
@@ -6085,7 +6142,8 @@ async function comercialCarregarMetas() {
 // todo -- é assim que Salvar E Desfazer funcionam, os dois só mudam o que
 // tá em memória antes de chamar isso).
 async function comercialGravarMetas(status, mensagemSucesso) {
-  const lista = Object.keys(com.metasPorMes).sort().map(mes => ({ mes, meta: com.metasPorMes[mes] }));
+  // `meta` (total) continua sendo o que o resto lê (inclusive o aviso do Dunning na VPS); `bases` é a tabela da Enel, quando existe.
+  const lista = Object.keys(com.metasPorMes).sort().map(mes => ({ mes, meta: com.metasPorMes[mes], ...(com.detalhePorMes[mes] ? { bases: com.detalhePorMes[mes] } : {}) }));
   try {
     const corpo = JSON.stringify({ regiao: 'Cortes_Metas', dados: lista, atualizado_em: new Date().toISOString() });
     const res = await fetch(SB_URL + '/rest/v1/snapshots', {
@@ -6707,7 +6765,377 @@ function comercialPopularDiaReferencia() {
 function comercialSetDiaReferencia(valor) {
   const [ano, mes] = com.mesReferencia.split('-').map(Number);
   com.diaReferencia = valor ? new Date(ano, mes - 1, Number(valor)) : null;
+  com.avancoDe = null; com.avancoAte = null; // escolher o dia lá em cima volta o Avanço por base pro padrão (segue esse dia)
   comercialRender();
+}
+
+// ══ AVANÇO POR BASE — Corte Dunning por base (Campos Sales/Juazeiro/Milagres) e tipo (Medidor/Poste/Ramal) ══
+// Substitui a planilha manual do Igor: a Enel manda a meta do mês por base × tipo (preenchida 1x por mês na
+// grade "Meta da Enel"), e aqui a meta PROPORCIONAL acumula sozinha por dia útil (meta ÷ dias úteis × dias úteis
+// até o dia escolhido, INCLUINDO ele -- igual à planilha: no 1º dia útil a meta é 1 dia). Validado contra a
+// planilha de 03/11/2026: realizado 220/1/0 (medidor/poste/ramal) e 38/117/66 por base, avanço 95,5/101,7/111,0/103,1%.
+const COMERCIAL_BASES = [
+  { chave: 'Campos Sales', rot: 'C. SALES', longo: 'Campo Sales' },
+  { chave: 'Juazeiro', rot: 'JUAZEIRO', longo: 'Juazeiro do Norte' },
+  { chave: 'Milagres', rot: 'MILAGRES', longo: 'Milagres' },
+];
+const COMERCIAL_TIPOS_CORTE = [
+  { k: 'medidor', rot: 'Medidor' },
+  { k: 'poste', rot: 'Poste' },
+  { k: 'ramal', rot: 'Ramal' },
+];
+// Avanço >= 100% = "Meta atingida"; de 90% a 99,9% = "Próximo da meta"; abaixo = "Abaixo da meta" (limite de 90% é padrão meu, ajustável aqui).
+const COMERCIAL_LIMITE_PROXIMO = 0.90;
+// Município -> base da Enel no Corte. Diferente do Controle no Prazo em UM ponto: Santana do Cariri é Campos Sales aqui
+// (conferido contra a planilha do Igor de 03/11: só assim dá C. Sales 38 / Juazeiro 117 / Milagres 66).
+const COMERCIAL_MUNICIPIO_BASE = (() => {
+  const m = {};
+  const add = (base, lista) => lista.forEach(x => { m[x] = base; });
+  add('Campos Sales', ['AIUABA', 'ANTONINA DO NORTE', 'ARARIPE', 'ASSARE', 'CAMPOS SALES', 'POTENGI', 'SABOEIRO', 'SALITRE', 'SANTANA DO CARIRI', 'TARRAFAS']);
+  add('Juazeiro', ['ALTANEIRA', 'BARBALHA', 'CARIRIACU', 'CRATO', 'FARIAS BRITO', 'GRANJEIRO', 'JARDIM', 'JUAZEIRO DO NORTE', 'NOVA OLINDA']);
+  add('Milagres', ['ABAIARA', 'AURORA', 'BARRO', 'BREJO SANTO', 'JATI', 'MAURITI', 'MILAGRES', 'MISSAO VELHA', 'PENAFORTE', 'PORTEIRAS']);
+  return m;
+})();
+
+function comercialSemAcento(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+}
+// Devolve { base, foraDoMapa }. Município fora do mapa cai pelo prefixo da equipe (CP/JZ/ML) e é avisado na tela.
+function comercialBaseDoCorte(r) {
+  const muni = comercialSemAcento(r['Município']);
+  if (COMERCIAL_MUNICIPIO_BASE[muni]) return { base: COMERCIAL_MUNICIPIO_BASE[muni], foraDoMapa: null };
+  const eq = comercialSemAcento(r['Recurso/Equipe']);
+  const porEquipe = eq.startsWith('CP') ? 'Campos Sales' : eq.startsWith('JZ') ? 'Juazeiro' : eq.startsWith('ML') ? 'Milagres' : null;
+  return { base: porEquipe, foraDoMapa: muni || '(sem município)' };
+}
+// Tipo do corte pelo resultado: 0002/0026 = corte no medidor, 0001/0025 = corte no poste, 0024 = corte c/ retirada de ramal.
+function comercialTipoCorte(r) {
+  const cod = String(r['Código Resultado'] || '').trim();
+  const txt = comercialSemAcento(r['Resultado']);
+  if (cod === '0024' || txt.includes('RAMAL')) return 'ramal';
+  if (cod === '0001' || cod === '0025' || txt.includes('POSTE')) return 'poste';
+  return 'medidor';
+}
+// Dias úteis de Corte de `de` até `ate` (mesmo mês), os dois INCLUSOS (mesma régua do resto: seg-qui, sem feriado nem véspera).
+function comercialDiasUteisEntre(ano, mesIdx, de, ate) {
+  const feriados = comercialFeriados(ano);
+  let n = 0;
+  for (let d = de.getDate(); d <= ate.getDate(); d++) if (comercialEhDiaUtilCorte(new Date(ano, mesIdx, d), feriados)) n++;
+  return n;
+}
+function comercialParseChave(k) { const [a, m, d] = k.split('-').map(Number); return new Date(a, m - 1, d); }
+function comercialDM(d) { return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); }
+
+// Período do Avanço por base. Prioridade: calendário da seção (de/até) > "Até o dia" do topo (volta no tempo, dia incluso)
+// > padrão: mês atual = do dia 1 até ONTEM (só dias fechados -- hoje ainda está em andamento e mostraria tudo vermelho);
+// mês passado = mês inteiro. Escolher hoje no calendário é possível (aparece marcado como parcial).
+function comercialAvancoPeriodo(ano, mesIdx, ehMesAtual) {
+  const ini = new Date(ano, mesIdx, 1);
+  const ultimo = new Date(ano, mesIdx + 1, 0);
+  const ontem = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1);
+  let de = com.avancoDe ? comercialParseChave(com.avancoDe) : ini;
+  let ate, origem;
+  if (com.avancoAte) { ate = comercialParseChave(com.avancoAte); origem = 'calendario'; }
+  else if (ehMesAtual && com.diaReferencia) { ate = com.diaReferencia; origem = 'dia'; }
+  else if (ehMesAtual) { ate = ontem; origem = 'fechados'; }
+  else { ate = ultimo; origem = 'mes'; }
+  if (comercialChaveData(de) < comercialChaveData(ini)) de = ini;
+  if (comercialChaveData(ate) > comercialChaveData(ultimo)) ate = ultimo;
+  if (ehMesAtual && comercialChaveData(ate) > comercialChaveData(hoje)) ate = hoje;
+  return { de, ate, origem, vazio: comercialChaveData(ate) < comercialChaveData(de) };
+}
+function comercialAvancoSetPeriodo() {
+  const de = document.getElementById('com-av-de').value, ate = document.getElementById('com-av-ate').value;
+  if (!de || !ate) return;
+  com.avancoDe = de; com.avancoAte = ate < de ? de : ate;
+  comercialRender();
+}
+function comercialAvancoPreset(p) {
+  if (p === 'padrao') { com.avancoDe = null; com.avancoAte = null; }
+  else {
+    const d = p === 'ontem' ? new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1) : hoje;
+    const k = comercialChaveData(d);
+    if (k.slice(0, 7) !== com.mesReferencia) { showToast('Esse dia é de outro mês — troque o mês lá em cima', 3000); return; }
+    com.avancoDe = k; com.avancoAte = k;
+  }
+  comercialRender();
+}
+
+function comercialCalcularAvanco(dadosTodos, bases, diasUteis, diasAte) {
+  const frac = diasUteis ? diasAte / diasUteis : 0;
+  const linhas = COMERCIAL_BASES.map(b => ({ ...b, real: { medidor: 0, poste: 0, ramal: 0 }, mes: {}, prop: {} }));
+  const porChave = {}; linhas.forEach(l => { porChave[l.chave] = l; });
+  const foraDoMapa = {}; let semBase = 0;
+  dadosTodos.forEach(r => {
+    if (opClassificar(r) !== 'PRODUTIVO') return;
+    const { base, foraDoMapa: fora } = comercialBaseDoCorte(r);
+    if (fora) foraDoMapa[fora] = (foraDoMapa[fora] || 0) + 1;
+    if (!base) { semBase++; return; }
+    porChave[base].real[comercialTipoCorte(r)]++;
+  });
+  const tot = { real: { medidor: 0, poste: 0, ramal: 0 }, mes: { medidor: 0, poste: 0, ramal: 0 }, prop: { medidor: 0, poste: 0, ramal: 0 } };
+  linhas.forEach(l => {
+    COMERCIAL_TIPOS_CORTE.forEach(t => {
+      l.mes[t.k] = Number(bases && bases[l.chave] && bases[l.chave][t.k]) || 0;
+      l.prop[t.k] = l.mes[t.k] * frac;               // exata, sem arredondar (é com ela que o avanço é calculado)
+      tot.real[t.k] += l.real[t.k]; tot.mes[t.k] += l.mes[t.k]; tot.prop[t.k] += l.prop[t.k];
+    });
+    l.real.total = l.real.medidor + l.real.poste + l.real.ramal;
+    l.mes.total = l.mes.medidor + l.mes.poste + l.mes.ramal;
+    l.prop.total = l.prop.medidor + l.prop.poste + l.prop.ramal;
+  });
+  tot.real.total = tot.real.medidor + tot.real.poste + tot.real.ramal;
+  tot.mes.total = tot.mes.medidor + tot.mes.poste + tot.mes.ramal;
+  tot.prop.total = tot.prop.medidor + tot.prop.poste + tot.prop.ramal;
+  return { linhas, tot, foraDoMapa, semBase, frac };
+}
+
+function comercialPct(real, prop) { return prop > 0 ? real / prop : null; }
+function comercialPctTxt(p) { return p === null ? '—' : (p * 100).toFixed(1).replace('.', ',') + '%'; }
+function comercialCorAvanco(p) {
+  if (p === null) return '#ffffff';
+  if (p >= 1) return '#a9d18e';
+  if (p >= COMERCIAL_LIMITE_PROXIMO) return '#e2efda';
+  return '#f4cccc';
+}
+function comercialSituacao(p) {
+  if (p === null) return { txt: '—', cor: '#ffffff' };
+  if (p >= 1) return { txt: 'Meta atingida', cor: '#a9d18e' };
+  if (p >= COMERCIAL_LIMITE_PROXIMO) return { txt: 'Próximo da meta', cor: '#e2efda' };
+  return { txt: 'Abaixo da meta', cor: '#f4cccc' };
+}
+
+function comercialRenderAvanco(ano, mesIdx, diaRef, dadosTodos, diasUteis, travado) {
+  const mesKey = com.mesReferencia;
+  const bases = com.detalhePorMes[mesKey] || null;
+  const nota = document.getElementById('com-avanco-nota');
+  const imgA = document.getElementById('com-avanco-img');
+  const imgP = document.getElementById('com-prop-img');
+  const rotMes = OP_MESES_LABEL[mesIdx] + '/' + String(ano).slice(2);
+  const ehMesAtual = mesKey === comercialMesAtualKey();
+
+  // ── calendário (período) -- sincroniza as caixas de data com o período efetivo
+  const per = comercialAvancoPeriodo(ano, mesIdx, ehMesAtual);
+  const kIni = comercialChaveData(new Date(ano, mesIdx, 1));
+  const kMax = comercialChaveData(ehMesAtual ? hoje : new Date(ano, mesIdx + 1, 0));
+  const elDe = document.getElementById('com-av-de'), elAte = document.getElementById('com-av-ate');
+  [elDe, elAte].forEach(e => { e.min = kIni; e.max = kMax; });
+  elDe.value = comercialChaveData(per.de);
+  elAte.value = comercialChaveData(per.ate);
+  document.getElementById('com-av-bt-ontem').style.display = ehMesAtual ? '' : 'none';
+  document.getElementById('com-av-bt-hoje').style.display = ehMesAtual ? '' : 'none';
+
+  // ── grade de digitação da Enel (só reconstrói quando o dado muda, pra não apagar o que está sendo digitado)
+  const chaveGrade = mesKey + '|' + JSON.stringify(bases) + '|' + travado;
+  if (com.enelGridChave !== chaveGrade) {
+    com.enelGridChave = chaveGrade;
+    const th = 'padding:7px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.6px;background:#e8731a;color:#fff;';
+    const inp = (i, t, v) => `<input type="number" min="0" step="1" id="com-enel-${i}-${t}" value="${v === 0 ? '' : v}" oninput="comercialEnelTotais()" ${travado ? 'disabled' : ''} style="width:84px;text-align:center;font-size:14px;padding:6px;border:1px solid var(--gray-200);border-radius:6px;">`;
+    let h = `<table style="border-collapse:collapse;font-size:13px;"><thead><tr><th style="${th}">Unidade Operativa</th>` +
+      COMERCIAL_TIPOS_CORTE.map(t => `<th style="${th}">${t.rot}</th>`).join('') + `<th style="${th}">Total</th></tr></thead><tbody>`;
+    COMERCIAL_BASES.forEach((b, i) => {
+      h += `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;">${b.longo}</td>` +
+        COMERCIAL_TIPOS_CORTE.map(t => `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:center;">${inp(i, t.k, (bases && bases[b.chave] && Number(bases[b.chave][t.k])) || 0)}</td>`).join('') +
+        `<td id="com-enel-totl-${i}" style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;font-weight:700;">0</td></tr>`;
+    });
+    h += `<tr style="background:#fff3e8;"><td style="padding:6px 10px;font-weight:700;">Total</td>` +
+      COMERCIAL_TIPOS_CORTE.map(t => `<td id="com-enel-totc-${t.k}" style="padding:6px 10px;text-align:center;font-weight:700;">0</td>`).join('') +
+      `<td id="com-enel-tot" style="padding:6px 10px;text-align:center;font-weight:800;">0</td></tr></tbody></table>`;
+    document.getElementById('com-enel-grid').innerHTML = h;
+    document.getElementById('com-enel-salvar-btn').disabled = travado;
+    document.getElementById('com-enel-salvar-btn').style.opacity = travado ? '0.5' : '1';
+    document.getElementById('com-enel-det').open = !bases;     // sem tabela do mês: já abre pra preencher
+  }
+  comercialEnelTotais();
+  const soma =bases ? COMERCIAL_BASES.reduce((s, b) => s + COMERCIAL_TIPOS_CORTE.reduce((x, t) => x + (Number(bases[b.chave] && bases[b.chave][t.k]) || 0), 0), 0) : 0;
+  const metaMes = com.metasPorMes[mesKey] || 0;
+  const difMeta = bases && metaMes && metaMes !== soma ? metaMes - soma : 0;
+  document.getElementById('com-enel-resumo').textContent = bases
+    ? '· ' + rotMes + ': soma ' + soma + (difMeta ? ' ⚠ meta do mês é ' + metaMes + ' (diferença de ' + Math.abs(difMeta) + ')' : '')
+    : '· ainda não preenchida pra ' + rotMes;
+
+  if (!bases) {
+    const msg = `<div style="padding:18px;text-align:center;color:var(--gray-400);font-size:13px;">Preencha a <b>Meta da Enel</b> de ${rotMes} (tabela no fim desta seção) pra ver o avanço por base.</div>`;
+    imgA.innerHTML = msg; imgP.innerHTML = msg;
+    nota.textContent = 'Falta a meta da Enel por base e tipo.';
+    return;
+  }
+
+  // realizado e meta do MESMO período: linhas do mês com data entre `de` e `ate` (dados que não têm data ficam de fora)
+  const kDe = comercialChaveData(per.de), kAte = comercialChaveData(per.ate);
+  const doPeriodo = per.vazio ? [] : (com.dadosMesAtualTodos || []).filter(r => r.__data && r.__data >= kDe && r.__data <= kAte);
+  const diasAte = per.vazio ? 0 : comercialDiasUteisEntre(ano, mesIdx, per.de, per.ate);
+  const av = comercialCalcularAvanco(doPeriodo, bases, diasUteis, diasAte);
+  const dm = per.vazio ? '—' : (kDe === kAte ? comercialDM(per.de) : (per.de.getDate() === 1 ? 'até ' + comercialDM(per.ate) : comercialDM(per.de) + ' a ' + comercialDM(per.ate)));
+  const incluiHoje = ehMesAtual && kAte === comercialChaveData(hoje);
+  nota.textContent = per.vazio
+    ? 'Ainda não há dia fechado neste mês — escolha o período no calendário.'
+    : `Meta proporcional = ${diasAte} de ${diasUteis} dias úteis do mês (${dm}). Realizado = cortes e recortes Dunning produtivos.` +
+      (per.origem === 'fechados' ? ' Só dias já fechados: o dia de hoje entra quando acabar (ou escolha hoje no calendário pra ver parcial).' : '') +
+      (incluiHoje ? ' ⚠ Inclui hoje, que ainda está em andamento.' : '');
+
+  const arred = v => Math.round(v);
+  const C = 'padding:9px 10px;text-align:center;border:1px solid #d9d9d9;font-size:13px;';
+  const H = 'padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#fff;background:#3b3b3b;border:1px solid #fff;text-transform:uppercase;letter-spacing:.4px;';
+  const titulo = (txt) => `<div style="font-size:13px;font-weight:800;color:#14213d;margin:2px 0 8px;">${txt}</div>`;
+
+  // ── tabela 1: Avanço por base
+  let a = titulo(`AVANÇO POR BASE · CORTE · ${rotMes} · ${dm}${incluiHoje ? ' (parcial)' : ''}`) +
+    `<table style="border-collapse:collapse;width:100%;min-width:760px;"><thead><tr>` +
+    ['Contrato', 'Base', 'Realizado', 'Meta', 'Gap', 'Avanço total', 'Avanço medidor', 'Avanço poste', 'Avanço ramal', 'Situação'].map(x => `<th style="${H}">${x}</th>`).join('') +
+    `</tr></thead><tbody>`;
+  const linhaAv = (rotulo, base, d, sub) => {
+    const pT = comercialPct(d.real.total, d.prop.total);
+    const sit = comercialSituacao(pT);
+    const gap = arred(d.real.total - d.prop.total);
+    const gapTxt = d.prop.total ? (gap > 0 ? '+' : '') + gap : '—';
+    const gapCor = gap > 0 ? '#1a7a40' : gap < 0 ? '#c0392b' : '#222';
+    const bg = sub ? 'background:#e7e6e6;font-weight:800;' : '';
+    const cel = (p) => `<td style="${C}background:${comercialCorAvanco(p)};">${comercialPctTxt(p)}</td>`;
+    return `<tr style="${bg}"><td style="${C}${bg}${sub ? '' : 'color:#666;'}">SUL</td><td style="${C}${bg}font-weight:700;text-align:left;">${rotulo}</td>` +
+      `<td style="${C}${bg}">${d.real.total}</td><td style="${C}${bg}">${arred(d.prop.total)}</td>` +
+      `<td style="${C}${bg}color:${gapCor};font-weight:700;">${gapTxt}</td>` +
+      cel(pT) + cel(comercialPct(d.real.medidor, d.prop.medidor)) + cel(comercialPct(d.real.poste, d.prop.poste)) + cel(comercialPct(d.real.ramal, d.prop.ramal)) +
+      `<td style="${C}background:${sit.cor};font-weight:700;">${sit.txt}</td></tr>`;
+  };
+  av.linhas.forEach(l => { a += linhaAv(l.rot, l.chave, l, false); });
+  a += linhaAv('SUBTOTAL', 'SUL', av.tot, true) + `</tbody></table>`;
+  imgA.innerHTML = a;
+
+  // ── tabela 2: Realizado × Meta proporcional (como a planilha: SUL | Medidor | Poste | Ramal)
+  const G = 'padding:8px 10px;text-align:center;font-size:12px;font-weight:700;border:1px solid #bbb;background:#fff;';
+  const S = 'padding:6px 8px;text-align:center;font-size:10px;font-weight:700;border:1px solid #bbb;background:#fff;';
+  let p = titulo(`REALIZADO × META PROPORCIONAL · ${rotMes} · ${dm}${incluiHoje ? ' (parcial)' : ''}`) +
+    `<table style="border-collapse:collapse;width:100%;min-width:620px;"><thead>` +
+    `<tr><th rowspan="2" style="padding:6px 14px;font-size:30px;font-weight:900;background:#fff;border:1px solid #bbb;">SUL</th>` +
+    COMERCIAL_TIPOS_CORTE.map(t => `<th colspan="2" style="${G}">${t.rot.toUpperCase()}</th>`).join('') + `</tr><tr>` +
+    COMERCIAL_TIPOS_CORTE.map(() => `<th style="${S}">REALIZADO</th><th style="${S}">META PROPORCIONAL</th>`).join('') + `</tr></thead><tbody>`;
+  const linhaP = (rotulo, d, total) => {
+    const bgR = total ? '#92d050' : '#a9d18e', bgM = total ? '#a6a6a6' : '#bfbfbf';
+    return `<tr><td style="${C}font-weight:800;background:${total ? '#fff' : '#a9d18e'};">${rotulo}</td>` +
+      COMERCIAL_TIPOS_CORTE.map(t => `<td style="${C}font-weight:800;background:${bgR};">${d.real[t.k]}</td><td style="${C}font-weight:800;background:${bgM};">${arred(d.prop[t.k])}</td>`).join('') + `</tr>`;
+  };
+  av.linhas.forEach(l => { p += linhaP(l.rot, l, false); });
+  p += linhaP('TOTAL', av.tot, true) + `</tbody></table>`;
+  imgP.innerHTML = p;
+
+  // avisos de dado: município fora do mapa / ordem sem base
+  const avisos = [];
+  const fora = Object.keys(av.foraDoMapa);
+  if (fora.length) avisos.push('Município fora do mapa de bases (classificado pela equipe): ' + fora.map(m => m + ' (' + av.foraDoMapa[m] + ')').join(', '));
+  if (av.semBase) avisos.push(av.semBase + ' ordem(ns) produtiva(s) sem base identificada — fora das tabelas');
+  if (difMeta) avisos.push('A soma das bases (' + soma + ') difere da meta do mês (' + metaMes + ') em ' + Math.abs(difMeta) + ' — confira a tabela da Enel');
+  if (avisos.length) imgP.innerHTML += `<div class="ctrl-nocap" style="margin-top:8px;font-size:11px;color:#b8860b;">⚠ ${avisos.join(' · ')}</div>`;
+}
+
+function comercialEnelTotais() {
+  let tot = 0; const col = { medidor: 0, poste: 0, ramal: 0 };
+  COMERCIAL_BASES.forEach((b, i) => {
+    let lin = 0;
+    COMERCIAL_TIPOS_CORTE.forEach(t => {
+      const el = document.getElementById('com-enel-' + i + '-' + t.k);
+      const v = el && el.value !== '' ? Number(el.value) || 0 : 0;
+      lin += v; col[t.k] += v;
+    });
+    tot += lin;
+    const c = document.getElementById('com-enel-totl-' + i); if (c) c.textContent = lin;
+  });
+  COMERCIAL_TIPOS_CORTE.forEach(t => { const c = document.getElementById('com-enel-totc-' + t.k); if (c) c.textContent = col[t.k]; });
+  const c = document.getElementById('com-enel-tot'); if (c) c.textContent = tot;
+  // confere com a meta do mês (a tabela da Enel nem sempre fecha com o total que ela informa)
+  const d = document.getElementById('com-enel-dif');
+  const metaMes = com.metasPorMes[com.mesReferencia] || 0;
+  if (d) {
+    if (!tot || !metaMes) d.textContent = '';
+    else if (tot === metaMes) { d.textContent = '✔ A soma bate com a meta do mês (' + metaMes + ').'; d.style.color = '#1a7a40'; }
+    else { d.textContent = '⚠ A soma da tabela (' + tot + ') difere da meta do mês (' + metaMes + ') em ' + Math.abs(metaMes - tot) + '. Confira com a Enel — a meta do mês não é alterada.'; d.style.color = '#b8860b'; }
+  }
+}
+
+async function comercialSalvarEnel() {
+  const status = document.getElementById('com-enel-status');
+  const bases = {}; let soma = 0;
+  for (let i = 0; i < COMERCIAL_BASES.length; i++) {
+    const b = COMERCIAL_BASES[i]; bases[b.chave] = {};
+    for (const t of COMERCIAL_TIPOS_CORTE) {
+      const bruto = document.getElementById('com-enel-' + i + '-' + t.k).value;
+      const n = bruto === '' ? 0 : Number(bruto);
+      if (!Number.isInteger(n) || n < 0) {
+        status.textContent = 'Use só números inteiros (0 ou mais)';
+        status.style.color = '#c0392b';
+        return;
+      }
+      bases[b.chave][t.k] = n; soma += n;
+    }
+  }
+  if (!soma) {
+    status.textContent = 'Preencha a tabela da Enel';
+    status.style.color = '#c0392b';
+    return;
+  }
+  const mesKey = com.mesReferencia;
+  com.detalheAnterior[mesKey] = { meta: com.metasPorMes[mesKey] ?? null, bases: com.detalhePorMes[mesKey] ?? null };
+  com.detalhePorMes[mesKey] = bases;
+  // A meta do mês (campo lá em cima) NÃO é sobrescrita: a tabela da Enel nem sempre fecha com o total que ela informa
+  // (nov/26: bases somam 3214, total informado 3215). Só quando o mês ainda não tem meta é que a soma vira a meta.
+  const metaAntes = com.metasPorMes[mesKey] || 0;
+  if (!metaAntes) com.metasPorMes[mesKey] = soma;
+  const dif = com.metasPorMes[mesKey] - soma;
+  status.textContent = 'Salvando...';
+  status.style.color = 'var(--gray-400)';
+  await comercialGravarMetas(status, '✔ Salvo' + (dif ? ' — atenção: soma da tabela ' + soma + ' ≠ meta do mês ' + com.metasPorMes[mesKey] : '') + ' <a onclick="comercialDesfazerEnel()" style="cursor:pointer;text-decoration:underline;color:#5aa8f0;margin-left:8px;">↩ Desfazer</a>');
+}
+
+async function comercialDesfazerEnel() {
+  const mesKey = com.mesReferencia;
+  const status = document.getElementById('com-enel-status');
+  const ant = com.detalheAnterior[mesKey];
+  if (!ant) return;
+  if (ant.bases) com.detalhePorMes[mesKey] = ant.bases; else delete com.detalhePorMes[mesKey];
+  if (ant.meta) com.metasPorMes[mesKey] = ant.meta; else delete com.metasPorMes[mesKey];
+  delete com.detalheAnterior[mesKey];
+  status.textContent = 'Desfazendo...';
+  status.style.color = 'var(--gray-400)';
+  await comercialGravarMetas(status, '↩ Desfeito');
+}
+
+// Copia uma das tabelas como imagem (mesmo padrão do Controle no Prazo: entrega a imagem à área de transferência
+// ainda dentro do clique; se o navegador não deixar, baixa o arquivo).
+async function comercialCopiarPngEl(elId, btnId, nomeArq) {
+  const btn = document.getElementById(btnId);
+  const original = btn.textContent;
+  btn.textContent = 'Gerando...';
+  const el = document.getElementById(elId);
+  let entrega, falha;
+  const blobPromise = new Promise((ok, erro) => { entrega = ok; falha = erro; });
+  blobPromise.catch(() => {});
+  let escrita;
+  try { escrita = navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]); }
+  catch (e) { escrita = Promise.reject(e); }
+  escrita.catch(() => {});
+  html2canvas(el, { backgroundColor: '#ffffff', scale: 3, windowWidth: Math.max(el.scrollWidth, 900),
+    ignoreElements: n => n.classList && n.classList.contains('ctrl-nocap') })
+    .then(canvas => canvas.toBlob(b => b ? entrega(b) : falha(new Error('imagem vazia')), 'image/png'))
+    .catch(falha);
+  try {
+    await escrita;
+    btn.textContent = '✔ Copiado!';
+  } catch (e) {
+    try {
+      const blob = await blobPromise;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = nomeArq + '-' + com.mesReferencia + '.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      btn.textContent = '✔ Baixado!';
+    } catch (e2) {
+      showToast('Não foi possível gerar a imagem', 3000);
+      btn.textContent = original;
+      return;
+    }
+  }
+  setTimeout(() => { btn.textContent = original; }, 2200);
 }
 
 function comercialRender() {
@@ -6788,6 +7216,7 @@ function comercialRender() {
   // "capacidade" de cada supervisor (média histórica × equipes) continua
   // calculada só com MM.
   com.rateio = comercialCalcularRateio(dadosAteRef, meta, falta, diasRestantes, metaDefinida);
+  comercialRenderAvanco(ano, mesIdx, diaRef, dadosAteRefTodos, diasUteis, vendoDiaPassado);
   comercialRenderGrafico(ano, mesIdx, metaDia, diaRef, dadosAteRefTodos);
   comercialRenderTabelaSupervisor(com.rateio);
   comercialRenderTabelaEquipe(dadosAteRef);
