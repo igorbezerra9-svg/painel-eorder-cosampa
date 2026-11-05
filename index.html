@@ -334,6 +334,9 @@
   </div>
 
   <div id="pg-content">
+    <!-- Aviso: vencidas que os cards não contam (programáveis / a reprogramar) — só aparece se houver -->
+    <div id="pg-fora-conta"></div>
+
     <!-- KPIs -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;" id="pg-kpis"></div>
 
@@ -2021,6 +2024,7 @@ function pgRender() {
   pgPopularFiltroTipoSrv();
   const dados = pgGetFiltrado();
   const dadosTodos = pgGetFiltradoTodos();
+  pgRenderForaDaConta();
   pgRenderKPIs(dados, dadosTodos);
   pgRenderComparativo();
   pgRenderCSBars(dados);
@@ -2168,6 +2172,63 @@ function pgOrdensTabelaHTML(lista, opts) {
   });
   html += '</tbody></table></div>';
   return html;
+}
+
+// Ordem REGULADA (sem perdas) já VENCIDA que o painel esconde por estar em "programáveis" / "a reprogramar".
+// Esses estados ficam fora de Estouradas/No prazo/Total (regra de 05/07: o backlog sem equipe inflava os números),
+// e o card "Vencem hoje" só pega até o prazo passar -- então a ordem vencida nesse estado sumia do painel inteiro,
+// embora o aviso do WhatsApp (que não olha estado) cobrasse. Mesma regra de seleção do aviso: regulada, sem perdas.
+function pgVencidasForaDaConta() {
+  const EXCLUIR = ['programáveis', 'a reprogramar'];
+  return pgFiltrarBase(pgCS, true)
+    .filter(r => EXCLUIR.includes((r['Estado TdC'] || '').trim().toLowerCase())
+      && getPrioridade(r) === 'est'
+      && getTipoOrdem(r) === 'REG'
+      && opCategoriaServico(r) !== 'Perdas')
+    .map(r => ({ r, dt: parseDateTimeStr(r['Data Prevista Finalização Trabalhos']) }))
+    .sort((a, b) => (a.dt ? a.dt.getTime() : 0) - (b.dt ? b.dt.getTime() : 0));
+}
+
+// Aviso no TOPO do Painel Gerencial (acima dos cards): lista curta das vencidas que os cards não contam.
+// Clicar abre a lista completa no mesmo modal dos cards.
+function pgRenderForaDaConta() {
+  const box = document.getElementById('pg-fora-conta');
+  if (!box) return;
+  const fora = pgVencidasForaDaConta();
+  if (!fora.length) { box.innerHTML = ''; return; }
+  const MOSTRAR = 3;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const linhas = fora.slice(0, MOSTRAR).map(x => {
+    const r = x.r;
+    const eq = (r['Código Equipe'] || '').trim();
+    const prazo = (r['Data Prevista Finalização Trabalhos'] || '—').replace(' 23:59', '');
+    return `<div style="padding:3px 0;border-top:1px solid #ffd9b0;">
+      <span style="font-family:monospace;font-weight:700;color:#1565c0;">${esc(r['Numero de Serviço'] || '—')}</span>
+      · ${esc(opCodigoServico(r))}
+      · ${eq ? '<span style="font-family:monospace;">' + esc(eq) + '</span>' : '<b style="color:#c0392b;">SEM EQUIPE</b>'}
+      · ${esc(r['Município'] || '—')}
+      · venceu <b>${esc(prazo)}</b>
+      · <span style="background:#fff;border:1px solid #ffb74d;border-radius:3px;padding:0 5px;font-size:10px;font-weight:700;">${esc((r['Estado TdC'] || '').trim())}</span>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<div onclick="pgAbrirModalForaDaConta()" title="Clique pra ver a lista completa" style="cursor:pointer;background:#fff3e8;border:1px solid #ffb74d;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#7a3a00;">
+    <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px;">
+      <span style="font-weight:700;color:#bf360c;text-transform:uppercase;letter-spacing:.6px;font-size:11px;">🚫 ${fora.length} vencida${fora.length > 1 ? 's' : ''} fora da conta</span>
+      <span style="font-size:11px;color:#a0642a;">regulada sem perdas em programáveis / a reprogramar — não entram nos cards abaixo · precisam de equipe ou nova data</span>
+    </div>
+    ${linhas}
+    ${fora.length > MOSTRAR ? `<div style="padding-top:4px;font-size:11px;color:#a0642a;">+ ${fora.length - MOSTRAR} outras — clique pra ver a lista completa</div>` : ''}
+  </div>`;
+}
+
+function pgAbrirModalForaDaConta() {
+  const fora = pgVencidasForaDaConta();
+  pgModalDados = fora.map(x => x.r);
+  document.getElementById('pg-modal-title').textContent = '🚫 Vencidas fora da conta';
+  document.getElementById('pg-modal-sub').textContent = fora.length + ' ordens · regulada sem perdas em programáveis / a reprogramar · ' + pgRegiao;
+  document.getElementById('pg-modal-search').value = '';
+  pgFiltrarModal();
+  document.getElementById('pg-modal').style.display = 'flex';
 }
 
 function pgRenderOrdensVencendo(dados, dadosTodos) {
