@@ -18,7 +18,7 @@ Remessa WIN` / `Tipo de Serviço`), função `getTipoOrdem(r)`:
 ```js
 const TIPO_REGULADA = {
   'OUTMML':true,'OUTMGD':true,'OUTVPC':true,'OUTIRD':true,'OUTTCP':true,
-  'OUTNCU':true,'OUTAMC':true,'OUTSEM':true,'OUTIRM':true,'NOVLBT':true,
+  'OUTNCU':true,'OUTAMC':true,'OUTSEM':true,'OUTIRM':true,'NOVLBT':true,'NOVLNA':true,
   'OUTAQM':true,'OUTSDJ':true,'OUTSRL':true,'OUTTME':true,'OUTNCR':true,
   'OUTDCM':true,'OUTACT':true,'OUTIMB':true,'OUTRAR':true,'OUTRNR':true,
   'OUTRNU':true,'OUTRIM':true,'OUTRAU':true,'OUTCP0':true,'OUTRNL':true,
