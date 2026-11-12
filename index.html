@@ -1239,8 +1239,8 @@
     <div class="op-panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
         <div>
-          <h3>Fora do prazo — maior atraso primeiro</h3>
-          <div class="op-sub">Baixadas depois do prazo e ordens ainda abertas com o prazo vencido.</div>
+          <h3>Fora do prazo — baixadas primeiro, maior atraso primeiro</h3>
+          <div class="op-sub">Primeiro as baixadas depois do prazo, depois as ordens ainda abertas com o prazo vencido; em cada grupo, o maior atraso vem primeiro.</div>
         </div>
         <button onclick="pzCopiar('lista')" id="btn-pz-copiar-lista" style="background:transparent;border:1px solid var(--gray-200);color:var(--gray-700);border-radius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;white-space:nowrap;">📋 Copiar</button>
       </div>
@@ -8153,10 +8153,11 @@ function pzRender() {
     return pzLinhaResumo(pzEsc(rt.txt) + badge, porTipo[k]);
   }).join('') || '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--gray-400);">Nenhuma ordem no período</td></tr>';
 
-  // Lista de atrasadas (baixadas fora + abertas vencidas), maior atraso primeiro
+  // Lista de atrasadas: as BAIXADAS fora do prazo sempre em cima (pedido do Igor, 12/11/2026), depois as abertas vencidas;
+  // dentro de cada grupo, maior atraso primeiro.
   const atrasadas = itens.filter(i => i.status === 'fora' || i.status === 'vencida')
     .map(i => Object.assign({ atraso: (i.baixa || res.agora) - i.prazo }, i))
-    .sort((a, b) => b.atraso - a.atraso);
+    .sort((a, b) => (a.status === b.status ? 0 : a.status === 'fora' ? -1 : 1) || b.atraso - a.atraso);
   const linhaAtraso = i => [i.n, opCodigoServico(i.r), pzEquipeDe(i.r), pzDMHM(i.prazo), i.baixa ? pzDMHM(i.baixa) : '—', pzFmtDur(i.atraso),
     i.status === 'fora' ? 'Baixada fora do prazo' : 'Aberta (vencida)'];
   pz.tsvLista = pzLinhasTsv(['N. Serviço', 'Tipo', 'Equipe', 'Prazo', 'Baixa', 'Atraso', 'Situação'], atrasadas.map(linhaAtraso));
@@ -8171,7 +8172,8 @@ function pzRender() {
   document.getElementById('pz-lista-mais').innerHTML = atrasadas.length > PZ_LIMITE_LISTA
     ? (pz.verTodas
       ? '<a style="cursor:pointer;font-size:12px;color:var(--navy);font-weight:700;" onclick="pz.verTodas=false;pzRender()">Mostrar só as ' + PZ_LIMITE_LISTA + ' primeiras</a>'
-      : '<a style="cursor:pointer;font-size:12px;color:var(--navy);font-weight:700;" onclick="pz.verTodas=true;pzRender()">Ver todas (' + atrasadas.length + ')</a>')
+      : '<a style="cursor:pointer;font-size:12px;color:var(--navy);font-weight:700;" onclick="pz.verTodas=true;pzRender()">Ver todas (' + atrasadas.length + ' — ' +
+        atrasadas.filter(i => i.status === 'fora').length + ' baixadas fora do prazo + ' + atrasadas.filter(i => i.status === 'vencida').length + ' abertas vencidas)</a>')
     : '';
 
   pzRenderAviso(res);
