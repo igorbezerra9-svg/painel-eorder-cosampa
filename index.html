@@ -5937,7 +5937,7 @@ function ctrlTabela(p, G) {
       const os = ctrlForaNoIntervalo(p).filter(x => x.grupo === G.id && x.cs === l.cs);
       html += '<tr class="ctrl-nocap"><td colspan="6" style="padding:8px 14px;background:#fff6f6;border-bottom:1px solid #f0c9c9;font-size:12px;">' +
         os.map(x => '<div style="padding:3px 0;border-bottom:1px solid #f4dede;"><b style="font-family:var(--font-mono);color:#1565c0;cursor:copy;" title="Clique pra copiar" onclick="sdjCopiarOs(\'' + sdjEsc(x.os) + '\')">' + sdjEsc(x.os) + '</b> · ' + sdjEsc(x.municipio) +
-          ' · prazo <b>' + sdjEsc(x.prazo) + '</b> · 1ª baixa <b>' + sdjEsc(x.baixa) + '</b> · atraso ' + ctrlAtraso(x.atraso_h) + '</div>').join('') + '</td></tr>';
+          ' · prazo <b>' + sdjEsc(x.prazo) + '</b> · 1ª baixa <b>' + sdjEsc(x.baixa) + '</b> · atraso ' + ctrlAtraso(x.atraso_h) + ctrlLinhaDetalhe(x) + '</div>').join('') + '</td></tr>';
     }
   });
   return html + '</tbody></table></div></div>';
@@ -6000,7 +6000,85 @@ function ctrlPreset(tipo) {
   }
   ctrlAberto = ''; controleRender();
 }
-function ctrlAbrir(chave) { ctrlAberto = ctrlAberto === chave ? '' : chave; controleRender(); }
+function ctrlAbrir(chave) {
+  ctrlAberto = ctrlAberto === chave ? '' : chave;
+  controleRender();
+  if (ctrlAberto) ctrlGarantirDetalhes(ctrlAberto);
+}
+
+// ── Detalhes de cada ordem fora do prazo (equipe, tipo, resultado, horário, cliente, endereço).
+// O robô só publica OS/município/prazo/baixa/atraso; o resto vem da Execução do DIA DA BAIXA, buscada só quando a linha é aberta
+// (um dia por requisição, guardado em memória; só ficam as OS do Controle pra não pesar).
+const ctrlDiaPromessa = {};   // 'YYYY-MM-DD' -> Promise (carregando)
+const ctrlDiaExec = {};       // 'YYYY-MM-DD' -> { 'OS': [linhas da Execução] }  (pronto)
+const ctrlDiaErro = {};       // 'YYYY-MM-DD' -> true quando não deu pra buscar
+function ctrlIsoDeBaixa(txt) { const m = /(\d\d)\/(\d\d)\/(\d{4})/.exec(txt || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; }
+function ctrlTodasOS() {
+  const s = new Set();
+  ['atual', 'anterior'].forEach(k => { const p = ctrlDados && ctrlDados[k]; if (p) (p.fora_do_prazo || []).forEach(x => s.add(x.os)); });
+  return s;
+}
+async function ctrlCarregarDia(iso) {
+  if (ctrlDiaExec[iso]) return;
+  if (!ctrlDiaPromessa[iso]) {
+    ctrlDiaPromessa[iso] = (async () => {
+      const cab = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+      const urls = [SB_URL + '/rest/v1/snapshots_historico?regiao=eq.Execucao&data=eq.' + iso + '&select=dados'];
+      if (iso === comercialChaveData(hoje)) urls.push(SB_URL + '/rest/v1/snapshots?regiao=eq.Execucao&select=dados');   // hoje ainda não virou histórico
+      for (const url of urls) {
+        for (let t = 1; t <= 3; t++) {
+          try {
+            const res = await fetch(url, { headers: cab });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const rows = await res.json();
+            if (!Array.isArray(rows)) throw new Error('resposta inesperada');
+            if (!rows.length) break;                       // sem linha pra esse dia nessa fonte: tenta a próxima
+            const conjunto = ctrlTodasOS(), porOs = {};
+            (rows[0].dados || []).forEach(r => { const n = String(r['Numero de Serviço'] || '').trim(); if (conjunto.has(n)) (porOs[n] = porOs[n] || []).push(r); });
+            ctrlDiaExec[iso] = porOs; delete ctrlDiaErro[iso];
+            return;
+          } catch (e) { if (t < 3) await new Promise(r => setTimeout(r, 800)); else ctrlDiaErro[iso] = true; }
+        }
+      }
+      if (!ctrlDiaExec[iso] && !ctrlDiaErro[iso]) ctrlDiaExec[iso] = {};   // dia sem Execução guardada: detalhe indisponível, sem erro
+    })();
+  }
+  await ctrlDiaPromessa[iso];
+  delete ctrlDiaPromessa[iso];
+}
+async function ctrlGarantirDetalhes(chave) {
+  const [g, cs] = chave.split('|'), p = ctrlDados && ctrlDados[ctrlVisao];
+  if (!p) return;
+  const dias = [...new Set(ctrlForaNoIntervalo(p).filter(x => x.grupo === g && x.cs === cs).map(x => ctrlIsoDeBaixa(x.baixa)).filter(Boolean))].filter(d => !ctrlDiaExec[d]);
+  if (!dias.length) return;
+  for (let i = 0; i < dias.length; i += 2) await Promise.all(dias.slice(i, i + 2).map(ctrlCarregarDia));   // no máx. 2 por vez
+  if (ctrlAberto === chave) controleRender();
+}
+// Linhas extras de uma ordem na lista aberta: equipe (com supervisor), tipo, resultado da 1ª baixa, horário da execução, cliente e endereço.
+function ctrlLinhaDetalhe(x) {
+  const iso = ctrlIsoDeBaixa(x.baixa), cinza = 'margin:1px 0 5px 14px;color:#6b7280;line-height:1.6;';
+  const dia = ctrlDiaExec[iso];
+  if (!dia) return ctrlDiaErro[iso]
+    ? '<div style="' + cinza + '">⚠ Não deu pra buscar os detalhes (falha ao ler a Execução de ' + sdjEsc(iso.split('-').reverse().slice(0, 2).join('/')) + ') — feche e abra de novo.</div>'
+    : '<div style="' + cinza + '">carregando detalhes…</div>';
+  const rows = dia[x.os] || [];
+  if (!rows.length) return '<div style="' + cinza + '">Detalhes indisponíveis: a baixa dessa ordem não está na Execução guardada de ' + sdjEsc(iso.split('-').reverse().slice(0, 2).join('/')) + '.</div>';
+  const fim = r => String(r['Data fim Execução'] || '').slice(0, 16);
+  const util = rows.filter(r => ['PRODUTIVO', 'IMPRODUTIVO'].includes(opClassificar(r))).sort((a, b) => fim(a).localeCompare(fim(b)));
+  const r = rows.find(r => fim(r) === x.baixa) || util[0] || rows[0];
+  // Não mostra "produtiva/improdutiva": no Controle qualquer baixa vale como 1ª baixa, e o texto do resultado já diz o que foi
+  // (a classificação do painel pode contradizer o nome, ex.: ACTV05 "VISTORIA IMPRODUTIVA" conta como produtiva). Só avisa se for devolvida.
+  const devolvida = opClassificar(r) === 'DEVOLVIDO';
+  const eq = String(r['Recurso/Equipe'] || '').trim(), sup = eq ? getSupervisor(eq) : '';
+  const tipo = String(r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || '').trim().replace(/\s+/g, ' ');
+  const ini = String(r['Data início Execução'] || '').trim(), fm = String(r['Data fim Execução'] || '').trim();
+  const outras = rows.length - 1;
+  return '<div style="' + cinza + '">👷 <b style="font-family:var(--font-mono);color:#111827;">' + sdjEsc(eq || '—') + '</b>' + (sup ? ' (' + sdjEsc(sup) + ')' : '') +
+    ' · ' + sdjEsc(tipo || '—') + ' · Resultado: <b style="color:#111827;">' + sdjEsc(String(r['Resultado'] || '—').trim()) + '</b>' + (devolvida ? ' <i>(devolvida)</i>' : '') +
+    '<br>🕒 execução ' + sdjEsc(ini || '—') + ' → ' + sdjEsc(fm || '—') + (outras > 0 ? ' · +' + outras + ' outra(s) baixa(s) da ordem no mesmo dia' : '') +
+    (r['Cliente'] ? ' · 👤 ' + sdjEsc(String(r['Cliente']).trim()) : '') +
+    (r['Endereço'] ? '<br>📍 ' + sdjEsc(String(r['Endereço']).trim()) : '') + '</div>';
+}
 
 function ctrlCopiarZap() {
   const p = ctrlDados && ctrlDados[ctrlVisao];
