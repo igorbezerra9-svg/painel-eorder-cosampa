@@ -5935,9 +5935,7 @@ function ctrlTabela(p, G) {
           '<td style="' + td + 'font-weight:700;">' + ctrlPct(meta ? l.real / meta : 0) + '</td></tr>');
     if (aberto) {
       const os = ctrlForaNoIntervalo(p).filter(x => x.grupo === G.id && x.cs === l.cs);
-      html += '<tr class="ctrl-nocap"><td colspan="6" style="padding:8px 14px;background:#fff6f6;border-bottom:1px solid #f0c9c9;font-size:12px;">' +
-        os.map(x => '<div style="padding:3px 0;border-bottom:1px solid #f4dede;"><b style="font-family:var(--font-mono);color:#1565c0;cursor:copy;" title="Clique pra copiar" onclick="sdjCopiarOs(\'' + sdjEsc(x.os) + '\')">' + sdjEsc(x.os) + '</b> · ' + sdjEsc(x.municipio) +
-          ' · prazo <b>' + sdjEsc(x.prazo) + '</b> · 1ª baixa <b>' + sdjEsc(x.baixa) + '</b> · atraso ' + ctrlAtraso(x.atraso_h) + ctrlLinhaDetalhe(x) + '</div>').join('') + '</td></tr>';
+      html += '<tr class="ctrl-nocap"><td colspan="6" style="padding:10px 12px;background:#fff6f6;border-bottom:1px solid #f0c9c9;">' + ctrlTabelaAberta(os, chave, G, l.cs) + '</td></tr>';
     }
   });
   return html + '</tbody></table></div></div>';
@@ -6051,33 +6049,78 @@ async function ctrlGarantirDetalhes(chave) {
   if (!p) return;
   const dias = [...new Set(ctrlForaNoIntervalo(p).filter(x => x.grupo === g && x.cs === cs).map(x => ctrlIsoDeBaixa(x.baixa)).filter(Boolean))].filter(d => !ctrlDiaExec[d]);
   if (!dias.length) return;
-  for (let i = 0; i < dias.length; i += 2) await Promise.all(dias.slice(i, i + 2).map(ctrlCarregarDia));   // no máx. 2 por vez
-  if (ctrlAberto === chave) controleRender();
+  ctrlProgresso = { chave, feitos: 0, total: dias.length };
+  for (let i = 0; i < dias.length; i += 2) {
+    const lote = dias.slice(i, i + 2);
+    await Promise.all(lote.map(ctrlCarregarDia));   // no máx. 2 por vez
+    ctrlProgresso.feitos += lote.length;
+    if (ctrlAberto === chave) controleRender();     // a tabela vai preenchendo equipe/supervisor conforme os dias chegam
+  }
 }
-// Linhas extras de uma ordem na lista aberta: equipe (com supervisor), tipo, resultado da 1ª baixa, horário da execução, cliente e endereço.
-function ctrlLinhaDetalhe(x) {
-  const iso = ctrlIsoDeBaixa(x.baixa), cinza = 'margin:1px 0 5px 14px;color:#6b7280;line-height:1.6;';
-  const dia = ctrlDiaExec[iso];
-  if (!dia) return ctrlDiaErro[iso]
-    ? '<div style="' + cinza + '">⚠ Não deu pra buscar os detalhes (falha ao ler a Execução de ' + sdjEsc(iso.split('-').reverse().slice(0, 2).join('/')) + ') — feche e abra de novo.</div>'
-    : '<div style="' + cinza + '">carregando detalhes…</div>';
+let ctrlProgresso = { chave: '', feitos: 0, total: 0 };
+// ── Linha aberta no MODELO da planilha do Igor (12/11/2026): Nº | Contrato | Data do vencimento | Tipo de serviço | Ordem | Líder da equipe |
+// Centro de serviço | Supervisor | Data do fechamento | Hora do vencimento | Hora do fechamento. Mesmo conteúdo na tela e no "Copiar" (TSV pra colar).
+// Fechamento = a 1ª baixa da ordem (a que define fora do prazo); equipe = quem fez essa baixa (Execução do dia).
+const CTRL_CABECALHO = ['Nº', 'CONTRATO', 'DATA DO VENCIMENTO', 'TIPO DE SERVIÇO', 'ORDEM', 'LID DA EQUIPE', 'CENTRO DE SERVIÇO', 'SUPERVISOR', 'DATA DO FECHAMENTO', 'HORA DO VENCIMENTO', 'HORA DO FECHAMENTO'];
+function ctrlDMA(txt) { const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(txt || ''); return m ? (+m[1]) + '/' + (+m[2]) + '/' + m[3] : ''; }   // 7/10/2026 (sem zero à esquerda, como na planilha)
+function ctrlHM(txt) { const m = /(\d{1,2}):(\d{2})/.exec(txt || ''); return m ? (+m[1]) + ':' + m[2] : ''; }                                    // 8:00, 23:59
+// Linha da Execução que é a 1ª baixa da ordem: objeto | 'pendente' (dia ainda carregando) | 'erro' | null (ordem não está na Execução guardada).
+function ctrlExecDe(x) {
+  const iso = ctrlIsoDeBaixa(x.baixa), dia = ctrlDiaExec[iso];
+  if (!dia) return ctrlDiaErro[iso] ? 'erro' : 'pendente';
   const rows = dia[x.os] || [];
-  if (!rows.length) return '<div style="' + cinza + '">Detalhes indisponíveis: a baixa dessa ordem não está na Execução guardada de ' + sdjEsc(iso.split('-').reverse().slice(0, 2).join('/')) + '.</div>';
+  if (!rows.length) return null;
   const fim = r => String(r['Data fim Execução'] || '').slice(0, 16);
   const util = rows.filter(r => ['PRODUTIVO', 'IMPRODUTIVO'].includes(opClassificar(r))).sort((a, b) => fim(a).localeCompare(fim(b)));
-  const r = rows.find(r => fim(r) === x.baixa) || util[0] || rows[0];
-  // Não mostra "produtiva/improdutiva": no Controle qualquer baixa vale como 1ª baixa, e o texto do resultado já diz o que foi
-  // (a classificação do painel pode contradizer o nome, ex.: ACTV05 "VISTORIA IMPRODUTIVA" conta como produtiva). Só avisa se for devolvida.
-  const devolvida = opClassificar(r) === 'DEVOLVIDO';
-  const eq = String(r['Recurso/Equipe'] || '').trim(), sup = eq ? getSupervisor(eq) : '';
-  const tipo = String(r['Tipo Remessa WIN'] || r[' Tipo de Serviço'] || '').trim().replace(/\s+/g, ' ');
-  const ini = String(r['Data início Execução'] || '').trim(), fm = String(r['Data fim Execução'] || '').trim();
-  const outras = rows.length - 1;
-  return '<div style="' + cinza + '">👷 <b style="font-family:var(--font-mono);color:#111827;">' + sdjEsc(eq || '—') + '</b>' + (sup ? ' (' + sdjEsc(sup) + ')' : '') +
-    ' · ' + sdjEsc(tipo || '—') + ' · Resultado: <b style="color:#111827;">' + sdjEsc(String(r['Resultado'] || '—').trim()) + '</b>' + (devolvida ? ' <i>(devolvida)</i>' : '') +
-    '<br>🕒 execução ' + sdjEsc(ini || '—') + ' → ' + sdjEsc(fm || '—') + (outras > 0 ? ' · +' + outras + ' outra(s) baixa(s) da ordem no mesmo dia' : '') +
-    (r['Cliente'] ? ' · 👤 ' + sdjEsc(String(r['Cliente']).trim()) : '') +
-    (r['Endereço'] ? '<br>📍 ' + sdjEsc(String(r['Endereço']).trim()) : '') + '</div>';
+  return rows.find(r => fim(r) === x.baixa) || util[0] || rows[0];
+}
+function ctrlLinhasModelo(os) {
+  let pendentes = 0, semDetalhe = 0;
+  const linhas = os.map((x, i) => {
+    const r = ctrlExecDe(x);
+    let eq = '';
+    if (r === 'pendente') pendentes++;
+    else if (r === 'erro' || r === null) semDetalhe++;
+    else eq = String(r['Recurso/Equipe'] || '').trim();
+    const sup = eq ? getSupervisor(eq) : '';
+    return [i + 1, 'SUL', ctrlDMA(x.prazo), x.grupo === 'religacao' ? 'RELIGAÇÃO' : 'LIGAÇÃO NOVA', x.os, eq, x.cs, String(sup || '').toUpperCase(), ctrlDMA(x.baixa), ctrlHM(x.prazo), ctrlHM(x.baixa)];
+  });
+  return { linhas, pendentes, semDetalhe };
+}
+function ctrlTabelaAberta(os, chave, G, cs) {
+  const m = ctrlLinhasModelo(os);
+  const th = 'padding:7px 8px;background:#3b3b3b;color:#fff;font-size:10px;font-weight:700;letter-spacing:.4px;border:1px solid #fff;text-align:center;position:sticky;top:0;';
+  const btn = 'background:#fff;border:1px solid #d1d5db;color:#374151;border-radius:8px;padding:5px 11px;font-size:11.5px;cursor:pointer;white-space:nowrap;';
+  const prog = ctrlProgresso.chave === chave && ctrlProgresso.total ? ' (' + ctrlProgresso.feitos + '/' + ctrlProgresso.total + ' dias)' : '';
+  const status = m.pendentes ? '<span style="font-size:11.5px;color:#6b7280;">⏳ buscando as equipes…' + prog + '</span>'
+    : m.semDetalhe ? '<span style="font-size:11.5px;color:#b8860b;">⚠ ' + m.semDetalhe + ' ordem(ns) sem equipe: a baixa não está na Execução guardada (ou a busca falhou — feche e abra de novo)</span>' : '';
+  const chaveJs = sdjEsc(chave).replace(/'/g, '');
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">' +
+    '<div style="font-size:12.5px;font-weight:700;color:#7f1d1d;">' + os.length + (os.length === 1 ? ' ordem' : ' ordens') + ' fora do prazo · ' + sdjEsc(cs) + ' · ' + sdjEsc(G.titulo.replace(/^CONTROLE DE /, '').replace(/ - SUL$/, '')) + ' ' + status + '</div>' +
+    '<div style="display:flex;gap:6px;">' +
+    '<button style="' + btn + (m.pendentes ? 'opacity:.5;' : '') + '" ' + (m.pendentes ? 'disabled ' : '') + 'onclick="ctrlCopiarAbertas(\'' + chaveJs + '\',false)" title="Copia as linhas (sem o cabeçalho) pra colar na planilha">📋 Copiar linhas</button>' +
+    '<button style="' + btn + (m.pendentes ? 'opacity:.5;' : '') + '" ' + (m.pendentes ? 'disabled ' : '') + 'onclick="ctrlCopiarAbertas(\'' + chaveJs + '\',true)" title="Copia com o cabeçalho">📋 Com cabeçalho</button></div></div>';
+  h += '<div style="overflow:auto;max-height:480px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;"><table style="border-collapse:collapse;width:100%;font-size:12px;"><thead><tr>' +
+    CTRL_CABECALHO.map(c => '<th style="' + th + '">' + sdjEsc(c) + '</th>').join('') + '</tr></thead><tbody>' +
+    m.linhas.map((l, i) => '<tr style="background:' + (i % 2 ? '#f6f6f6' : '#fff') + ';">' + l.map((v, j) => {
+      const base = 'padding:6px 8px;border:1px solid #e5e7eb;text-align:center;white-space:nowrap;';
+      if (j === 4) return '<td style="' + base + 'font-family:var(--font-mono);color:#1565c0;cursor:copy;font-weight:700;" title="Clique pra copiar a ordem" onclick="sdjCopiarOs(\'' + sdjEsc(v) + '\')">' + sdjEsc(v) + '</td>';
+      if (j === 5 && !v) return '<td style="' + base + 'color:#9ca3af;">' + (m.pendentes ? '…' : '—') + '</td>';
+      return '<td style="' + base + (j === 5 ? 'font-family:var(--font-mono);' : '') + '">' + sdjEsc(v) + '</td>';
+    }).join('') + '</tr>').join('') + '</tbody></table></div>';
+  return h;
+}
+// Copia a tabela aberta em TSV (colar direto no Google Sheets/Excel). Espera as equipes terminarem de carregar.
+function ctrlCopiarAbertas(chave, comCabecalho) {
+  const [g, cs] = chave.split('|'), p = ctrlDados && ctrlDados[ctrlVisao];
+  if (!p) return;
+  const os = ctrlForaNoIntervalo(p).filter(x => x.grupo === g && x.cs === cs);
+  const m = ctrlLinhasModelo(os);
+  if (m.pendentes) { showToast('Ainda buscando as equipes — espera um instante', 2500); return; }
+  const tsv = (comCabecalho ? [CTRL_CABECALHO] : []).concat(m.linhas).map(l => l.join('\t')).join('\n');
+  navigator.clipboard.writeText(tsv).then(
+    () => showToast('✔ ' + m.linhas.length + ' ordem(ns) copiada(s)' + (comCabecalho ? ' com cabeçalho' : '') + ' — é só colar na planilha' + (m.semDetalhe ? ' (' + m.semDetalhe + ' sem equipe)' : ''), 3500),
+    () => showToast('Não foi possível copiar', 3000));
 }
 
 function ctrlCopiarZap() {
