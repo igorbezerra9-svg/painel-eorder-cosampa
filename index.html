@@ -328,6 +328,16 @@
       <button class="pg-tipo-btn" id="pg-tipo-nreg" onclick="pgSetTipo('NREG')" style="background:#fff3e8;color:#bf360c;border-color:#ffb74d;">Não reguladas</button>
       <button class="pg-tipo-btn" id="pg-sem-perdas" onclick="pgToggleExcluirPerdas()" style="margin-left:4px;" title="Combina com o filtro Reguladas/Não reguladas acima -- tira as OS de categoria Perdas do que está sendo mostrado">Sem Perdas</button>
     </div>
+    <!-- Categoria (clicável): do jeito que o eOrder classifica -->
+    <div style="flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px;">
+      <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Categoria:</span>
+      <button class="pg-tipo-btn active" id="pg-cat-all" onclick="pgSetCategoria('')">Todas</button>
+      <button class="pg-tipo-btn" id="pg-cat-nc" onclick="pgSetCategoria('NC')" title="Novas Conexões = Ligação Nova + Verificação Comercial + Alteração de Ligação">Novas Conexões</button>
+      <button class="pg-tipo-btn" id="pg-cat-ver" onclick="pgSetCategoria('VER')" title="Verificação Comercial (aferição, selagem, acréscimo de carga, troca de medidor...)">Verificação</button>
+      <button class="pg-tipo-btn" id="pg-cat-perdas" onclick="pgSetCategoria('PERDAS')" title="Gestão de Perdas">Perdas</button>
+      <button class="pg-tipo-btn" id="pg-cat-corte" onclick="pgSetCategoria('CORTE')">Corte</button>
+      <button class="pg-tipo-btn" id="pg-cat-relig" onclick="pgSetCategoria('RELIG')">Religação</button>
+    </div>
   </div>
 
   <div id="pg-sem-dados" style="display:none;text-align:center;padding:60px;color:var(--gray-400);">
@@ -455,6 +465,16 @@
             </div>
           </div>
         </div>
+      </div>
+      <!-- Categoria (clicável): do jeito que o eOrder classifica -->
+      <div style="flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--gray-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Categoria:</span>
+        <button class="pg-tipo-btn active" id="exec-cat-all" onclick="execSetCategoria('')">Todas</button>
+        <button class="pg-tipo-btn" id="exec-cat-nc" onclick="execSetCategoria('NC')" title="Novas Conexões = Ligação Nova + Verificação Comercial + Alteração de Ligação">Novas Conexões</button>
+        <button class="pg-tipo-btn" id="exec-cat-ver" onclick="execSetCategoria('VER')" title="Verificação Comercial (aferição, selagem, acréscimo de carga, troca de medidor...)">Verificação</button>
+        <button class="pg-tipo-btn" id="exec-cat-perdas" onclick="execSetCategoria('PERDAS')" title="Gestão de Perdas">Perdas</button>
+        <button class="pg-tipo-btn" id="exec-cat-corte" onclick="execSetCategoria('CORTE')">Corte</button>
+        <button class="pg-tipo-btn" id="exec-cat-relig" onclick="execSetCategoria('RELIG')">Religação</button>
       </div>
     </div>
 
@@ -1577,7 +1597,7 @@ const TIPO_REGULADA = {
   'OUTNCU':true,'OUTAMC':true,'OUTSEM':true,'OUTIRM':true,'NOVLBT':true,'NOVLNA':true,
   'OUTAQM':true,'OUTSDJ':true,'OUTSRL':true,'OUTTME':true,'OUTNCR':true,
   'OUTDCM':true,'OUTACT':true,'OUTIMB':true,'OUTRAR':true,'OUTRNR':true,
-  'OUTRNU':true,'OUTRIM':true,'OUTRAU':true,'OUTCP0':true,'OUTRNL':true,
+  'OUTRNU':true,'OUTRUR':true,'OUTRIM':true,'OUTRAU':true,'OUTCP0':true,'OUTRNL':true,
   'OUTVMT':true,'NOVPRO':true,'OUTOTC':true,'OUTIMR':true,'OUTSTB':true,
   'OUTIRC':true,'OUTMLD':true,'OUTMMI':true,'OUTRCI':true,'OUTRVI':true,
   'OUTRCO':true,'OUTACB':true,'NOVCAP':true,'OUTCMI':true,'OUTDIR':true,
@@ -1611,6 +1631,41 @@ const TIPO_SERVICO_CATEGORIA = {
   'OUTRCI':'Religação','OUTRCO':'Religação','OUTRVI':'Religação','OUTRNR':'Religação',
   'OUTRNU':'Religação','OUTRUR':'Religação'
 };
+
+// ══ CATEGORIA (filtro clicável do Painel Gerencial e da Execução) ══
+// Família de cada código do jeito que o próprio eOrder classifica (Processo + Tipo TdC), conferido na planilha bruta do TdC de 18/11/2026:
+//   Novas Conexões → 'NC_LN' Ligação Nova · 'NC_VER' Verificação Comercial · 'NC_ALT' Alteração de Ligação
+//   Gestão Inadimplências → 'CORTE' · 'RELIG'      Gestão Perdas → 'PERDAS'
+// (Difere da TIPO_SERVICO_CATEGORIA de propósito: lá OUTNCU/OUTNCR/OUTCP0 são "Ligação Nova"; no eOrder são Religação/Corte. OUTSDJ aparece
+// nos dois tipos -- 30 Verificação × 10 Alteração -- e ficou em Verificação.) Código novo/que não está aqui cai pela categoria antiga.
+const TIPO_FAMILIA = {
+  'NOVLBT':'NC_LN','NOVPRO':'NC_LN','NOVLNA':'NC_LN','OUTRIM':'NC_LN',
+  'OUTMGD':'NC_VER','OUTAMC':'NC_VER','OUTVPC':'NC_VER','OUTSEM':'NC_VER','OUTSDJ':'NC_VER','OUTACT':'NC_VER','OUTSRL':'NC_VER',
+  'OUTSEE':'NC_VER','OUTVIE':'NC_VER','OUTVMT':'NC_VER','NOVVIU':'NC_VER','NOVVIR':'NC_VER',
+  'OUTMML':'NC_ALT','OUTSML':'NC_ALT','OUTIMB':'NC_ALT','OUTIMR':'NC_ALT','OUTDCM':'NC_ALT','OUTMLD':'NC_ALT','OUTAQM':'NC_ALT','OUTDBR':'NC_ALT',
+  'OUTCDN':'CORTE','OUTRNN':'CORTE','OUTERM':'CORTE','OUTCP0':'CORTE',
+  'OUTNCU':'RELIG','OUTNCR':'RELIG','OUTRNR':'RELIG','OUTRAR':'RELIG','OUTRNU':'RELIG','OUTRAU':'RELIG',
+  'OUTTME':'PERDAS','OUTIRM':'PERDAS','OUTIRD':'PERDAS','OUTTCP':'PERDAS','OUTOTC':'PERDAS','OUTIRC':'PERDAS'
+};
+function familiaOrdem(r) {
+  const cod = opCodigoServico(r);
+  if (TIPO_FAMILIA[cod]) return TIPO_FAMILIA[cod];
+  const cat = TIPO_SERVICO_CATEGORIA[cod];
+  return cat === 'Perdas' ? 'PERDAS' : cat === 'Corte' ? 'CORTE' : cat === 'Religação' ? 'RELIG' : cat === 'Ligação Nova' ? 'NC_OUT' : '';
+}
+// k: '' (todas) | 'NC' (Novas Conexões = Ligação Nova + Verificação + Alteração) | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG'
+function passaCategoria(r, k) {
+  if (!k) return true;
+  const f = familiaOrdem(r);
+  if (k === 'NC') return f.startsWith('NC_');
+  if (k === 'VER') return f === 'NC_VER';
+  return f === k;
+}
+function categoriaMarcarPills(prefixo, k) {
+  ['all', 'nc', 'ver', 'perdas', 'corte', 'relig'].forEach(x => { const b = document.getElementById(prefixo + '-cat-' + x); if (b) b.classList.remove('active'); });
+  const b = document.getElementById(prefixo + '-cat-' + (k === '' ? 'all' : k.toLowerCase()));
+  if (b) b.classList.add('active');
+}
 
 // Só faz sentido pra Corte -- onde fisicamente o corte foi feito. Só os
 // códigos que representam a AÇÃO de cortar em si (não "não conseguiu
@@ -2029,6 +2084,14 @@ function pgSetTipo(t) {
   pgRender();
 }
 
+let pgCategoria = '';   // '' | 'NC' | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG' (ver familiaOrdem)
+function pgSetCategoria(k) {
+  pgCategoria = k;
+  categoriaMarcarPills('pg', k);
+  // Escolher "Perdas" com "Sem Perdas" ligado deixaria a tela vazia -- desliga o "Sem Perdas" junto.
+  if (k === 'PERDAS' && pgExcluirPerdas) pgToggleExcluirPerdas(); else pgRender();
+}
+
 function pgToggleExcluirPerdas() {
   pgExcluirPerdas = !pgExcluirPerdas;
   const btn = document.getElementById('pg-sem-perdas');
@@ -2089,6 +2152,7 @@ function pgFiltrarBase(csFiltro, incluirTodosEstados) {
     }
     if (pgTipo && getTipoOrdem(r) !== pgTipo) return false;
     if (pgExcluirPerdas && opCategoriaServico(r) === 'Perdas') return false;
+    if (pgCategoria && !passaCategoria(r, pgCategoria)) return false;
     if (pgTiposServico.length && !pgTiposServico.includes(opCodigoServico(r))) return false;
     if (csFiltro && pgGetCS(r) !== csFiltro) return false;
     if (pgSupervisores.length && !pgSupervisores.includes(getSupervisor(r['Código Equipe']||''))) return false;
@@ -2875,6 +2939,13 @@ function execSetTipoRegNreg(t) {
   execRender();
 }
 
+let execCategoria = '';   // '' | 'NC' | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG' (ver familiaOrdem)
+function execSetCategoria(k) {
+  execCategoria = k;
+  categoriaMarcarPills('exec', k);
+  execRender();
+}
+
 function execToggleComparativo() {
   execModoComparativo = !execModoComparativo;
   document.getElementById('exec-comp-toggle').classList.toggle('active', execModoComparativo);
@@ -2958,6 +3029,7 @@ function execGetTipo(r) {
 function execFiltrarExecutadoBase(csFiltro) {
   return execDados.filter(r => {
     if (execTipoRegNreg && getTipoOrdem(r) !== execTipoRegNreg) return false;
+    if (execCategoria && !passaCategoria(r, execCategoria)) return false;
     if (csFiltro && execGetCentro(r) !== csFiltro) return false;
     if (execSupervisores.length && !execSupervisores.includes(getSupervisor(r['Recurso/Equipe']||''))) return false;
     if (execTiposSelecionados.length && !execTiposSelecionados.includes(execGetTipo(r))) return false;
@@ -2974,6 +3046,7 @@ function execFiltrarPlanejadoBase(csFiltro) {
     const estado = (r['Estado TdC'] || '').trim().toLowerCase();
     if (EXCLUIR.includes(estado)) return false;
     if (execTipoRegNreg && getTipoOrdem(r) !== execTipoRegNreg) return false;
+    if (execCategoria && !passaCategoria(r, execCategoria)) return false;
     if (csFiltro && pgGetCS(r) !== csFiltro) return false;
     if (execSupervisores.length && !execSupervisores.includes(getSupervisor(r['Código Equipe']||''))) return false;
     if (execTiposSelecionados.length && !execTiposSelecionados.includes(execGetTipo(r))) return false;
