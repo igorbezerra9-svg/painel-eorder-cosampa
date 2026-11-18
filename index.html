@@ -1647,20 +1647,24 @@ const TIPO_FAMILIA = {
   'OUTNCU':'RELIG','OUTNCR':'RELIG','OUTRNR':'RELIG','OUTRAR':'RELIG','OUTRNU':'RELIG','OUTRAU':'RELIG',
   'OUTTME':'PERDAS','OUTIRM':'PERDAS','OUTIRD':'PERDAS','OUTTCP':'PERDAS','OUTOTC':'PERDAS','OUTIRC':'PERDAS'
 };
-function familiaOrdem(r) {
-  const cod = opCodigoServico(r);
+function familiaDoCodigo(cod) {
   if (TIPO_FAMILIA[cod]) return TIPO_FAMILIA[cod];
   const cat = TIPO_SERVICO_CATEGORIA[cod];
   return cat === 'Perdas' ? 'PERDAS' : cat === 'Corte' ? 'CORTE' : cat === 'Religação' ? 'RELIG' : cat === 'Ligação Nova' ? 'NC_OUT' : '';
 }
+function familiaOrdem(r) { return familiaDoCodigo(opCodigoServico(r)); }
 // k: '' (todas) | 'NC' (Novas Conexões = Ligação Nova + Verificação + Alteração) | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG'
-function passaCategoria(r, k) {
+function codigoNaCategoria(cod, k) {
   if (!k) return true;
-  const f = familiaOrdem(r);
+  const f = familiaDoCodigo(cod);
   if (k === 'NC') return f.startsWith('NC_');
   if (k === 'VER') return f === 'NC_VER';
   return f === k;
 }
+function passaCategoria(r, k) { return codigoNaCategoria(opCodigoServico(r), k); }
+// Código a partir do texto do tipo ("OUTCDN - CORTE DUNNING" -> "OUTCDN"); usado pela lista de Tipo de Serviço da Execução
+function codigoDoTexto(t) { return String(t || '').trim().toUpperCase().split(' - ')[0].trim().split(' ')[0]; }
+const CATEGORIA_ROTULO = { NC: 'Novas Conexões', VER: 'Verificação', PERDAS: 'Perdas', CORTE: 'Corte', RELIG: 'Religação' };
 function categoriaMarcarPills(prefixo, k) {
   ['all', 'nc', 'ver', 'perdas', 'corte', 'relig'].forEach(x => { const b = document.getElementById(prefixo + '-cat-' + x); if (b) b.classList.remove('active'); });
   const b = document.getElementById(prefixo + '-cat-' + (k === '' ? 'all' : k.toLowerCase()));
@@ -1813,8 +1817,9 @@ function pgPopularFiltroTipoSrv() {
       desc[c] = t.split(' - ').slice(1).join(' - ');
     }
   });
-  // Mais frequentes primeiro -- é o que a pessoa procura
-  const codigos = Object.keys(cont).sort((a, b) => cont[b] - cont[a]);
+  // Mais frequentes primeiro -- é o que a pessoa procura. Com uma Categoria escolhida, só os tipos dela
+  // (e tira da seleção o que ficou de fora, senão o filtro combinado deixaria a tela vazia).
+  const codigos = Object.keys(cont).filter(c => codigoNaCategoria(c, pgCategoria)).sort((a, b) => cont[b] - cont[a]);
   pgTiposServico = pgTiposServico.filter(c => codigos.includes(c));
   document.getElementById('pg-tiposrv-opcoes').innerHTML = codigos.map(c => {
     const marcado = pgTiposServico.includes(c) ? 'checked' : '';
@@ -1827,7 +1832,7 @@ function pgPopularFiltroTipoSrv() {
 function pgAtualizarTipoSrvLabel() {
   const b = document.getElementById('pg-tiposrv-btn');
   if (!b) return;
-  b.textContent = !pgTiposServico.length ? 'Todos'
+  b.textContent = !pgTiposServico.length ? (pgCategoria ? 'Todos · ' + CATEGORIA_ROTULO[pgCategoria] : 'Todos')
     : pgTiposServico.length === 1 ? pgTiposServico[0]
     : pgTiposServico.length + ' tipos';
   b.style.fontWeight = pgTiposServico.length ? '700' : '';
@@ -2088,6 +2093,7 @@ let pgCategoria = '';   // '' | 'NC' | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG' (ver
 function pgSetCategoria(k) {
   pgCategoria = k;
   categoriaMarcarPills('pg', k);
+  pgPopularFiltroTipoSrv();   // a lista de Tipo de Serviço passa a mostrar só os tipos da categoria
   // Escolher "Perdas" com "Sem Perdas" ligado deixaria a tela vazia -- desliga o "Sem Perdas" junto.
   if (k === 'PERDAS' && pgExcluirPerdas) pgToggleExcluirPerdas(); else pgRender();
 }
@@ -2943,6 +2949,7 @@ let execCategoria = '';   // '' | 'NC' | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG' (v
 function execSetCategoria(k) {
   execCategoria = k;
   categoriaMarcarPills('exec', k);
+  execPopularFiltroTipos();   // a lista de Tipo de Serviço passa a mostrar só os tipos da categoria
   execRender();
 }
 
@@ -3130,7 +3137,9 @@ function execPopularFiltroTipos() {
   const tiposPlanejado = execPlanejadoDados
     .filter(r => !EXCLUIR.includes((r['Estado TdC'] || '').trim().toLowerCase()))
     .map(execGetTipo);
-  const tipos = [...new Set([...tiposPlanejado, ...execDados.map(execGetTipo)].filter(Boolean))].sort();
+  // Com uma Categoria escolhida, só os tipos dela (e a seleção abaixo já descarta o que ficou de fora)
+  const tipos = [...new Set([...tiposPlanejado, ...execDados.map(execGetTipo)].filter(Boolean))]
+    .filter(t => codigoNaCategoria(codigoDoTexto(t), execCategoria)).sort();
   // Mantém seleção atual só com tipos que ainda existem nos dados carregados
   execTiposSelecionados = execTiposSelecionados.filter(t => tipos.includes(t));
   const wrap = document.getElementById('exec-tipo-opcoes');
@@ -3176,7 +3185,7 @@ function execClearTipos() {
 function execUpdateTipoBtnLabel() {
   const btn = document.getElementById('exec-tipo-btn');
   if (!btn) return;
-  if (execTiposSelecionados.length === 0) { btn.textContent = 'Todos'; btn.title = ''; btn.classList.remove('active'); }
+  if (execTiposSelecionados.length === 0) { btn.textContent = execCategoria ? 'Todos · ' + CATEGORIA_ROTULO[execCategoria] : 'Todos'; btn.title = ''; btn.classList.remove('active'); }
   else if (execTiposSelecionados.length === 1) { btn.textContent = execTiposSelecionados[0]; btn.title = execTiposSelecionados[0]; btn.classList.add('active'); }
   else { btn.textContent = execTiposSelecionados.length + ' selecionados'; btn.title = execTiposSelecionados.join(', '); btn.classList.add('active'); }
 }
