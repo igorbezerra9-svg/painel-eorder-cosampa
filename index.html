@@ -1653,6 +1653,10 @@ function familiaDoCodigo(cod) {
   return cat === 'Perdas' ? 'PERDAS' : cat === 'Corte' ? 'CORTE' : cat === 'Religação' ? 'RELIG' : cat === 'Ligação Nova' ? 'NC_OUT' : '';
 }
 function familiaOrdem(r) { return familiaDoCodigo(opCodigoServico(r)); }
+// Todo código conhecido, dos dois mapas -- usado pelo Painel Operacional pra
+// marcar de uma vez os serviços de uma categoria.
+const OP_TODOS_OS_CODIGOS = Array.from(new Set(
+  Object.keys(TIPO_SERVICO_CATEGORIA).concat(Object.keys(TIPO_FAMILIA))));
 // k: '' (todas) | 'NC' (Novas Conexões = Ligação Nova + Verificação + Alteração) | 'VER' | 'PERDAS' | 'CORTE' | 'RELIG'
 function codigoNaCategoria(cod, k) {
   if (!k) return true;
@@ -3939,8 +3943,10 @@ function opSetTipo(v) {
   op.tipo = (op.tipo === v) ? '' : v;
   op.servicosSelecionados.clear();
   if (op.tipo) {
-    Object.keys(TIPO_SERVICO_CATEGORIA).forEach(cod => {
-      if (TIPO_SERVICO_CATEGORIA[cod] === op.tipo) op.servicosSelecionados.add(cod);
+    // Varre os dois mapas: OUTNCU/OUTNCR só existem na TIPO_FAMILIA como
+    // Religação, e ficariam de fora se olhássemos só a TIPO_SERVICO_CATEGORIA.
+    OP_TODOS_OS_CODIGOS.forEach(cod => {
+      if (opCategoriaDoCodigo(cod) === op.tipo) op.servicosSelecionados.add(cod);
     });
   }
   opRenderChipsEstaticos();
@@ -4098,8 +4104,23 @@ function opDescricaoServico(cod, registros) {
 function opClassificar(r) {
   return _classificarResultado(r);
 }
+// Categoria do serviço pela mesma família que o filtro de Categoria do Painel
+// Gerencial e da Execução usam (TIPO_FAMILIA, tirada da classificação do
+// próprio eOrder). Antes isto lia a TIPO_SERVICO_CATEGORIA direto, e por isso
+// marcar "Religação" no Painel Operacional trazia uma lista de Tipo de Serviço
+// diferente da da Execução. Dos 61 códigos, só 3 mudam de lugar -- são
+// exatamente os que o comentário da TIPO_FAMILIA já apontava:
+//   OUTNCU e OUTNCR (lig. nova sem instalar medidor): Ligação Nova → Religação
+//   OUTCP0 (corte de ligação provisória):             Ligação Nova → Corte
+const OP_CATEGORIA_POR_FAMILIA = {
+  CORTE: 'Corte', RELIG: 'Religação', PERDAS: 'Perdas',
+  NC_LN: 'Ligação Nova', NC_VER: 'Ligação Nova', NC_ALT: 'Ligação Nova', NC_OUT: 'Ligação Nova'
+};
+function opCategoriaDoCodigo(cod) {
+  return OP_CATEGORIA_POR_FAMILIA[familiaDoCodigo(cod)] || 'Outros';
+}
 function opCategoriaServico(r) {
-  return TIPO_SERVICO_CATEGORIA[opCodigoServico(r)] || 'Outros';
+  return opCategoriaDoCodigo(opCodigoServico(r));
 }
 function opReguladaStatus(r) {
   const cod = opCodigoServico(r);
@@ -4126,7 +4147,7 @@ function opPopularServicos() {
     const cod = opCodigoServico(r);
     if (!cod || vistos.has(cod)) return;
     vistos.add(cod);
-    const cat = TIPO_SERVICO_CATEGORIA[cod] || 'Outros';
+    const cat = opCategoriaDoCodigo(cod);
     if (!grupos[cat]) grupos[cat] = [];
     grupos[cat].push({ cod, desc: opDescricaoServico(cod, registros) });
   });
