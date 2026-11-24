@@ -11,9 +11,14 @@ SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6I
 COLS_TDC = [
     'Numero de Serviço', 'Tipo Remessa WIN', ' Tipo de Serviço', 'Estado TdC',
     'Código Equipe', 'Chefe/Responsável de Equipe', 'Município', 'Endereço Completo',
-    'Data Prevista Finalização Trabalhos', 'Latitude', 'Longitude', 'Dica Localização',
-    'Rota de Leitura', 'Código Cliente', 'Nome e Sobrenome Cliente',
+    'Data Prevista Finalização Trabalhos', 'Latitude', 'Longitude',
+    'Código Cliente', 'Nome e Sobrenome Cliente',
 ]
+# 'Dica Localização' e 'Rota de Leitura' saíram em 05/11/2026: o painel nunca
+# as lê (só aparecem na ordem das colunas do botão 'Baixar', que busca a região
+# Sul_completo, essa sim com tudo). Iam juntas em toda publicação -- 26% do
+# pacote comprimido do Painel Gerencial, 33 vezes por dia, pra cada tela
+# aberta. Foi o que estourou a cota de egress do Supabase em nov/2026.
 
 COLS_EXECUCAO = [
     'Numero de Serviço', 'Tipo Remessa WIN', ' Tipo de Serviço',

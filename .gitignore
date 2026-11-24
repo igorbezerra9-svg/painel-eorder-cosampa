@@ -13,3 +13,11 @@ clientes_sul_hoje.json
 plc_rastreio_idx.json
 prazos_os_idx.json
 prazos_os_idx.json.tmp
+
+# estado/log de execucao do robo -- nao e codigo
+sdj_historico_hash.txt
+controle_baixas_idx.json
+controle_prazo.log
+prazos_os_idx.BACKUP-*.json
+# copias de seguranca feitas a mao na VPS durante testes
+*.bak-*

@@ -19,7 +19,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 
 import openpyxl
 
@@ -41,9 +41,14 @@ HISTORICO_RETENCAO_DIAS = 30
 COLS_TDC = [
     "Numero de Serviço", "Tipo Remessa WIN", " Tipo de Serviço", "Estado TdC",
     "Código Equipe", "Chefe/Responsável de Equipe", "Município", "Endereço Completo",
-    "Data Prevista Finalização Trabalhos", "Latitude", "Longitude", "Dica Localização",
-    "Rota de Leitura", "Código Cliente", "Nome e Sobrenome Cliente",
+    "Data Prevista Finalização Trabalhos", "Latitude", "Longitude",
+    "Código Cliente", "Nome e Sobrenome Cliente",
 ]
+# "Dica Localização" e "Rota de Leitura" saíram em 05/11/2026: o painel nunca
+# as lê (só aparecem na ordem das colunas do botão "Baixar", que busca a região
+# Sul_completo, essa sim com tudo). Iam juntas em toda publicação -- 26% do
+# pacote comprimido do Painel Gerencial, 33 vezes por dia, pra cada tela
+# aberta. Foi o que estourou a cota de egress do Supabase em nov/2026.
 COLS_EXECUCAO = [
     "Numero de Serviço", "Tipo Remessa WIN", " Tipo de Serviço",
     "Recurso/Equipe", "Município", "Data início Execução", "Data fim Execução", "Código Resultado",
@@ -711,22 +716,43 @@ class EOrderExecucaoBot:
         driver.switch_to.default_content()
         raise TimeoutException(f"Elemento não encontrado: {xpath}")
 
+    # O portal (eOrder) às vezes redesenha a tela ENTRE achar o elemento e clicar nele ("stale element reference").
+    # Antes isso derrubava a tentativa inteira (e, com 3 tentativas seguidas assim, o ciclo do painel ficava sem publicar).
+    # Agora acha o elemento de novo e repete o clique/digitação (até _STALE_TENTATIVAS vezes) antes de desistir.
+    _STALE_TENTATIVAS = 4
+
     def _click(self, xpath, timeout=20):
-        el = self._find(xpath, EC.element_to_be_clickable, timeout)
-        try:
-            el.click()
-        except Exception:
-            self.driver.execute_script("arguments[0].click();", el)
-        return el
+        for tentativa in range(1, self._STALE_TENTATIVAS + 1):
+            el = self._find(xpath, EC.element_to_be_clickable, timeout)
+            try:
+                try:
+                    el.click()
+                except StaleElementReferenceException:
+                    raise
+                except Exception:
+                    self.driver.execute_script("arguments[0].click();", el)
+                return el
+            except StaleElementReferenceException:
+                if tentativa == self._STALE_TENTATIVAS:
+                    raise
+                time.sleep(0.6)
 
     def _double_click(self, xpath, timeout=20):
-        el = self._find(xpath, EC.element_to_be_clickable, timeout)
-        try:
-            webdriver.ActionChains(self.driver).double_click(el).perform()
-        except Exception:
-            self.driver.execute_script(
-                "var ev = new MouseEvent('dblclick', {bubbles: true}); arguments[0].dispatchEvent(ev);", el)
-        return el
+        for tentativa in range(1, self._STALE_TENTATIVAS + 1):
+            el = self._find(xpath, EC.element_to_be_clickable, timeout)
+            try:
+                try:
+                    webdriver.ActionChains(self.driver).double_click(el).perform()
+                except StaleElementReferenceException:
+                    raise
+                except Exception:
+                    self.driver.execute_script(
+                        "var ev = new MouseEvent('dblclick', {bubbles: true}); arguments[0].dispatchEvent(ev);", el)
+                return el
+            except StaleElementReferenceException:
+                if tentativa == self._STALE_TENTATIVAS:
+                    raise
+                time.sleep(0.6)
 
     def _click_por_texto(self, texto):
         """
@@ -759,9 +785,15 @@ class EOrderExecucaoBot:
         return bool(self.driver.execute_script(script, texto))
 
     def _type(self, xpath, texto, timeout=20):
-        el = self._find(xpath, EC.element_to_be_clickable, timeout)
-        el.click(); el.clear(); el.send_keys(str(texto))
-        return el
+        for tentativa in range(1, self._STALE_TENTATIVAS + 1):
+            el = self._find(xpath, EC.element_to_be_clickable, timeout)
+            try:
+                el.click(); el.clear(); el.send_keys(str(texto))
+                return el
+            except StaleElementReferenceException:
+                if tentativa == self._STALE_TENTATIVAS:
+                    raise
+                time.sleep(0.6)
 
     def _login(self, usuario, senha):
         self._plog("🌐 Abrindo eOrder...")
@@ -1406,8 +1438,15 @@ class EOrderExecucaoBot:
 
     def _marcar_centro_operativo_tdc(self):
         self._plog(f"📍 Marcando Centro Operativo: {CENTRO_OP_VALOR}...")
-        el = self._find(XP_CENTRO_OP_TDC, EC.presence_of_element_located, timeout=20)
-        Select(el).select_by_visible_text(CENTRO_OP_VALOR)
+        for tentativa in range(1, self._STALE_TENTATIVAS + 1):
+            el = self._find(XP_CENTRO_OP_TDC, EC.presence_of_element_located, timeout=20)
+            try:
+                Select(el).select_by_visible_text(CENTRO_OP_VALOR)
+                break
+            except StaleElementReferenceException:
+                if tentativa == self._STALE_TENTATIVAS:
+                    raise
+                time.sleep(0.6)
 
     def _processos_subprocessos(self):
         self._plog("⚙️  Abrindo Processos/Subprocessos...")
